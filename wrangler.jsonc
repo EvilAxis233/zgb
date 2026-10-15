@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "zgb-trpg",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-15",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zgb-trpg",
+      "database_id": "743b8f10-ed08-4875-87e0-63dc191b8051",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "COVERS", "bucket_name": "zgb-trpg-covers" }
+  ],
+  "vars": {
+    "RESEND_FROM": "诸告板 <login@mail.dhvault.top>"
+  }
+}

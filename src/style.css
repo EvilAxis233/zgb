@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  
+  code, pre, .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Bauhaus minimalist geometric utilities */
+.bauhaus-card {
+  background-color: #ffffff;
+  border: 2px solid #121212;
+  box-shadow: 4px 4px 0px #121212;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bauhaus-card-interactive:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #121212;
+}
+
+.bauhaus-card-interactive:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #121212;
+}
+
+.bauhaus-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border: 2px solid #121212;
+  box-shadow: 3px 3px 0px #121212;
+  transition: all 0.12s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.bauhaus-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #121212;
+}
+
+.bauhaus-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #121212;
+}
+
+.bauhaus-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bauhaus-input {
+  border: 2px solid #121212;
+  outline: none;
+  background-color: #ffffff;
+  transition: background-color 0.15s ease;
+}
+
+.bauhaus-input:focus {
+  background-color: #fffdf5;
+  border-color: #004E98;
+}
+
+/* Bauhaus primary color tokens */
+:root {
+  --b-red: #D62828;
+  --b-blue: #004E98;
+  --b-yellow: #F4A261;
+  --b-black: #121212;
+  --b-white: #FFFFFF;
+  --b-paper: #F6F5F0;
+}
