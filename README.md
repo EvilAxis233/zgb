@@ -20,6 +20,6 @@
 
 GitHub 仓库为 [dqqql/zgb](https://github.com/dqqql/zgb)，生产地址为 [zgb-trpg.pages.dev](https://zgb-trpg.pages.dev)。Cloudflare Pages 项目 `zgb-trpg` 连接该仓库，生产分支 `main`，构建命令 `npm run build`，输出目录 `dist`。推送 `main` 会自动部署生产；其他分支使用预览部署。`wrangler.jsonc` 保存 D1/R2 绑定，远端迁移运行 `npm run db:migrate:remote`。
 
-在 Pages 生产环境设置加密 Secret：`RESEND_API_KEY` 与 `OTP_SECRET`。`RESEND_FROM` 在 `wrangler.jsonc` 中设置。配置后重新部署并验证 `/api/health`、空首页、实际 QQ 邮件和登录。不要在预览环境复用生产 Secret 或向真实用户发送测试验证码。`OTP_SECRET` 已单独生成并配置；`RESEND_API_KEY` 待配置。
+Pages 生产环境已分别设置加密 Secret `RESEND_API_KEY` 和 `OTP_SECRET`；`RESEND_FROM` 在 `wrangler.jsonc` 中设置。更换任何 Secret 后重新部署，再验证 `/api/health`、空首页和实际 QQ 邮件登录。不要在预览环境复用生产 Secret 或向真实用户发送测试验证码。
 
 此前用于释放 D1 配额的旧 `ssjz` 数据库已备份至本机 `backups/ssjz-2026-10-15.sql`；该目录被 Git 忽略。旧 `ssjz` Pages 项目仍存在，但原 D1 绑定已失效。
