@@ -16,6 +16,12 @@
 
 `migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键。`campaigns.max_players` 是展示的预计人数，`voucher_limit` 在生成时从它复制；不维护实时报名人数。`participations` 和 `praises` 留存发放与消耗记录。站点清空浏览器数据不影响这些服务器记录。
 
+## 管理后台
+
+访问 `/admin`。初始管理员密码只在 Pages Function 后端的 `ADMIN_PASSWORD` 常量中；前端不含密码。后台使用独立的 HttpOnly、Secure、SameSite=Strict Cookie，会话有效期 12 小时；单个 IP 15 分钟内连续五次输错后会暂时拒绝登录。修改后端密码会使旧管理员会话失效。此初始密码随公开代码可见，请在正式共享后台前自行替换。
+
+后台可添加、删除规则名。规则保存在 D1 的 `rules` 表；发布新团和修改团时读取此列表。删除规则不会改写既有团的历史规则名称，既有团仍可显示和编辑其他字段。后台账号列表按 QQ 号或昵称搜索、分页显示，点选账号可查看从 `praises` 表读取的收礼和送礼记录，包括礼物类型、对方 QQ/昵称和时间。账号与记录接口都要求管理员会话。
+
 ## 生产部署
 
 GitHub 仓库为 [dqqql/zgb](https://github.com/dqqql/zgb)，生产地址为 [zgb-trpg.pages.dev](https://zgb-trpg.pages.dev)。Cloudflare Pages 项目 `zgb-trpg` 连接该仓库，生产分支 `main`，构建命令 `npm run build`，输出目录 `dist`。推送 `main` 会自动部署生产；其他分支使用预览部署。`wrangler.jsonc` 保存 D1/R2 绑定，远端迁移运行 `npm run db:migrate:remote`。

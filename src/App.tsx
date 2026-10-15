@@ -27,6 +27,7 @@ export function App() {
   // Application Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [rules, setRules] = useState<string[]>([]);
   const [participations, setParticipations] = useState<ParticipationRecord[]>([]);
   const [currentUserId, setUserIdState] = useState<string | null>(null);
 
@@ -49,12 +50,14 @@ export function App() {
       const data = await api.bootstrap();
       setUsers([...data.users.filter((u) => u.id !== data.user.id), data.user]);
       setCampaigns(data.campaigns);
+      setRules(data.rules);
       setParticipations(data.participations);
       setUserIdState(data.user.id);
     } else {
       const data = await api.campaigns();
       setUsers(data.users);
       setCampaigns(data.campaigns);
+      setRules(data.rules);
       setParticipations([]);
       setUserIdState(null);
     }
@@ -128,12 +131,12 @@ export function App() {
 
   // Extract all distinct rules for filtering
   const availableRules = useMemo(() => {
-    const ruleSet = new Set<string>();
+    const ruleSet = new Set<string>(rules);
     campaigns.forEach((c) => {
       if (c.rule) ruleSet.add(c.rule.trim());
     });
     return Array.from(ruleSet);
-  }, [campaigns]);
+  }, [campaigns, rules]);
 
   // Filter campaigns
   const filteredCampaigns = useMemo(() => {
@@ -354,6 +357,7 @@ export function App() {
             <ManageView
               currentUser={currentUser}
               myCampaigns={myCampaigns}
+              rules={rules}
               onToggleStatus={handleToggleStatus}
               onDeleteCampaign={handleDeleteCampaign}
               onGenerateVoucher={handleGenerateVoucher}
@@ -379,6 +383,7 @@ export function App() {
         isOpen={isPublishOpen}
         onClose={() => setIsPublishOpen(false)}
         currentUser={currentUser}
+        rules={rules}
         onPublish={handlePublish}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />

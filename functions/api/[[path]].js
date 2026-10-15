@@ -3,8 +3,17 @@ const fail = (message, status = 400) => json({ error: message }, status);
 const now = () => Math.floor(Date.now() / 1000);
 const dateHK = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const id = () => crypto.randomUUID();
+// Temporary launch password. Replace this constant before sharing admin access.
+const ADMIN_PASSWORD = 'EAboard';
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function sha256(value) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))); }
+const adminTokenHash = (token) => sha256(`${ADMIN_PASSWORD}:${token}`);
+async function passwordMatches(value) {
+  const [actual, expected] = await Promise.all([sha256(value), sha256(ADMIN_PASSWORD)]);
+  let difference = 0;
+  for (let i = 0; i < expected.length; i++) difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return difference === 0;
+}
 async function hmac(value, secret) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return hex(new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value))));
@@ -18,6 +27,13 @@ const campDto = (c) => ({ id: c.id, title: c.title, rule: c.rule, summary: c.sum
 const partDto = (p) => ({ id: p.id, userId: p.user_qq, campaignId: p.campaign_id, campaignTitle: p.title, gmName: p.gm_name, rule: p.rule, redeemedAt: p.redeemed_at.slice(0, 10), voucherCode: '' });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
+function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
+async function adminAuth(request, db) {
+  const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
+  if (!token) return false;
+  const session = await db.prepare('SELECT 1 FROM admin_sessions WHERE token_hash=? AND expires_at>?').bind(await adminTokenHash(token), now()).first();
+  return !!session;
+}
 async function auth(request, db) {
   const token = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return null;
@@ -51,6 +67,74 @@ export async function onRequest(context) {
     if (path[0] === 'images' && method === 'GET' && path[1]) {
       const object = await env.COVERS?.get(path[1]);
       return object ? new Response(object.body, { headers: { 'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } }) : fail('图片不存在', 404);
+    }
+    if (path[0] === 'admin') {
+      if (path[1] === 'login' && method === 'POST') {
+        const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+        const attempts = await db.prepare('SELECT COUNT(*) n FROM admin_login_attempts WHERE ip=? AND created_at>?').bind(ip, now() - 900).first();
+        if (attempts.n >= 5) return fail('尝试过多，请 15 分钟后再试', 429);
+        const submitted = (await body(request)).password;
+        if (typeof submitted !== 'string' || submitted.length > 200 || !await passwordMatches(submitted)) {
+          await db.prepare('INSERT INTO admin_login_attempts(ip,created_at) VALUES(?,?)').bind(ip, now()).run();
+          return fail('密码错误', 401);
+        }
+        await db.prepare('DELETE FROM admin_login_attempts WHERE ip=?').bind(ip).run();
+        const token = hex(crypto.getRandomValues(new Uint8Array(32)));
+        await db.prepare('INSERT INTO admin_sessions(token_hash,expires_at,created_at) VALUES(?,?,?)').bind(await adminTokenHash(token), now() + 12 * 3600, now()).run();
+        return json({ ok: true }, 200, { 'Set-Cookie': adminCookie(token, 12 * 3600) });
+      }
+      if (path[1] === 'me' && method === 'GET') return json({ authenticated: await adminAuth(request, db) });
+      if (path[1] === 'logout' && method === 'POST') {
+        const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
+        if (token) await db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await adminTokenHash(token)).run();
+        return json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
+      }
+      if (!await adminAuth(request, db)) return fail('请先登录后台', 401);
+      if (path[1] === 'rules' && path.length === 2) {
+        if (method === 'GET') {
+          const rows = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
+          return json({ rules: rows.results.map((row) => row.name) });
+        }
+        if (method === 'POST') {
+          const name = clean((await body(request)).name, 100);
+          if (!name) return fail('请输入规则名');
+          const exists = await db.prepare('SELECT 1 FROM rules WHERE name=? COLLATE NOCASE').bind(name).first();
+          if (exists) return fail('规则名已存在', 409);
+          await db.prepare('INSERT INTO rules(name,created_at) VALUES(?,?)').bind(name, new Date().toISOString()).run();
+          return json({ ok: true }, 201);
+        }
+        if (method === 'DELETE') {
+          const name = clean((await body(request)).name, 100);
+          const result = await db.prepare('DELETE FROM rules WHERE name=?').bind(name).run();
+          return result.meta.changes ? json({ ok: true }) : fail('规则不存在', 404);
+        }
+      }
+      if (path[1] === 'users' && path.length === 2 && method === 'GET') {
+        const search = clean(url.searchParams.get('search'), 40);
+        const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
+        const where = "WHERE qq LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\'";
+        const [count, users] = await db.batch([
+          db.prepare(`SELECT COUNT(*) n FROM users ${where}`).bind(pattern, pattern),
+          db.prepare(`SELECT qq,name,created_at,gm_hearts,player_hearts,received_gm,received_player,` +
+            `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
+            `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count ` +
+            `FROM users u ${where} ORDER BY created_at DESC LIMIT 50 OFFSET ?`).bind(pattern, pattern, offset)
+        ]);
+        return json({ users: users.results, total: count.results[0].n });
+      }
+      if (path[1] === 'users' && path[2] && path[3] === 'gifts' && method === 'GET') {
+        const qq = path[2], offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        const [count, records] = await db.batch([
+          db.prepare('SELECT COUNT(*) n FROM praises WHERE from_qq=? OR to_qq=?').bind(qq, qq),
+          db.prepare(`SELECT p.id,p.from_qq,p.to_qq,p.type,p.created_at,fu.name from_name,tu.name to_name ` +
+            `FROM praises p JOIN users fu ON fu.qq=p.from_qq JOIN users tu ON tu.qq=p.to_qq ` +
+            `WHERE p.from_qq=? OR p.to_qq=? ORDER BY p.created_at DESC LIMIT 50 OFFSET ?`).bind(qq, qq, offset)
+        ]);
+        return json({ records: records.results, total: count.results[0].n });
+      }
+      return fail('接口不存在', 404);
     }
     if (path[0] === 'auth' && path[1] === 'request-code' && method === 'POST') {
       const b = await body(request), qq = String(b.qq || '').trim();
@@ -100,16 +184,18 @@ export async function onRequest(context) {
     if (path[0] === 'campaigns' && path.length === 1 && method === 'GET') {
       const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
       const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
-      return json({ campaigns: rows.results.map((c) => { const dto = campDto(c); delete dto.voucherCode; return dto; }), users: hosts.results.map(publicUserDto) });
+      const rules = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
+      return json({ campaigns: rows.results.map((c) => { const dto = campDto(c); delete dto.voucherCode; return dto; }), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name) });
     }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'bootstrap' && method === 'GET') {
-      const [cs, ps, hosts] = await db.batch([
+      const [cs, ps, hosts, rules] = await db.batch([
         db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`),
         db.prepare('SELECT p.*,c.title,c.rule,u.name gm_name FROM participations p JOIN campaigns c ON c.id=p.campaign_id JOIN users u ON u.qq=c.gm_qq WHERE p.user_qq=? ORDER BY p.redeemed_at DESC').bind(user.qq),
-        db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL')
+        db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL'),
+        db.prepare('SELECT name FROM rules ORDER BY rowid')
       ]);
-      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: cs.results.map((c) => c.gm_qq === user.qq ? campDto(c) : (() => { const dto = campDto(c); delete dto.voucherCode; return dto; })()), participations: ps.results.map(partDto) });
+      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: cs.results.map((c) => c.gm_qq === user.qq ? campDto(c) : (() => { const dto = campDto(c); delete dto.voucherCode; return dto; })()), participations: ps.results.map(partDto), rules: rules.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
@@ -144,6 +230,7 @@ export async function onRequest(context) {
     }
     if (path[0] === 'campaigns' && method === 'POST' && path.length === 1) {
       const b = await body(request), c = validateCampaign(b), imageKey = clean(b.imageKey, 100) || null;
+      if (!await db.prepare('SELECT 1 FROM rules WHERE name=?').bind(c.rule).first()) return fail('请选择已配置的规则系统');
       if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
       const cid = id();
       await db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,image_key,banner_color,max_players,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary, c.description, c.time, imageKey, c.color, c.players, new Date().toISOString()).run();
@@ -155,6 +242,7 @@ export async function onRequest(context) {
       if (c.gm_qq !== user.qq) return fail('只有主持人可以操作', 403);
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request), data = validateCampaign(b), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
+        if (data.rule !== c.rule && !await db.prepare('SELECT 1 FROM rules WHERE name=?').bind(data.rule).first()) return fail('请选择已配置的规则系统');
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
         await db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,image_key=?,banner_color=?,max_players=? WHERE id=?').bind(data.title, data.rule, data.summary, data.description, data.time, imageKey, data.color, data.players, cid).run();
         return json({ ok: true });

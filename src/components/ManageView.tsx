@@ -15,6 +15,7 @@ import {
 interface ManageViewProps {
   currentUser: UserProfile;
   myCampaigns: Campaign[];
+  rules: string[];
   onToggleStatus: (campaignId: string, nextStatus: CampaignStatus) => void;
   onDeleteCampaign: (campaignId: string) => void;
   onGenerateVoucher: (campaignId: string) => void;
@@ -25,6 +26,7 @@ interface ManageViewProps {
 export const ManageView: React.FC<ManageViewProps> = ({
   currentUser,
   myCampaigns,
+  rules,
   onToggleStatus,
   onDeleteCampaign,
   onGenerateVoucher,
@@ -292,15 +294,17 @@ export const ManageView: React.FC<ManageViewProps> = ({
 
               <div>
                 <label className="block font-bold mb-1">规则系统</label>
-                <input
-                  type="text"
+                <select
                   required
                   value={editingCampaign.rule}
                   onChange={(e) =>
                     setEditingCampaign({ ...editingCampaign, rule: e.target.value })
                   }
                   className="bauhaus-input w-full p-2 text-sm"
-                />
+                >
+                  {!rules.includes(editingCampaign.rule) && <option value={editingCampaign.rule}>{editingCampaign.rule}（已从规则列表移除）</option>}
+                  {rules.map((rule) => <option key={rule} value={rule}>{rule}</option>)}
+                </select>
               </div>
 
               <div>

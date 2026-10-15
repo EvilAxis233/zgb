@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Campaign, UserProfile } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
@@ -8,19 +8,9 @@ interface PublishModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: UserProfile | null;
+  rules: string[];
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
 }
-
-const COMMON_RULES = [
-  'Call of Cthulhu 7th',
-  'D&D 5th Edition',
-  'Cyberpunk RED / 赛博朋克',
-  'Pathfinder 2e',
-  '密林剧团 / 日系微恐',
-  '无限流 / 跑投团',
-  '剑世界 2.5',
-  '其他原创规则',
-];
 
 const BAUHAUS_COLORS = [
   { name: '包豪斯红', hex: '#D62828' },
@@ -33,11 +23,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   isOpen,
   onClose,
   currentUser,
+  rules,
   onPublish,
 }) => {
   const [title, setTitle] = useState('');
-  const [rule, setRule] = useState(COMMON_RULES[0]);
-  const [customRule, setCustomRule] = useState('');
+  const [rule, setRule] = useState('');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [timeSchedule, setTimeSchedule] = useState('');
@@ -47,6 +37,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!rules.includes(rule)) setRule(rules[0] || '');
+  }, [rules, rule]);
 
   const processFile = (file: File) => {
     if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
@@ -103,11 +97,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       return;
     }
 
-    const selectedRule = rule === '其他原创规则' && customRule.trim() ? customRule.trim() : rule;
+    if (!rule || !rules.includes(rule)) { alert('请先选择规则系统'); return; }
 
     const success = await onPublish({
       title: title.trim(),
-      rule: selectedRule,
+      rule,
       gmId: currentUser.id,
       gmName: currentUser.name,
       summary: summary.trim(),
@@ -124,7 +118,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   };
 
   // Live preview campaign object
-  const previewRule = rule === '其他原创规则' && customRule.trim() ? customRule.trim() : rule;
+  const previewRule = rule || '规则待定';
   const previewCampaign: Campaign = {
     id: 'preview',
     title: title.trim() || '战役标题预览',
@@ -197,21 +191,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     onChange={(e) => setRule(e.target.value)}
                     className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"
                   >
-                    {COMMON_RULES.map((r) => (
+                    {!rules.length && <option value="">暂无规则</option>}
+                    {rules.map((r) => (
                       <option key={r} value={r}>
                         {r}
                       </option>
                     ))}
                   </select>
-                  {rule === '其他原创规则' && (
-                    <input
-                      type="text"
-                      value={customRule}
-                      onChange={(e) => setCustomRule(e.target.value)}
-                      placeholder="输入规则系统名称"
-                      className="bauhaus-input w-full px-3 py-1.5 text-xs mt-2"
-                    />
-                  )}
                 </div>
 
                 <div>
