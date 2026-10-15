@@ -24,9 +24,11 @@ async function auth(request, db) {
   return db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(await sha256(token), now()).first();
 }
 async function sendCode(env, qq, code) {
-  if (!env.RESEND_API_KEY) return false;
+  if (!env.RESEND_API_KEY) return { ok: false, reason: 'missing_key' };
   const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: env.RESEND_FROM || '诸告板 <login@mail.dhvault.top>', to: `${qq}@qq.com`, subject: '诸告板登录验证码', text: `验证码：${code}\n十分钟内有效。如非本人操作，请忽略此邮件。` }) });
-  return response.ok;
+  if (response.ok) return { ok: true };
+  const error = await response.json().catch(() => ({}));
+  return { ok: false, status: response.status, reason: typeof error.name === 'string' ? error.name.slice(0, 80) : 'unknown' };
 }
 function validateCampaign(b) {
   const title = clean(b.title, 100), rule = clean(b.rule, 100), summary = clean(b.summary, 300), time = clean(b.timeSchedule, 200);
@@ -68,8 +70,8 @@ export async function onRequest(context) {
         db.prepare('INSERT INTO login_codes(qq,code_hash,expires_at,sent_at,attempts) VALUES(?,?,?,?,0) ON CONFLICT(qq) DO UPDATE SET code_hash=excluded.code_hash,expires_at=excluded.expires_at,sent_at=excluded.sent_at,attempts=0').bind(qq, hash, t + 600, t),
         db.prepare('INSERT INTO login_requests(qq,ip,created_at) VALUES(?,?,?)').bind(qq, ip, t)
       ]);
-      const sent = await sendCode(env, qq, code).catch(() => false);
-      if (!sent) { await db.prepare('DELETE FROM login_codes WHERE qq=? AND code_hash=?').bind(qq, hash).run(); return fail('邮件发送失败，请稍后重试', 503); }
+      const delivery = await sendCode(env, qq, code).catch(() => ({ ok: false, reason: 'network_error' }));
+      if (!delivery.ok) { console.error('Resend delivery failed', delivery.status || 0, delivery.reason); await db.prepare('DELETE FROM login_codes WHERE qq=? AND code_hash=?').bind(qq, hash).run(); return fail('邮件发送失败，请稍后重试', 503); }
       return json({ ok: true, message: '验证码已发送至对应 QQ 邮箱' });
     }
     if (path[0] === 'auth' && path[1] === 'verify' && method === 'POST') {
