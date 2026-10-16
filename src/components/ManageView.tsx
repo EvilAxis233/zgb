@@ -4,7 +4,6 @@ import { GAME_PLATFORMS, type Campaign, type SessionType, type GamePlatform } fr
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
-import { MarkdownView } from './MarkdownView';
 import { useDialog } from './BauhausDialog';
 
 interface Props {
@@ -134,16 +133,11 @@ export const ManageView: React.FC<Props> = ({
     const master = items[0].batchMaster || items.find((item) => item.id === key) || items[0];
     return <details key={key} className="border-2 border-[#121212] bg-white shadow-[3px_3px_0px_#121212] group">
       <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none font-black">
-        <span className="min-w-0"><span className="block truncate">{master.title}</span><span className="block mt-1 text-xs font-bold text-[#666]">{master.rule} · {master.sessionType || '语音'} · {items.length} 个时段 · 每团 {master.maxPlayers} 人</span></span>
+        <span className="min-w-0 block truncate">{master.title}</span>
         <ChevronDown className="w-5 h-5 shrink-0 transition-transform group-open:rotate-180" />
       </summary>
       <div className="border-t-2 border-[#121212] p-4 space-y-3 bg-[#FAF9F5]">
-        <div className="text-xs text-[#555] space-y-1"><p>主团信息已锁定；各时段可分别修改简介、封团和删除。</p><p>游戏平台：{master.platforms?.join('、') || '无'} · 联系方式：{master.contact || '未设置'}</p><p>标签：{[...(master.presetTags || []), ...(master.customTags || []).map((tag) => `#${tag}`)].join('、') || '无'}</p></div>
-        <div className="border border-[#D8D5CC] bg-white p-3 text-xs">
-          {master.imageUrl && <img src={master.imageUrl} alt="主团封面" className="w-full max-h-40 object-cover mb-3 border border-[#121212]" />}
-          <strong className="block mb-1">发布时简介</strong>
-          <MarkdownView content={master.description} />
-        </div>
+        {master.imageUrl && <img src={master.imageUrl} alt="主团封面" className="w-full max-h-40 object-cover border border-[#121212]" />}
         <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />添加时间点</button>
         <div className="space-y-3">{items.sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)).map((item) => campaignCard(item, true))}</div>
       </div>
