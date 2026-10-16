@@ -3,13 +3,21 @@ const fail = (message, status = 400) => json({ error: message }, status);
 const now = () => Math.floor(Date.now() / 1000);
 const dateHK = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const id = () => crypto.randomUUID();
-// Temporary launch password. Replace this constant before sharing admin access.
-const ADMIN_PASSWORD = 'EAboard';
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function sha256(value) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))); }
-const adminTokenHash = (token) => sha256(`${ADMIN_PASSWORD}:${token}`);
-async function passwordMatches(value) {
-  const [actual, expected] = await Promise.all([sha256(value), sha256(ADMIN_PASSWORD)]);
+const adminTokenHash = (token, secret) => sha256(`${secret}:${token}`);
+async function passwordMatches(value, secret) {
+  const [actual, expected] = await Promise.all([sha256(value), sha256(secret)]);
+  let difference = 0;
+  for (let i = 0; i < expected.length; i++) difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return difference === 0;
+}
+async function botAuth(request, secret) {
+  if (!secret) return false;
+  const authorization = request.headers.get('Authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (!token || token.length > 512) return false;
+  const [actual, expected] = await Promise.all([sha256(token), sha256(secret)]);
   let difference = 0;
   for (let i = 0; i < expected.length; i++) difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
   return difference === 0;
@@ -28,10 +36,11 @@ const partDto = (p) => ({ id: p.id, userId: p.user_qq, campaignId: p.campaign_id
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
-async function adminAuth(request, db) {
+async function adminAuth(request, db, secret) {
+  if (!secret) return false;
   const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return false;
-  const session = await db.prepare('SELECT 1 FROM admin_sessions WHERE token_hash=? AND expires_at>?').bind(await adminTokenHash(token), now()).first();
+  const session = await db.prepare('SELECT 1 FROM admin_sessions WHERE token_hash=? AND expires_at>?').bind(await adminTokenHash(token, secret), now()).first();
   return !!session;
 }
 async function auth(request, db) {
@@ -64,32 +73,55 @@ export async function onRequest(context) {
   try {
     if (method !== 'GET' && method !== 'HEAD' && request.headers.get('Origin') && request.headers.get('Origin') !== url.origin) return fail('请求来源无效', 403);
     if (path[0] === 'health' && method === 'GET') { await db.prepare('SELECT 1').first(); return json({ ok: true }); }
+    if (path[0] === 'internal' && path[1] === 'bot') {
+      if (!env.BOT_BRIDGE_TOKEN) return fail('机器人接口未配置', 503);
+      if (!await botAuth(request, env.BOT_BRIDGE_TOKEN)) return fail('未经授权', 401);
+      if (path[2] === 'events' && path.length === 3 && method === 'GET') {
+        const claimId = id();
+        const event = await db.prepare(`UPDATE bot_outbox SET status='leased',claim_id=?,lease_until=?
+          WHERE event_id=(SELECT event_id FROM bot_outbox WHERE status='pending' OR (status='leased' AND lease_until<=?) ORDER BY created_at,event_id LIMIT 1)
+          AND (status='pending' OR (status='leased' AND lease_until<=?))
+          RETURNING event_id,campaign_id,rule,claim_id`).bind(claimId, now() + 120, now(), now()).first();
+        return json({ event: event ? { eventId: event.event_id, campaignId: event.campaign_id, rule: event.rule, claimId: event.claim_id } : null });
+      }
+      if (path[2] === 'events' && path[3] && path[4] === 'ack' && path.length === 5 && method === 'POST') {
+        const claimId = (await body(request)).claimId;
+        if (typeof claimId !== 'string' || !/^[0-9a-f-]{36}$/.test(claimId)) return fail('确认编号无效');
+        const result = await db.prepare(`UPDATE bot_outbox SET status='done',lease_until=NULL,delivered_at=?
+          WHERE event_id=? AND claim_id=? AND status='leased'`).bind(new Date().toISOString(), path[3], claimId).run();
+        if (result.meta.changes) return json({ ok: true });
+        const existing = await db.prepare('SELECT status FROM bot_outbox WHERE event_id=? AND claim_id=?').bind(path[3], claimId).first();
+        return existing?.status === 'done' ? json({ ok: true }) : fail('事件不存在或认领已失效', 409);
+      }
+      return fail('接口不存在', 404);
+    }
     if (path[0] === 'images' && method === 'GET' && path[1]) {
       const object = await env.COVERS?.get(path[1]);
       return object ? new Response(object.body, { headers: { 'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } }) : fail('图片不存在', 404);
     }
     if (path[0] === 'admin') {
       if (path[1] === 'login' && method === 'POST') {
+        if (!env.ADMIN_PASSWORD) return fail('后台密码未配置', 503);
         const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
         const attempts = await db.prepare('SELECT COUNT(*) n FROM admin_login_attempts WHERE ip=? AND created_at>?').bind(ip, now() - 900).first();
         if (attempts.n >= 5) return fail('尝试过多，请 15 分钟后再试', 429);
         const submitted = (await body(request)).password;
-        if (typeof submitted !== 'string' || submitted.length > 200 || !await passwordMatches(submitted)) {
+        if (typeof submitted !== 'string' || submitted.length > 200 || !await passwordMatches(submitted, env.ADMIN_PASSWORD)) {
           await db.prepare('INSERT INTO admin_login_attempts(ip,created_at) VALUES(?,?)').bind(ip, now()).run();
           return fail('密码错误', 401);
         }
         await db.prepare('DELETE FROM admin_login_attempts WHERE ip=?').bind(ip).run();
         const token = hex(crypto.getRandomValues(new Uint8Array(32)));
-        await db.prepare('INSERT INTO admin_sessions(token_hash,expires_at,created_at) VALUES(?,?,?)').bind(await adminTokenHash(token), now() + 12 * 3600, now()).run();
+        await db.prepare('INSERT INTO admin_sessions(token_hash,expires_at,created_at) VALUES(?,?,?)').bind(await adminTokenHash(token, env.ADMIN_PASSWORD), now() + 12 * 3600, now()).run();
         return json({ ok: true }, 200, { 'Set-Cookie': adminCookie(token, 12 * 3600) });
       }
-      if (path[1] === 'me' && method === 'GET') return json({ authenticated: await adminAuth(request, db) });
+      if (path[1] === 'me' && method === 'GET') return json({ authenticated: await adminAuth(request, db, env.ADMIN_PASSWORD) });
       if (path[1] === 'logout' && method === 'POST') {
         const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
-        if (token) await db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await adminTokenHash(token)).run();
+        if (token && env.ADMIN_PASSWORD) await db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await adminTokenHash(token, env.ADMIN_PASSWORD)).run();
         return json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
       }
-      if (!await adminAuth(request, db)) return fail('请先登录后台', 401);
+      if (!await adminAuth(request, db, env.ADMIN_PASSWORD)) return fail('请先登录后台', 401);
       if (path[1] === 'rules' && path.length === 2) {
         if (method === 'GET') {
           const rows = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
@@ -233,7 +265,11 @@ export async function onRequest(context) {
       if (!await db.prepare('SELECT 1 FROM rules WHERE name=?').bind(c.rule).first()) return fail('请选择已配置的规则系统');
       if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
       const cid = id();
-      await db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,image_key,banner_color,max_players,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary, c.description, c.time, imageKey, c.color, c.players, new Date().toISOString()).run();
+      const createdAt = new Date().toISOString();
+      await db.batch([
+        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,image_key,banner_color,max_players,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary, c.description, c.time, imageKey, c.color, c.players, createdAt),
+        db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
+      ]);
       return json({ id: cid }, 201);
     }
     if (path[0] === 'campaigns' && path[1]) {
