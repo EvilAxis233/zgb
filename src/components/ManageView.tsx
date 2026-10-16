@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Campaign, UserProfile, CampaignStatus } from '../types';
+import { CalendarPicker } from './CalendarPicker';
+import { formatDisplayTime } from '../utils/date';
 import {
   Lock,
   Unlock,
@@ -55,6 +57,10 @@ export const ManageView: React.FC<ManageViewProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCampaign) return;
+    if (!editingCampaign.timeSchedule?.trim()) {
+      alert('请选择开团日期及开团时段（早/中/晚）');
+      return;
+    }
     onUpdateCampaign(editingCampaign);
     setEditingCampaign(null);
   };
@@ -148,7 +154,7 @@ export const ManageView: React.FC<ManageViewProps> = ({
                   <p className="text-xs text-[#555555] mt-1.5 line-clamp-1">{camp.summary}</p>
 
                   <div className="mt-2 text-xs text-[#777777] flex items-center gap-4">
-                    <span>时间: {camp.timeSchedule}</span>
+                    <span>时间: {formatDisplayTime(camp.timeSchedule)}</span>
                     <span>人数: {camp.maxPlayers} 人</span>
                   </div>
 
@@ -308,15 +314,14 @@ export const ManageView: React.FC<ManageViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold mb-1">时间</label>
-                <input
-                  type="text"
-                  required
+                <label className="block font-bold mb-1">
+                  开团时间 <span className="text-[#D62828]">*</span>
+                </label>
+                <CalendarPicker
                   value={editingCampaign.timeSchedule}
-                  onChange={(e) =>
-                    setEditingCampaign({ ...editingCampaign, timeSchedule: e.target.value })
+                  onChange={(val) =>
+                    setEditingCampaign({ ...editingCampaign, timeSchedule: val })
                   }
-                  className="bauhaus-input w-full p-2 text-sm"
                 />
               </div>
               <div>

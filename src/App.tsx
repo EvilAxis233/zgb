@@ -14,8 +14,9 @@ import { PublishModal } from './components/PublishModal';
 import { ProfileView } from './components/ProfileView';
 import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
+import { matchCampaignTime, TimePeriod } from './utils/date';
 
-import { Search, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Sparkles, Clock } from 'lucide-react';
 
 interface ToastState {
   id: number;
@@ -43,6 +44,10 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | CampaignStatus>('all');
   const [ruleFilter, setRuleFilter] = useState<string>('all');
+  type DatePreset = 'all' | 'today' | 'tomorrow' | 'weekend' | 'week' | 'custom';
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [customDate, setCustomDate] = useState<string>('');
+  const [periodFilter, setPeriodFilter] = useState<'all' | TimePeriod>('all');
 
   const refresh = async () => {
     const { user } = await api.me();
@@ -150,10 +155,11 @@ export function App() {
 
       const matchStatus = statusFilter === 'all' || c.status === statusFilter;
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
+      const matchTime = matchCampaignTime(c.timeSchedule, datePreset, customDate, periodFilter);
 
-      return matchQuery && matchStatus && matchRule;
+      return matchQuery && matchStatus && matchRule && matchTime;
     });
-  }, [campaigns, searchQuery, statusFilter, ruleFilter]);
+  }, [campaigns, searchQuery, statusFilter, ruleFilter, datePreset, customDate, periodFilter]);
 
   // Derived user campaign records
   const myCampaigns = useMemo(() => {
@@ -318,13 +324,90 @@ export function App() {
                   </select>
                 </div>
 
+                {/* Time Filter: 按时间筛选 */}
+                <div className="space-y-2 pt-2 border-t border-[#E5E5E0]">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#121212] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#004E98]" />
+                      <span>按时间筛选</span>
+                    </label>
+                    {(datePreset !== 'all' || periodFilter !== 'all' || customDate) && (
+                      <span className="text-[10px] text-[#D62828] font-bold">已筛选</span>
+                    )}
+                  </div>
+
+                  {/* Date Preset Selection */}
+                  <div className="space-y-1">
+                    <select
+                      value={datePreset}
+                      onChange={(e) => {
+                        const val = e.target.value as DatePreset;
+                        setDatePreset(val);
+                        if (val !== 'custom') setCustomDate('');
+                      }}
+                      className="bauhaus-input w-full px-3 py-1.5 text-xs font-bold cursor-pointer"
+                    >
+                      <option value="all">全部开团日期</option>
+                      <option value="today">今天</option>
+                      <option value="tomorrow">明天</option>
+                      <option value="weekend">本周末 (周六/周日)</option>
+                      <option value="week">未来 7 天内</option>
+                      <option value="custom">指定具体日期...</option>
+                    </select>
+                  </div>
+
+                  {/* Custom Date Input */}
+                  {datePreset === 'custom' && (
+                    <div className="pt-0.5">
+                      <input
+                        type="date"
+                        value={customDate}
+                        onChange={(e) => setCustomDate(e.target.value)}
+                        className="bauhaus-input w-full px-2 py-1 text-xs font-bold"
+                      />
+                    </div>
+                  )}
+
+                  {/* Period Filter (全部 / 早 / 中 / 晚) */}
+                  <div className="pt-1">
+                    <span className="block text-[11px] font-bold text-[#666666] mb-1">开团时段</span>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['all', '早', '中', '晚'] as const).map((p) => {
+                        const active = periodFilter === p;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPeriodFilter(p)}
+                            className={`py-1 text-xs font-bold border transition-all cursor-pointer text-center ${
+                              active
+                                ? 'bg-[#004E98] text-white border-[#121212] shadow-[1px_1px_0px_#121212]'
+                                : 'bg-white text-[#121212] border-[#CCCCCC] hover:border-[#121212] hover:bg-[#FAF9F5]'
+                            }`}
+                          >
+                            {p === 'all' ? '全部' : p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Reset button */}
-                {(searchQuery || statusFilter !== 'all' || ruleFilter !== 'all') && (
+                {(searchQuery ||
+                  statusFilter !== 'all' ||
+                  ruleFilter !== 'all' ||
+                  datePreset !== 'all' ||
+                  periodFilter !== 'all' ||
+                  Boolean(customDate)) && (
                   <button
                     onClick={() => {
                       setSearchQuery('');
                       setStatusFilter('all');
                       setRuleFilter('all');
+                      setDatePreset('all');
+                      setCustomDate('');
+                      setPeriodFilter('all');
                     }}
                     className="w-full mt-2 bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] py-2 text-xs font-bold hover:bg-[#D62828] hover:text-white transition-colors cursor-pointer"
                   >

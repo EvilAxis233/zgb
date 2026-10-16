@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Campaign, UserProfile } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
+import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2 } from 'lucide-react';
 
 interface PublishModalProps {
@@ -92,8 +93,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       alert('游客无法发布战役，请先登录');
       return;
     }
-    if (!title.trim() || !summary.trim() || !timeSchedule.trim()) {
+    if (!title.trim() || !summary.trim()) {
       alert('请将必填信息补充完整');
+      return;
+    }
+    if (!timeSchedule.trim()) {
+      alert('请在日历中选择开团日期及开团时段（早/中/晚）');
       return;
     }
 
@@ -218,15 +223,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Time Schedule */}
               <div>
                 <label className="block font-bold text-[#121212] mb-1">
-                  时间 <span className="text-[#D62828]">*</span>
+                  开团时间 <span className="text-[#D62828]">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
+                <CalendarPicker
                   value={timeSchedule}
-                  onChange={(e) => setTimeSchedule(e.target.value)}
-                  placeholder="例如：每周六晚 20:00 - 23:30 (线上语音)"
-                  className="bauhaus-input w-full px-3 py-2 text-sm"
+                  onChange={(val) => setTimeSchedule(val)}
                 />
               </div>
 

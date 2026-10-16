@@ -2,6 +2,7 @@ import React from 'react';
 import { Campaign, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
+import { formatDisplayTime } from '../utils/date';
 import { X, Clock, Users, Flame, AlertOctagon, CheckCircle2 } from 'lucide-react';
 
 interface CampaignDetailModalProps {
@@ -113,7 +114,7 @@ export const CampaignDetailModal: React.FC<CampaignDetailModalProps> = ({
                 <span className="text-[#666666] block font-bold mb-1">时间</span>
                 <div className="font-bold text-[#121212] flex items-center gap-2 text-xs sm:text-sm bg-[#FAF9F5] p-2.5 border border-[#E5E5E0]">
                   <Clock className="w-4 h-4 text-[#004E98] shrink-0" />
-                  <span>{campaign.timeSchedule}</span>
+                  <span>{formatDisplayTime(campaign.timeSchedule)}</span>
                 </div>
               </div>
             </div>
