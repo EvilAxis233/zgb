@@ -413,10 +413,13 @@ export function App() {
         ))}
       </aside>
 
-      {/* Footer: Centered "诸告板" */}
+      {/* Footer */}
       <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-center">
-          <span className="font-bold text-sm text-[#121212] tracking-widest">诸告板</span>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 items-center gap-2 text-center md:grid-cols-[1fr_auto_1fr]">
+          <span className="font-bold text-sm text-[#121212] tracking-widest md:col-start-2">诸告板</span>
+          <span className="text-xs text-[#121212] md:col-start-3 md:justify-self-end md:text-right">
+            有问题请反馈至管理员：不冻港(3486636827)、EvilAxis(407457008)
+          </span>
         </div>
       </footer>
     </div>
