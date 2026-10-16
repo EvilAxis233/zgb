@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* GM Praise */}
               <div
                 className="flex items-center gap-1.5 px-2 py-1 bg-white border border-[#121212]"
-                title="GM点赞：参团核销凭证获得，可给GM点赞"
+                title="GM点赞：报名团结束后获得，可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
                 <span className="font-bold text-xs">GM点赞:</span>

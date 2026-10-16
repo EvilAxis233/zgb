@@ -1,4 +1,4 @@
-import type { Campaign, ParticipationRecord, UserProfile } from '../types';
+import type { Campaign, CampaignDetail, UserProfile } from '../types';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/${path}`, { credentials: 'same-origin', ...options });
@@ -12,19 +12,27 @@ const patch = <T>(path: string, value: unknown) => request<T>(path, { method: 'P
 export const api = {
   me: () => request<{ user: UserProfile | null }>('auth/me'),
   campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[] }>('campaigns'),
-  bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; participations: ParticipationRecord[]; rules: string[] }>('bootstrap'),
+  bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; rules: string[] }>('bootstrap'),
   requestCode: (qq: string) => post<{ ok: boolean }>('auth/request-code', { qq }),
   verify: (qq: string, code: string) => post<{ user: UserProfile }>('auth/verify', { qq, code }),
   logout: () => post('auth/logout'),
   profile: (value: Partial<UserProfile>) => patch('profile', value),
   checkin: () => post('checkin'),
-  praise: (toUserId: string, type: 'gm' | 'player') => post('praise', { toUserId, type }),
+  praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
+  campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),
+  signup: (id: string) => post(`campaigns/${id}/signup`),
+  cancelSignup: (id: string) => request(`campaigns/${id}/signup`, { method: 'DELETE' }),
+  removeMember: (id: string, qq: string) => request(`campaigns/${id}/members/${encodeURIComponent(qq)}`, { method: 'DELETE' }),
+  legacyStatus: (id: string, status: string) => post(`campaigns/${id}/status`, { status }),
+  legacyVoucher: (id: string) => post<{ voucherCode: string }>(`campaigns/${id}/voucher`),
+  legacyRedeem: (code: string) => post('redeem', { code }),
   createCampaign: (value: unknown) => post<{ id: string }>('campaigns', value),
   updateCampaign: (id: string, value: unknown) => patch(`campaigns/${id}`, value),
   deleteCampaign: (id: string) => request(`campaigns/${id}`, { method: 'DELETE' }),
-  status: (id: string, status: string) => post(`campaigns/${id}/status`, { status }),
-  voucher: (id: string) => post<{ voucherCode: string; voucherLimit: number }>(`campaigns/${id}/voucher`),
-  redeem: (code: string) => post('redeem', { code }),
+  uploadAvatar: async (file: File) => {
+    const form = new FormData(); form.append('file', file);
+    return request<{ avatar: string }>('profile/avatar', { method: 'POST', body: form });
+  },
   upload: async (file: File) => {
     const form = new FormData(); form.append('file', file);
     return request<{ imageKey: string; imageUrl: string }>('upload', { method: 'POST', body: form });

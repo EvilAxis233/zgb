@@ -29,10 +29,15 @@ async function hmac(value, secret) {
 const qqValid = (v) => typeof v === 'string' && /^[1-9][0-9]{4,11}$/.test(v);
 const clean = (v, max) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const parseTags = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
-const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '' });
+const assetUrl = (key) => key ? `/api/images/${key}` : '';
+const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '' });
 const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '' });
-const campDto = (c) => ({ id: c.id, title: c.title, rule: c.rule, summary: c.summary, description: c.description, timeSchedule: c.time_schedule, imageUrl: c.image_key ? `/api/images/${c.image_key}` : '', imageKey: c.image_key, bannerColor: c.banner_color, status: c.status, maxPlayers: c.max_players, currentPlayers: 0, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, createdAt: c.created_at.slice(0, 10), voucherCode: c.voucher_code || undefined, voucherLimit: c.voucher_limit ?? undefined, voucherUsed: c.voucher_used });
-const partDto = (p) => ({ id: p.id, userId: p.user_qq, campaignId: p.campaign_id, campaignTitle: p.title, gmName: p.gm_name, rule: p.rule, redeemedAt: p.redeemed_at.slice(0, 10), voucherCode: '' });
+const campaignEnded = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
+const campDto = (c, signedUp = false) => {
+  const currentPlayers = Number(c.member_count || 0);
+  return { id: c.id, title: c.title, rule: c.rule, summary: c.summary, description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, createdAt: c.created_at.slice(0, 10), legacyStatus: c.status, voucherCode: c.voucher_code || undefined };
+};
+const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
@@ -58,10 +63,23 @@ async function sendCode(env, qq, code) {
 function validateCampaign(b) {
   const title = clean(b.title, 100), rule = clean(b.rule, 100), summary = clean(b.summary, 300), time = clean(b.timeSchedule, 200);
   const players = Number(b.maxPlayers);
-  if (!title || !rule || !summary || !time || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、简介、时间和 1–12 人的预计人数');
-  return { title, rule, summary, time, players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
+  const matched = /^(\d{4}-\d{2}-\d{2}).*(早|中|晚)$/.exec(time);
+  if (!title || !rule || !summary || !matched || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、简介、日期时段和 1–12 人的预计人数');
+  return { title, rule, summary, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
 }
-const campaignSelect = `SELECT c.*,u.name gm_name FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
+const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
+
+async function settleRewards(db, qq) {
+  const eligible = await db.prepare(`SELECT m.campaign_id FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=? AND m.gm_rewarded_at IS NULL AND c.deleted_at IS NULL AND c.scheduled_date<?`).bind(qq, dateHK()).all();
+  if (!eligible.results.length) return;
+  const grantedAt = new Date().toISOString();
+  const statements = [];
+  for (const row of eligible.results) {
+    statements.push(db.prepare('UPDATE campaign_memberships SET gm_rewarded_at=? WHERE campaign_id=? AND user_qq=? AND gm_rewarded_at IS NULL').bind(grantedAt, row.campaign_id, qq));
+    statements.push(db.prepare('UPDATE users SET gm_hearts=gm_hearts+1 WHERE qq=? AND changes()=1').bind(qq));
+  }
+  await db.batch(statements);
+}
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -206,7 +224,7 @@ export async function onRequest(context) {
       const user = await db.prepare('SELECT * FROM users WHERE qq=?').bind(qq).first();
       return json({ user: userDto(user) }, 200, { 'Set-Cookie': sessionCookie(token, 30 * 86400) });
     }
-    const user = await auth(request, db);
+    let user = await auth(request, db);
     if (path[0] === 'auth' && path[1] === 'me' && method === 'GET') return json({ user: user ? userDto(user) : null });
     if (path[0] === 'auth' && path[1] === 'logout' && method === 'POST') {
       const token = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
@@ -217,17 +235,31 @@ export async function onRequest(context) {
       const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
       const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
       const rules = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
-      return json({ campaigns: rows.results.map((c) => { const dto = campDto(c); delete dto.voucherCode; return dto; }), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name) });
+      return json({ campaigns: rows.results.filter((c) => !campaignEnded(c) && Number(c.member_count) < c.max_players).map((c) => campDto(c)), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name) });
+    }
+    if (path[0] === 'campaigns' && path[1] && path.length === 2 && method === 'GET') {
+      const c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(path[1]).first();
+      if (!c) return fail('团不存在', 404);
+      const membership = user ? await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(c.id, user.qq).first() : null;
+      const isPublic = !campaignEnded(c) && Number(c.member_count) < c.max_players;
+      if (!isPublic && (!user || (c.gm_qq !== user.qq && !membership))) return fail('团不存在', 404);
+      const players = await db.prepare('SELECT u.* FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id=? ORDER BY m.joined_at,u.qq').bind(c.id).all();
+      const gm = await db.prepare('SELECT * FROM users WHERE qq=?').bind(c.gm_qq).first();
+      return json({ campaign: { ...campDto(c, !!membership), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'bootstrap' && method === 'GET') {
-      const [cs, ps, hosts, rules] = await db.batch([
+      await settleRewards(db, user.qq);
+      user = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      const [cs, memberships, hosts, rules] = await db.batch([
         db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`),
-        db.prepare('SELECT p.*,c.title,c.rule,u.name gm_name FROM participations p JOIN campaigns c ON c.id=p.campaign_id JOIN users u ON u.qq=c.gm_qq WHERE p.user_qq=? ORDER BY p.redeemed_at DESC').bind(user.qq),
+        db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=?').bind(user.qq),
         db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL'),
         db.prepare('SELECT name FROM rules ORDER BY rowid')
       ]);
-      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: cs.results.map((c) => c.gm_qq === user.qq ? campDto(c) : (() => { const dto = campDto(c); delete dto.voucherCode; return dto; })()), participations: ps.results.map(partDto), rules: rules.results.map((row) => row.name) });
+      const joined = new Set(memberships.results.map((m) => m.campaign_id));
+      const visible = cs.results.filter((c) => (!campaignEnded(c) && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
+      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: visible.map((c) => campDto(c, joined.has(c.id))), rules: rules.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
@@ -236,19 +268,35 @@ export async function onRequest(context) {
       await db.prepare('UPDATE users SET name=?,bio=?,preferences=?,taboos=? WHERE qq=?').bind(name, bio, JSON.stringify(tags(b.preferences)), JSON.stringify(tags(b.taboos)), user.qq).run();
       return json({ ok: true });
     }
+    if (path[0] === 'profile' && path[1] === 'avatar' && method === 'POST') {
+      if (!env.COVERS) return fail('图片存储未配置', 503);
+      const form = await request.formData(), file = form.get('file');
+      if (!(file instanceof File) || !['image/png','image/jpeg','image/gif','image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) return fail('仅支持小于 2MB 的 PNG、JPG、GIF、WebP 图片');
+      const ext = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1];
+      const key = `avatars/${id()}.${ext}`;
+      await env.COVERS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+      await db.prepare('UPDATE users SET avatar_key=? WHERE qq=?').bind(key, user.qq).run();
+      return json({ avatar: assetUrl(key) });
+    }
     if (path[0] === 'checkin' && method === 'POST') {
       const today = dateHK();
       const result = await db.prepare('UPDATE users SET last_checkin=?,player_hearts=player_hearts+1 WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)').bind(today, user.qq, today).run();
       return result.meta.changes ? json({ ok: true }) : fail('今日已签到');
     }
     if (path[0] === 'praise' && method === 'POST') {
-      const b = await body(request), target = String(b.toUserId || ''), type = b.type;
-      if (!['gm','player'].includes(type) || !qqValid(target) || target === user.qq) return fail('点赞对象无效');
+      await settleRewards(db, user.qq);
+      const b = await body(request), target = String(b.toUserId || ''), type = b.type, campaignId = String(b.campaignId || '');
+      if (!['gm','player'].includes(type) || !qqValid(target) || target === user.qq || !/^[0-9a-f-]{36}$/.test(campaignId)) return fail('点赞对象无效');
+      const c = await db.prepare('SELECT * FROM campaigns WHERE id=? AND deleted_at IS NULL').bind(campaignId).first();
+      if (!c || !campaignEnded(c)) return fail('开团日结束后才能点赞');
+      const senderMember = c.gm_qq === user.qq || await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(campaignId, user.qq).first();
+      const targetValid = type === 'gm' ? c.gm_qq === target && c.gm_qq !== user.qq : await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(campaignId, target).first();
+      if (!senderMember || !targetValid) return fail('只能给本团成员点赞', 403);
       const column = type === 'gm' ? 'gm_hearts' : 'player_hearts', received = type === 'gm' ? 'received_gm' : 'received_player';
       const result = await db.batch([
         db.prepare(`UPDATE users SET ${column}=${column}-1 WHERE qq=? AND ${column}>0 AND EXISTS(SELECT 1 FROM users WHERE qq=?)`).bind(user.qq, target),
         db.prepare(`UPDATE users SET ${received}=${received}+1 WHERE qq=? AND changes()=1`).bind(target),
-        db.prepare('INSERT INTO praises(id,from_qq,to_qq,type,created_at) SELECT ?,?,?,?,? WHERE changes()=1').bind(id(), user.qq, target, type, new Date().toISOString())
+        db.prepare('INSERT INTO praises(id,from_qq,to_qq,type,created_at,campaign_id) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(id(), user.qq, target, type, new Date().toISOString(), campaignId)
       ]);
       return result[0].meta.changes ? json({ ok: true }) : fail('点赞道具不足或用户不存在');
     }
@@ -267,7 +315,7 @@ export async function onRequest(context) {
       const cid = id();
       const createdAt = new Date().toISOString();
       await db.batch([
-        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,image_key,banner_color,max_players,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary, c.description, c.time, imageKey, c.color, c.players, createdAt),
+        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary, c.description, c.time, c.scheduledDate, c.period, imageKey, c.color, c.players, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
       ]);
       return json({ id: cid }, 201);
@@ -275,38 +323,57 @@ export async function onRequest(context) {
     if (path[0] === 'campaigns' && path[1]) {
       const cid = path[1], c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(cid).first();
       if (!c) return fail('团不存在', 404);
+      if (path[2] === 'signup' && path.length === 3 && method === 'POST') {
+        if (c.gm_qq === user.qq) return fail('主持人不能报名自己的团');
+        if (campaignEnded(c)) return fail('该团报名已经结束');
+        const result = await db.prepare(`INSERT INTO campaign_memberships(campaign_id,user_qq,joined_at)
+          SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?)
+          AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ?`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players).run();
+        return result.meta.changes ? json({ ok: true }, 201) : fail('你已经报名或该团已满员', 409);
+      }
+      if (path[2] === 'signup' && path.length === 3 && method === 'DELETE') {
+        if (campaignEnded(c)) return fail('开团日结束后不能取消报名');
+        const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(cid, user.qq).run();
+        return result.meta.changes ? json({ ok: true }) : fail('你尚未报名', 404);
+      }
+      if (path[2] === 'members' && path[3] && path.length === 4 && method === 'DELETE') {
+        if (c.gm_qq !== user.qq) return fail('只有主持人可以移除玩家', 403);
+        if (campaignEnded(c)) return fail('开团日结束后不能移除玩家');
+        const target = path[3];
+        if (!qqValid(target)) return fail('玩家信息无效');
+        const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(cid, target).run();
+        return result.meta.changes ? json({ ok: true }) : fail('玩家不在本团', 404);
+      }
       if (c.gm_qq !== user.qq) return fail('只有主持人可以操作', 403);
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request), data = validateCampaign(b), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
         if (data.rule !== c.rule && !await db.prepare('SELECT 1 FROM rules WHERE name=?').bind(data.rule).first()) return fail('请选择已配置的规则系统');
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
-        await db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,image_key=?,banner_color=?,max_players=? WHERE id=?').bind(data.title, data.rule, data.summary, data.description, data.time, imageKey, data.color, data.players, cid).run();
+        await db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=? WHERE id=?').bind(data.title, data.rule, data.summary, data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, cid).run();
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'DELETE') { await db.prepare('UPDATE campaigns SET deleted_at=? WHERE id=?').bind(new Date().toISOString(), cid).run(); return json({ ok: true }); }
       if (path[2] === 'status' && method === 'POST') {
-        const b = await body(request), status = b.status;
-        if (!['recruiting','full','closed','concluded'].includes(status) || (c.status === 'concluded' && status !== 'concluded')) return fail('状态无效');
-        await db.prepare('UPDATE campaigns SET status=? WHERE id=?').bind(status, cid).run(); return json({ ok: true });
+        const status = (await body(request)).status;
+        if (!['recruiting','full','closed','concluded'].includes(status)) return fail('状态无效');
+        await db.prepare('UPDATE campaigns SET status=? WHERE id=?').bind(status, cid).run();
+        return json({ ok: true });
       }
       if (path[2] === 'voucher' && method === 'POST') {
-        if (c.status !== 'concluded') return fail('只有完结的团可以生成凭证');
-        if (c.voucher_code) return json({ voucherCode: c.voucher_code, voucherLimit: c.voucher_limit });
+        if (c.status !== 'concluded') return fail('只有旧系统中已完结的团可以生成凭证');
+        if (c.voucher_code) return json({ voucherCode: c.voucher_code });
         const code = `TRPG-${hex(crypto.getRandomValues(new Uint8Array(6))).toUpperCase()}`;
         await db.prepare('UPDATE campaigns SET voucher_code=?,voucher_limit=max_players WHERE id=? AND voucher_code IS NULL').bind(code, cid).run();
-        const updated = await db.prepare('SELECT voucher_code,voucher_limit FROM campaigns WHERE id=?').bind(cid).first();
-        return json({ voucherCode: updated.voucher_code, voucherLimit: updated.voucher_limit });
+        return json({ voucherCode: code });
       }
     }
     if (path[0] === 'redeem' && method === 'POST') {
-      const b = await body(request), code = clean(b.code, 100).toUpperCase();
+      const code = clean((await body(request)).code, 100).toUpperCase();
       const c = await db.prepare('SELECT * FROM campaigns WHERE voucher_code=? AND deleted_at IS NULL').bind(code).first();
-      if (!c || c.status !== 'concluded') return fail('无效凭证');
-      if (c.gm_qq === user.qq) return fail('主持人不能领取自己的凭证');
-      const pid = id();
+      if (!c || c.status !== 'concluded' || c.gm_qq === user.qq) return fail('无效凭证');
       const result = await db.batch([
         db.prepare('UPDATE campaigns SET voucher_used=voucher_used+1 WHERE id=? AND voucher_used<voucher_limit AND NOT EXISTS(SELECT 1 FROM participations WHERE campaign_id=? AND user_qq=?)').bind(c.id, c.id, user.qq),
-        db.prepare('INSERT INTO participations(id,campaign_id,user_qq,redeemed_at) SELECT ?,?,?,? WHERE changes()=1').bind(pid, c.id, user.qq, new Date().toISOString()),
+        db.prepare('INSERT INTO participations(id,campaign_id,user_qq,redeemed_at) SELECT ?,?,?,? WHERE changes()=1').bind(id(), c.id, user.qq, new Date().toISOString()),
         db.prepare('UPDATE users SET gm_hearts=gm_hearts+1 WHERE qq=? AND changes()=1').bind(user.qq)
       ]);
       return result[0].meta.changes ? json({ ok: true }) : fail('凭证已领完或你已经领取');

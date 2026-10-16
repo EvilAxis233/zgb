@@ -1,5 +1,3 @@
-export type CampaignStatus = 'recruiting' | 'full' | 'closed' | 'concluded';
-
 export interface UserProfile {
   id: string;
   qq: string;
@@ -29,26 +27,29 @@ export interface Campaign {
   timeSchedule: string;
   imageUrl?: string;
   bannerColor?: string; // For Bauhaus geometric identity
-  status: CampaignStatus;
   maxPlayers: number;
   currentPlayers: number;
+  isFull: boolean;
+  hasEnded: boolean;
+  isSignedUp: boolean;
   createdAt: string;
-  voucherCode?: string; // 完结后生成的凭证码
-  voucherLimit?: number;
-  voucherUsed?: number;
   imageKey?: string | null;
+  legacyStatus?: 'recruiting' | 'full' | 'closed' | 'concluded';
+  voucherCode?: string;
 }
 
-export interface ParticipationRecord {
+export interface CampaignMember {
   id: string;
-  userId: string;
-  campaignId: string;
-  campaignTitle: string;
-  gmName: string;
-  rule: string;
-  redeemedAt: string;
-  voucherCode: string;
+  name: string;
+  avatar?: string;
+  role: 'gm' | 'player';
+  receivedPraises: number;
+  bio?: string;
+  preferences?: string[];
+  taboos?: string[];
 }
+
+export interface CampaignDetail extends Campaign { members: CampaignMember[]; }
 
 export interface PraiseRecord {
   id: string;
@@ -57,6 +58,7 @@ export interface PraiseRecord {
   toUserId: string;
   toUserName: string;
   type: 'gm' | 'player';
+  campaignId?: string;
   note?: string;
   createdAt: string;
 }

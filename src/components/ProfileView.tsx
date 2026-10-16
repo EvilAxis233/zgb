@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
-import { UserProfile, Campaign, ParticipationRecord } from '../types';
-import { Flame, Star, Edit3, Check } from 'lucide-react';
+import { UserProfile, Campaign } from '../types';
+import { Flame, Star, Edit3, Check, Upload } from 'lucide-react';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
   myCampaigns: Campaign[];
-  myParticipations: ParticipationRecord[];
+  myJoinedCampaigns: Campaign[];
   onUpdateProfile: (updates: Partial<UserProfile>) => void;
   onSelectCampaign: (campaign: Campaign) => void;
-  onSendPlayerPraise: (qq: string) => void;
+  onUploadAvatar: (file: File) => void;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   myCampaigns,
-  myParticipations,
+  myJoinedCampaigns,
   onUpdateProfile,
   onSelectCampaign,
-  onSendPlayerPraise,
+  onUploadAvatar,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(currentUser.name);
@@ -26,7 +26,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [taboos, setTaboos] = useState<string[]>(currentUser.taboos || []);
   const [newPref, setNewPref] = useState('');
   const [newTaboo, setNewTaboo] = useState('');
-  const [praiseQq, setPraiseQq] = useState('');
 
   React.useEffect(() => {
     setName(currentUser.name);
@@ -73,20 +72,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <section className="bauhaus-card p-4 bg-white flex flex-wrap items-end gap-3">
-        <label className="text-xs font-bold">给伙伴送出玩家点赞
-          <input className="bauhaus-input block mt-1 px-3 py-2" inputMode="numeric" value={praiseQq} onChange={(e) => setPraiseQq(e.target.value.replace(/\D/g, ''))} placeholder="对方 QQ 号" />
-        </label>
-        <button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs font-bold" disabled={!/^[1-9][0-9]{4,11}$/.test(praiseQq) || currentUser.inventory.playerHearts < 1} onClick={() => { onSendPlayerPraise(praiseQq); setPraiseQq(''); }}>送出 1 枚玩家点赞</button>
-      </section>
       {/* Top Profile Header Card */}
       <div className="bauhaus-card p-6 bg-white">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-[#121212] pb-6">
           <div className="flex items-center gap-4">
             {/* Bauhaus Avatar Icon */}
-            <div className="w-16 h-16 bg-[#121212] text-white font-black text-2xl flex items-center justify-center border-2 border-[#121212] shadow-[4px_4px_0px_#D62828]">
-              {(name || currentUser.name || '?').charAt(0)}
-            </div>
+            <label className="relative w-16 h-16 bg-[#121212] text-white font-black text-2xl flex items-center justify-center border-2 border-[#121212] shadow-[4px_4px_0px_#D62828] cursor-pointer overflow-hidden group" title="上传头像">
+              {currentUser.avatar ? <img src={currentUser.avatar} alt="我的头像" className="w-full h-full object-cover" /> : (name || currentUser.name || '?').charAt(0)}
+              <span className="absolute inset-x-0 bottom-0 py-1 bg-black/75 text-[10px] flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"><Upload className="w-3 h-3" />更换</span>
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) onUploadAvatar(file); event.target.value = ''; }} />
+            </label>
             <div>
               {isEditing ? (
                 <div>
@@ -294,13 +289,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-[#121212]">{camp.title}</span>
                         <span className="px-1.5 py-0.5 bg-[#121212] text-white text-xs font-bold">
-                          {camp.status === 'recruiting'
-                            ? '招募中'
-                            : camp.status === 'full'
-                            ? '已满员'
-                            : camp.status === 'concluded'
-                            ? '已完结'
-                            : '已封团'}
+                          {camp.hasEnded ? '已到期' : camp.isFull ? '已满员' : '招募中'}
                         </span>
                       </div>
                       <div className="text-xs text-[#666666] mt-1 flex items-center gap-2">
@@ -323,40 +312,38 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4">
               <h2 className="text-base font-black text-[#121212] flex items-center gap-2">
                 <span className="w-3 h-3 bg-[#004E98]" />
-                参团记录 (共 {myParticipations.length} 次)
+                参团记录 (共 {myJoinedCampaigns.length} 次)
               </h2>
             </div>
 
-            {myParticipations.length === 0 ? (
+            {myJoinedCampaigns.length === 0 ? (
               <div className="py-8 text-center text-xs text-[#888888]">
-                暂无参团记录。在【团务管理】页面输入完结凭证即可录入
+                暂无参团记录。可在主页打开团详情后报名
               </div>
             ) : (
               <div className="space-y-3">
-                {myParticipations.map((p) => (
+                {myJoinedCampaigns.map((camp) => (
                   <div
-                    key={p.id}
-                    className="p-3 border-2 border-[#121212] bg-[#FAF9F5] flex items-center justify-between"
+                    key={camp.id}
+                    onClick={() => onSelectCampaign(camp)}
+                    className="p-3 border-2 border-[#121212] bg-[#FAF9F5] hover:bg-white cursor-pointer transition-colors flex items-center justify-between"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#121212]">{p.campaignTitle}</span>
+                        <span className="font-bold text-sm text-[#121212]">{camp.title}</span>
                         <span className="px-1.5 py-0.5 bg-[#004E98] text-white text-xs font-bold">
-                          主持: {p.gmName}
+                          主持: {camp.gmName}
                         </span>
                       </div>
                       <div className="text-xs text-[#666666] mt-1">
-                        <span>规则: {p.rule}</span>
+                        <span>规则: {camp.rule}</span>
                         <span className="mx-2">|</span>
-                        <span>录入时间: {p.redeemedAt}</span>
+                        <span>{camp.timeSchedule}</span>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#D62828] bg-white px-2 py-0.5 border border-[#D62828]">
-                        <Flame className="w-3 h-3 fill-[#D62828]" />
-                        +1 GM点赞已领
-                      </span>
+                      <span className="text-xs font-bold underline decoration-[#004E98]">查看</span>
                     </div>
                   </div>
                 ))}

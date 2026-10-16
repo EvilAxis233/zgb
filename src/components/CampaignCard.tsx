@@ -10,21 +10,6 @@ interface CampaignCardProps {
 }
 
 export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick }) => {
-  const getStatusBadge = (status: Campaign['status']) => {
-    switch (status) {
-      case 'recruiting':
-        return { label: '招募中', bg: 'bg-[#004E98] text-white' };
-      case 'full':
-        return { label: '已满员', bg: 'bg-[#F4A261] text-[#121212]' };
-      case 'concluded':
-        return { label: '已完结', bg: 'bg-[#2A9D8F] text-white' };
-      case 'closed':
-        return { label: '已封团', bg: 'bg-[#666666] text-white' };
-    }
-  };
-
-  const statusBadge = getStatusBadge(campaign.status);
-
   return (
     <article
       onClick={onClick}
@@ -64,11 +49,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <h2 className="text-xl font-black text-[#121212] tracking-tight group-hover:text-[#D62828] transition-colors leading-snug line-clamp-1 flex-1">
               {campaign.title}
             </h2>
-            <span
-              className={`px-2.5 py-1 text-xs font-black border-2 border-[#121212] tracking-wider shadow-[2px_2px_0px_#121212] shrink-0 ${statusBadge.bg}`}
-            >
-              {statusBadge.label}
-            </span>
+            <span className="px-2.5 py-1 text-xs font-black border-2 border-[#121212] tracking-wider shadow-[2px_2px_0px_#121212] shrink-0 bg-[#004E98] text-white">招募中</span>
           </div>
 
           {/* GM & Player Ratio */}
@@ -80,7 +61,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <div className="flex items-center gap-1 font-bold text-[#121212]">
               <Users className="w-3.5 h-3.5 text-[#004E98]" />
               <span>
-                人数: {campaign.maxPlayers} 人
+                人数: {campaign.currentPlayers}/{campaign.maxPlayers} 人
               </span>
             </div>
           </div>

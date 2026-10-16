@@ -1,6 +1,6 @@
 # 诸告板
 
-跑团招募与结团凭证网站。前端使用 React/Vite；`functions/api/[[path]].js` 是 Cloudflare Pages Functions API，D1 保存业务数据，R2 保存团封面。
+跑团招募、成员管理与团内点赞网站。前端使用 React/Vite；`functions/api/[[path]].js` 是 Cloudflare Pages Functions API，D1 保存业务数据，R2 保存团封面和用户头像。
 
 ## 本地开发
 
@@ -12,21 +12,21 @@
 
 初始 D1 为空，不自动导入演示账号或团。登录时输入 QQ 号，后端向 `<QQ号>@qq.com` 发送六位验证码，十分钟有效；单号 60 秒内不可重发，每小时最多五次，同一 IP 每小时最多二十次；一个验证码最多尝试五次。登录成功后建立 30 天的 HttpOnly 会话。该流程验证 QQ 邮箱收件能力，不是腾讯 QQ OAuth。
 
-主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id/status`、`campaigns/:id/voucher`、`redeem`、`profile`、`checkin`、`praise`、`upload`。写操作以会话身份执行；公开团列表不返回凭证码。每日签到以香港日期为准。凭证生成时将预计人数固定为领取上限；每名用户每团仅可领取一次。删除团采用软删除，历史记录仍可查询。
+主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`profile`、`profile/avatar`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回香港日期尚未结束且未满员的团；满员或到期的团仅对 GM 和已报名玩家保留。删除团采用软删除。
 
-`migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键。`campaigns.max_players` 是展示的预计人数，`voucher_limit` 在生成时从它复制；不维护实时报名人数。`participations` 和 `praises` 留存发放与消耗记录。站点清空浏览器数据不影响这些服务器记录。
+`migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。报名玩家在开团日期结束后的首次登录请求中幂等获得 1 枚 GM 点赞；每日签到按香港日期获得玩家点赞。团内点赞必须绑定团，且只能在到期后由该团成员发出。站点清空浏览器数据不影响这些服务器记录。
 
 ## 管理后台
 
 访问 `/admin`。后台密码从 Pages Secret `ADMIN_PASSWORD` 读取；未配置时后台登录不可用。后台使用独立的 HttpOnly、Secure、SameSite=Strict Cookie，会话有效期 12 小时；单个 IP 15 分钟内连续五次输错后会暂时拒绝登录。更换密码会使旧管理员会话失效；原来公开于源码的密码不得继续使用。
 
-后台可添加、删除规则名。规则保存在 D1 的 `rules` 表；发布新团和修改团时读取此列表。删除规则不会改写既有团的历史规则名称，既有团仍可显示和编辑其他字段。后台账号列表按 QQ 号或昵称搜索、分页显示，点选账号可查看从 `praises` 表读取的收礼和送礼记录，包括礼物类型、对方 QQ/昵称和时间。账号与记录接口都要求管理员会话。
+后台可添加、删除规则名。规则保存在 D1 的 `rules` 表；发布新团和修改团时读取此列表。删除规则不会改写既有团的历史规则名称，既有团仍可显示和编辑其他字段。后台账号列表按 QQ 号或昵称搜索、分页显示，点选账号可查看从 `praises` 表读取的收礼和送礼记录，包括礼物类型、对方 QQ/昵称和时间。新点赞记录同时保存所属团。账号与记录接口都要求管理员会话。
 
 ## QQ 新团广播桥接
 
 `POST /api/campaigns` 将团与 `campaign.created` 事件在同一个 D1 事务写入。测试机器人凭独立 Secret `BOT_BRIDGE_TOKEN` 每 15 秒从 `GET /api/internal/bot/events` 领取一个事件，完成原有群发后提交 `POST /api/internal/bot/events/{eventId}/ack`，正文为 `{ "claimId": "..." }`。事件只携带 `eventId`、`campaignId`、`rule`、`claimId`；广播不含链接。租约为 120 秒，过期事件可重新领取。测试站点须使用与生产不同的 D1、R2 和 Secret，且仅由双测试群机器人消费。网站发布接口不依赖机器人在线；迁移 `0003_bot_outbox.sql` 必须先于新代码应用。
 
-测试环境使用单独 Pages 项目 `zgb-trpg-staging`、`wrangler.staging.jsonc` 中指定的独立 D1 和 R2，均已创建。运行 `npx wrangler d1 migrations apply zgb-trpg-staging --remote --config wrangler.staging.jsonc`，在**测试 Pages 项目**分别设置独立 `ADMIN_PASSWORD`、`BOT_BRIDGE_TOKEN`、`OTP_SECRET`、`RESEND_API_KEY` Secret，再运行 `pwsh -File scripts/deploy-staging.ps1`。脚本先检查测试绑定，再将构建产物、Functions 和测试配置复制到被 Git 忽略的独立目录部署；Wrangler Pages 不接受 `--config` 自定义配置路径。测试机器人只使用这个站点的 URL 和令牌；不得改用正式 D1 做联调。
+测试环境使用单独 Pages 项目 `zgb-trpg-staging`、`wrangler.staging.jsonc` 中指定的独立 D1 和 R2，均已创建。运行 `npx wrangler d1 migrations apply zgb-trpg-staging --remote --config wrangler.staging.jsonc`，在**测试 Pages 项目**分别设置独立 `ADMIN_PASSWORD`、`BOT_BRIDGE_TOKEN`、`OTP_SECRET`、`RESEND_API_KEY` Secret，再运行 `pwsh -File scripts/deploy-staging.ps1`。脚本先检查测试绑定，再将构建产物、Functions 和测试配置复制到被 Git 忽略的独立目录部署；Wrangler Pages 不接受 `--config` 自定义配置路径。测试机器人只使用这个站点的 URL 和令牌；不得改用正式 D1 做联调。`0004_memberships.sql` 必须先于新报名代码部署；确认新流程可用后再部署删除凭证代码并应用 `0005_remove_vouchers.sql`。
 
 目前测试项目已设置前三项 Secret 并完成一次使用临时测试会话的 API 发团→QQ 双群验收；临时会话已撤销。`RESEND_API_KEY` 尚未设置，因此测试站的 QQ 邮箱登录暂不可用，需设置测试专用密钥后才能从网页界面登录发团。
 

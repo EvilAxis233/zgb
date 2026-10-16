@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Campaign,
+  CampaignDetail,
   UserProfile,
-  ParticipationRecord,
-  CampaignStatus,
 } from './types';
 import { api } from './services/api';
 
@@ -29,12 +28,11 @@ export function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rules, setRules] = useState<string[]>([]);
-  const [participations, setParticipations] = useState<ParticipationRecord[]>([]);
   const [currentUserId, setUserIdState] = useState<string | null>(null);
 
   // UI States
   const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>('board');
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -42,7 +40,6 @@ export function App() {
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | CampaignStatus>('all');
   const [ruleFilter, setRuleFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<'all' | TimePeriod>('all');
 
@@ -53,14 +50,12 @@ export function App() {
       setUsers([...data.users.filter((u) => u.id !== data.user.id), data.user]);
       setCampaigns(data.campaigns);
       setRules(data.rules);
-      setParticipations(data.participations);
       setUserIdState(data.user.id);
     } else {
       const data = await api.campaigns();
       setUsers(data.users);
       setCampaigns(data.campaigns);
       setRules(data.rules);
-      setParticipations([]);
       setUserIdState(null);
     }
   };
@@ -105,21 +100,8 @@ export function App() {
     return run(async () => { await api.createCampaign(await prepareCampaign(data)); }, `战役《${data.title}》发布成功`);
   };
 
-  // Status Change (封团, 完结, etc.)
-  const handleToggleStatus = (campaignId: string, nextStatus: CampaignStatus) => run(() => api.status(campaignId, nextStatus), '战役状态已更新');
-
   // Delete Campaign
   const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已删除');
-
-  // Generate Voucher for concluded campaign
-  const handleGenerateVoucher = (campaignId: string) => {
-    const camp = campaigns.find((c) => c.id === campaignId);
-    if (!camp || !confirm(`此凭证最多供 ${camp.maxPlayers} 人领取，每个账号限领一次。生成后次数上限固定，是否继续？`)) return;
-    run(async () => { const res = await api.voucher(campaignId); showToast(`凭证码：${res.voucherCode}`, 'info'); }, '凭证已生成');
-  };
-
-  // Redeem Voucher
-  const handleRedeemVoucher = (code: string) => run(() => api.redeem(code), '凭证领取成功，获得 1 枚 GM 点赞');
 
   // Update existing campaign
   const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, await prepareCampaign(updated)); }, '战役信息已更新');
@@ -128,8 +110,25 @@ export function App() {
   const handleUpdateProfile = (updates: Partial<UserProfile>) => run(() => api.profile({ ...currentUser, ...updates }), '个人档案已保存');
 
   // Send Praise
-  const handleSendPraise = (toUserId: string, type: 'gm' | 'player') => currentUser
-    ? run(() => api.praise(toUserId, type), '点赞成功') : setIsLoginOpen(true);
+  const openCampaign = async (campaign: Campaign) => {
+    try { const data = await api.campaign(campaign.id); setSelectedCampaign(data.campaign); }
+    catch (error) { showToast(error instanceof Error ? error.message : '详情加载失败', 'error'); }
+  };
+  const mutateCampaign = async (work: () => Promise<unknown>, message: string, campaignId: string) => {
+    const ok = await run(work, message);
+    if (!ok) return;
+    try { const data = await api.campaign(campaignId); setSelectedCampaign(data.campaign); }
+    catch { setSelectedCampaign(null); }
+  };
+  const handleSendPraise = (campaignId: string, toUserId: string, type: 'gm' | 'player') => currentUser
+    ? mutateCampaign(() => api.praise(campaignId, toUserId, type), '点赞成功', campaignId) : setIsLoginOpen(true);
+  const handleSignup = (campaignId: string) => currentUser ? mutateCampaign(() => api.signup(campaignId), '报名成功', campaignId) : setIsLoginOpen(true);
+  const handleCancelSignup = (campaignId: string) => mutateCampaign(() => api.cancelSignup(campaignId), '已取消报名', campaignId);
+  const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
+  const handleUploadAvatar = (file: File) => run(() => api.uploadAvatar(file), '头像已更新');
+  const handleLegacyStatus = (id: string, status: string) => run(() => api.legacyStatus(id, status), '旧系统状态已更新');
+  const handleLegacyVoucher = (id: string) => run(async () => { const result = await api.legacyVoucher(id); await navigator.clipboard.writeText(result.voucherCode); }, '旧凭证已生成并复制');
+  const handleLegacyRedeem = (code: string) => run(() => api.legacyRedeem(code), '旧凭证兑换成功');
 
   // Extract all distinct rules for filtering
   const availableRules = useMemo(() => {
@@ -150,14 +149,13 @@ export function App() {
         c.rule.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.summary.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchStatus = statusFilter === 'all' || c.status === statusFilter;
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
       const matchPeriod =
         periodFilter === 'all' || parseTimeSchedule(c.timeSchedule).period === periodFilter;
 
-      return matchQuery && matchStatus && matchRule && matchPeriod;
+      return !c.hasEnded && !c.isFull && matchQuery && matchRule && matchPeriod;
     });
-  }, [campaigns, searchQuery, statusFilter, ruleFilter, periodFilter]);
+  }, [campaigns, searchQuery, ruleFilter, periodFilter]);
 
   // Derived user campaign records
   const myCampaigns = useMemo(() => {
@@ -165,10 +163,10 @@ export function App() {
     return campaigns.filter((c) => c.gmId === currentUser.id);
   }, [campaigns, currentUser]);
 
-  const myParticipations = useMemo(() => {
+  const myJoinedCampaigns = useMemo(() => {
     if (!currentUser) return [];
-    return participations.filter((p) => p.userId === currentUser.id);
-  }, [participations, currentUser]);
+    return campaigns.filter((campaign) => campaign.isSignedUp);
+  }, [campaigns, currentUser]);
 
   return (
     <div className="min-h-screen bg-[#F6F5F0] text-[#121212] flex flex-col font-sans">
@@ -203,7 +201,7 @@ export function App() {
                       <span>查团</span>
                     </div>
                     <p className="text-[#555555] leading-relaxed">
-                      点击卡片查看简介、时间安排、招募人数及主持人喜好禁忌
+                      点击卡片查看简介、成员名单并报名；满员或开团日结束后自动从主页隐藏。
                     </p>
                   </div>
 
@@ -223,17 +221,17 @@ export function App() {
                       <span>团务管理</span>
                     </div>
                     <p className="text-[#555555] leading-relaxed">
-                      主持可在管理页切换招募状态、封团、标记完结并为参团玩家生成结算凭证。
+                      主持可编辑团、查看报名玩家并在开团日结束前移除玩家。
                     </p>
                   </div>
 
                   <div className="p-3 bg-[#FAF9F5] border border-[#121212]">
                     <div className="font-black text-[#121212] flex items-center gap-1.5 mb-1">
                       <span className="w-2 h-2 bg-[#121212]" />
-                      <span>凭证与点赞</span>
+                      <span>参团与点赞</span>
                     </div>
                     <p className="text-[#555555] leading-relaxed">
-                      玩家录入凭证领取「GM点赞」；每日签到领取「玩家点赞」，可用于赞赏他人。
+                      报名玩家在开团日结束后获得「GM点赞」；每日签到领取「玩家点赞」，可在团详情赞赏成员。
                     </p>
                   </div>
                 </div>
@@ -254,7 +252,7 @@ export function App() {
                     <CampaignCard
                       key={camp.id}
                       campaign={camp}
-                      onClick={() => setSelectedCampaign(camp)}
+                      onClick={() => openCampaign(camp)}
                     />
                   ))}
                 </div>
@@ -306,22 +304,6 @@ export function App() {
                   </select>
                 </div>
 
-                {/* Status Filter */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-[#121212]">招募状态</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as any)}
-                    className="bauhaus-input w-full px-3 py-1.5 text-xs font-bold cursor-pointer"
-                  >
-                    <option value="all">全部状态</option>
-                    <option value="recruiting">招募中</option>
-                    <option value="full">已满员</option>
-                    <option value="concluded">已完结</option>
-                    <option value="closed">已封团</option>
-                  </select>
-                </div>
-
                 {/* Time Filter: 开团时段筛选 */}
                 <div className="space-y-1.5 pt-2 border-t border-[#E5E5E0]">
                   <div className="flex items-center justify-between">
@@ -358,13 +340,11 @@ export function App() {
 
                 {/* Reset button */}
                 {(searchQuery ||
-                  statusFilter !== 'all' ||
                   ruleFilter !== 'all' ||
                   periodFilter !== 'all') && (
                   <button
                     onClick={() => {
                       setSearchQuery('');
-                      setStatusFilter('all');
                       setRuleFilter('all');
                       setPeriodFilter('all');
                     }}
@@ -384,10 +364,10 @@ export function App() {
             <ProfileView
               currentUser={currentUser}
               myCampaigns={myCampaigns}
-              myParticipations={myParticipations}
+              myJoinedCampaigns={myJoinedCampaigns}
               onUpdateProfile={handleUpdateProfile}
-              onSelectCampaign={(c) => setSelectedCampaign(c)}
-              onSendPlayerPraise={(qq) => handleSendPraise(qq, 'player')}
+              onSelectCampaign={openCampaign}
+              onUploadAvatar={handleUploadAvatar}
             />
           </div>
         )}
@@ -397,27 +377,32 @@ export function App() {
         {activeTab === 'manage' && currentUser && (
           <div className="max-w-5xl mx-auto w-full">
             <ManageView
-              currentUser={currentUser}
-              myCampaigns={myCampaigns}
+              hostedCampaigns={myCampaigns}
+              joinedCampaigns={myJoinedCampaigns}
               rules={rules}
-              onToggleStatus={handleToggleStatus}
               onDeleteCampaign={handleDeleteCampaign}
-              onGenerateVoucher={handleGenerateVoucher}
-              onRedeemVoucher={handleRedeemVoucher}
+              onCancelSignup={handleCancelSignup}
+              onSelectCampaign={openCampaign}
               onUpdateCampaign={handleUpdateCampaign}
+              onLegacyStatus={handleLegacyStatus}
+              onLegacyVoucher={handleLegacyVoucher}
+              onLegacyRedeem={handleLegacyRedeem}
             />
           </div>
         )}
-        {activeTab === 'manage' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white"><p className="mb-4">登录后管理战役及凭证</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
+        {activeTab === 'manage' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white"><p className="mb-4">登录后管理主持和报名的战役</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
       </main>
 
       {/* Campaign Detail Modal */}
       <CampaignDetailModal
         campaign={selectedCampaign}
         onClose={() => setSelectedCampaign(null)}
-        gmUser={users.find((u) => u.id === selectedCampaign?.gmId)}
         currentUser={currentUser}
-        onSendPraise={(gmId, type) => handleSendPraise(gmId, type)}
+        onLogin={() => setIsLoginOpen(true)}
+        onSignup={handleSignup}
+        onCancelSignup={handleCancelSignup}
+        onRemoveMember={handleRemoveMember}
+        onPraise={handleSendPraise}
       />
 
       {/* Publish Modal */}
