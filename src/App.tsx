@@ -15,7 +15,7 @@ import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
 import { parseTimeSchedule, TimePeriod } from './utils/date';
 
-import { Search, AlertCircle, CheckCircle2, Sparkles, Clock } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle } from 'lucide-react';
 
 interface ToastState {
   id: number;
@@ -38,6 +38,8 @@ export function App() {
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pendingActions, setPendingActions] = useState(0);
+  const [loadingCampaignId, setLoadingCampaignId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastState[]>([]);
 
   // Search & Filter
@@ -87,8 +89,10 @@ export function App() {
 
   // Daily Check-in
   const run = async (work: () => Promise<unknown>, message: string) => {
+    setPendingActions((count) => count + 1);
     try { await work(); await refresh(); showToast(message, 'success'); return true; }
     catch (error) { showToast(error instanceof Error ? error.message : '操作失败', 'error'); return false; }
+    finally { setPendingActions((count) => count - 1); }
   };
   const handleDailyCheckIn = () => currentUser ? run(() => api.checkin(), '签到成功，获得 1 枚玩家点赞') : setIsLoginOpen(true);
 
@@ -113,12 +117,35 @@ export function App() {
   const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, await prepareCampaign(updated)); }, '战役信息已更新');
 
   // Update User Profile
-  const handleUpdateProfile = (updates: Partial<UserProfile>) => run(() => api.profile({ ...currentUser, ...updates }), '个人档案已保存');
+  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    setPendingActions((count) => count + 1);
+    try {
+      const { user } = await api.profile(updates);
+      setUsers((previous) => previous.map((item) => item.id === user.id ? user : item));
+      setCampaigns((previous) => previous.map((campaign) => campaign.gmId === user.id
+        ? { ...campaign, gmName: user.name }
+        : campaign));
+      setSelectedCampaign((previous) => previous ? {
+        ...previous,
+        gmName: previous.gmId === user.id ? user.name : previous.gmName,
+        members: previous.members.map((member) => member.id === user.id ? { ...member, name: user.name } : member),
+      } : null);
+      showToast('个人档案已保存', 'success');
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '操作失败', 'error');
+      return false;
+    } finally {
+      setPendingActions((count) => count - 1);
+    }
+  };
 
   // Send Praise
   const openCampaign = async (campaign: Campaign) => {
+    setLoadingCampaignId(campaign.id);
     try { const data = await api.campaign(campaign.id); setSelectedCampaign(data.campaign); }
     catch (error) { showToast(error instanceof Error ? error.message : '详情加载失败', 'error'); }
+    finally { setLoadingCampaignId(null); }
   };
   const mutateCampaign = async (work: () => Promise<unknown>, message: string, campaignId: string) => {
     const ok = await run(work, message);
@@ -433,6 +460,12 @@ export function App() {
 
       {/* Toast Notifications */}
       <aside aria-label="系统通知" className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-[calc(100vw-2.5rem)] sm:max-w-sm pointer-events-none">
+        {(pendingActions > 0 || loadingCampaignId) && (
+          <div role="status" className="p-3.5 border-2 border-[#121212] border-l-8 border-l-[#004E98] bg-white shadow-[4px_4px_0px_#121212] text-xs font-bold flex items-center gap-2.5">
+            <LoaderCircle className="w-4 h-4 text-[#004E98] animate-spin shrink-0" />
+            <span>{loadingCampaignId ? '正在加载团详情…' : '正在处理中…'}</span>
+          </div>
+        )}
         {toasts.map((t) => (
           <div
             key={t.id}

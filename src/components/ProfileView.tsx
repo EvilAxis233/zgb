@@ -20,6 +20,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onUploadAvatar,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(currentUser.name);
   const [bio, setBio] = useState(currentUser.bio);
   const [preferences, setPreferences] = useState<string[]>(currentUser.preferences || []);
@@ -39,14 +40,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       alert('名字不能为空');
       return;
     }
-    const success = await onUpdateProfile({
-      name: name.trim(),
-      bio,
-      preferences,
-      taboos,
-    });
-    if (success) {
-      setIsEditing(false);
+    setIsSaving(true);
+    try {
+      const success = await onUpdateProfile({
+        name: name.trim(),
+        bio,
+        preferences,
+        taboos,
+      });
+      if (success) setIsEditing(false);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -124,6 +128,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {/* Edit button */}
             <button
+              disabled={isSaving}
               onClick={() => {
                 if (isEditing) {
                   handleSave();
@@ -136,7 +141,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {isEditing ? (
                 <>
                   <Check className="w-4 h-4 text-[#F4A261]" />
-                  <span>保存档案</span>
+                  <span>{isSaving ? '保存中…' : '保存档案'}</span>
                 </>
               ) : (
                 <>

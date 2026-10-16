@@ -305,7 +305,8 @@ export async function onRequest(context) {
       const duplicate = await db.prepare('SELECT 1 FROM users WHERE name=? COLLATE NOCASE AND qq!=?').bind(name, user.qq).first();
       if (duplicate) return fail('该昵称已被使用，请换一个昵称', 409);
       await db.prepare('UPDATE users SET name=?,bio=?,preferences=?,taboos=? WHERE qq=?').bind(name, bio, JSON.stringify(tags(b.preferences)), JSON.stringify(tags(b.taboos)), user.qq).run();
-      return json({ ok: true });
+      const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      return json({ user: userDto(updated) });
     }
     if (path[0] === 'profile' && path[1] === 'avatar' && method === 'POST') {
       if (!env.COVERS) return fail('图片存储未配置', 503);
