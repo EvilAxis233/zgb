@@ -20,6 +20,15 @@ const BAUHAUS_COLORS = [
   { name: '纯粹墨黑', hex: '#121212' },
 ];
 
+export const MARKDOWN_SUPPORT_HINT = `支持如下markdown语法：
+# 一级标题
+## 二级标题
+### 三级标题
+**粗体**
+> 引用
+- 列表
+--- 分割线`;
+
 export const PublishModal: React.FC<PublishModalProps> = ({
   isOpen,
   onClose,
@@ -325,11 +334,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   简介
                 </label>
                 <textarea
-                  rows={4}
+                  rows={6}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder=""
-                  className="bauhaus-input w-full px-3 py-2 text-sm font-mono resize-none"
+                  placeholder={MARKDOWN_SUPPORT_HINT}
+                  className="bauhaus-input w-full px-3 py-2 text-sm font-mono resize-none leading-relaxed"
                 />
               </div>
 
@@ -455,8 +464,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 {description.trim() ? (
                   <MarkdownView content={description} />
                 ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-[#AAAAAA] italic">
-                    输入简介内容即在此处实时渲染
+                  <div className="p-2 text-xs font-mono text-[#666666] leading-relaxed select-none">
+                    <p className="font-bold text-[#121212] mb-1">支持如下markdown语法：</p>
+                    <p># 一级标题</p>
+                    <p>## 二级标题</p>
+                    <p>### 三级标题</p>
+                    <p>**粗体**</p>
+                    <p>&gt; 引用</p>
+                    <p>- 列表</p>
+                    <p>--- 分割线</p>
                   </div>
                 )}
               </div>

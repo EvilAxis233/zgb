@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Campaign, UserProfile, CampaignStatus } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
+import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 import {
   Lock,
   Unlock,
@@ -345,12 +346,13 @@ export const ManageView: React.FC<ManageViewProps> = ({
               <div>
                 <label className="block font-bold mb-1">简介</label>
                 <textarea
-                  rows={4}
+                  rows={6}
                   value={editingCampaign.description}
                   onChange={(e) =>
                     setEditingCampaign({ ...editingCampaign, description: e.target.value })
                   }
-                  className="bauhaus-input w-full p-2 text-sm resize-none"
+                  placeholder={MARKDOWN_SUPPORT_HINT}
+                  className="bauhaus-input w-full p-2 text-sm font-mono resize-none leading-relaxed"
                 />
               </div>
 
