@@ -112,6 +112,7 @@ export function App() {
 
   // Delete Campaign
   const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已删除');
+  const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), closed ? '本团已封团' : '本团已重新开放报名');
 
   // Update existing campaign
   const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, await prepareCampaign(updated)); }, '战役信息已更新');
@@ -141,7 +142,7 @@ export function App() {
   };
 
   // Send Praise
-  const openCampaign = async (campaign: Campaign) => {
+  const openCampaign = async (campaign: Pick<Campaign, 'id'>) => {
     setLoadingCampaignId(campaign.id);
     try { const data = await api.campaign(campaign.id); setSelectedCampaign(data.campaign); }
     catch (error) { showToast(error instanceof Error ? error.message : '详情加载失败', 'error'); }
@@ -163,8 +164,12 @@ export function App() {
   // Extract recruiting rules ordered by recruiting campaign count descending
   const recruitingRules = useMemo(() => {
     const countMap = new Map<string, number>();
+    const seen = new Set<string>();
     campaigns.forEach((c) => {
       if (!c.hasEnded && !c.isFull && c.rule?.trim()) {
+        const key = `${c.batchId || c.id}:${c.rule.trim()}`;
+        if (seen.has(key)) return;
+        seen.add(key);
         const r = c.rule.trim();
         countMap.set(r, (countMap.get(r) || 0) + 1);
       }
@@ -183,7 +188,7 @@ export function App() {
 
   // Filter campaigns
   const filteredCampaigns = useMemo(() => {
-    return enrichedCampaigns.filter((c) => {
+    const matching = enrichedCampaigns.filter((c) => {
       const matchQuery =
         !searchQuery.trim() ||
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -192,10 +197,16 @@ export function App() {
         c.description.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
-      const matchPeriod =
-        periodFilter === 'all' || parseTimeSchedule(c.timeSchedule).period === periodFilter;
+      const matchPeriod = periodFilter === 'all' || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isFull && parseTimeSchedule(slot.timeSchedule).period === periodFilter) : parseTimeSchedule(c.timeSchedule).period === periodFilter);
 
       return !c.hasEnded && !c.isFull && matchQuery && matchRule && matchPeriod;
+    });
+    const seen = new Set<string>();
+    return matching.filter((c) => {
+      const key = c.batchId || c.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }, [enrichedCampaigns, searchQuery, ruleFilter, periodFilter]);
 
@@ -425,6 +436,7 @@ export function App() {
               presetTags={presetTags}
               popularCustomTags={popularCustomTags}
               onDeleteCampaign={handleDeleteCampaign}
+              onSetCampaignClosed={handleSetCampaignClosed}
               onCancelSignup={handleCancelSignup}
               onSelectCampaign={openCampaign}
               onUpdateCampaign={handleUpdateCampaign}
@@ -437,6 +449,7 @@ export function App() {
       {/* Campaign Detail Modal */}
       <CampaignDetailModal
         campaign={selectedCampaign}
+        onSelectSlot={(id) => openCampaign({ id })}
         onClose={() => setSelectedCampaign(null)}
         currentUser={currentUser}
         onLogin={() => setIsLoginOpen(true)}

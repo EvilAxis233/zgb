@@ -13,12 +13,13 @@ interface Props {
   presetTags?: string[];
   popularCustomTags?: string[];
   onDeleteCampaign: (id: string) => void;
+  onSetCampaignClosed: (id: string, closed: boolean) => void;
   onCancelSignup: (id: string) => void;
   onSelectCampaign: (campaign: Campaign) => void;
   onUpdateCampaign: (campaign: Campaign) => void;
 }
 
-const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已到期' : campaign.isFull ? '已满员' : '招募中';
+const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已到期' : campaign.isClosed ? '已封团' : campaign.isFull ? '已满员' : '招募中';
 
 export const ManageView: React.FC<Props> = ({
   hostedCampaigns,
@@ -27,6 +28,7 @@ export const ManageView: React.FC<Props> = ({
   presetTags = [],
   popularCustomTags = [],
   onDeleteCampaign,
+  onSetCampaignClosed,
   onCancelSignup,
   onSelectCampaign,
   onUpdateCampaign,
@@ -55,6 +57,11 @@ export const ManageView: React.FC<Props> = ({
       type: 'warning',
     });
     if (ok) onCancelSignup(campaign.id);
+  };
+  const handleClosure = async (campaign: Campaign) => {
+    const closed = !campaign.isClosed;
+    const ok = await showConfirm({ title: closed ? '封团' : '重新开放报名', message: `确定${closed ? '关闭' : '重新开放'}「${campaign.title}」在 ${formatDisplayTime(campaign.timeSchedule)} 的报名吗？`, confirmText: closed ? '确定封团' : '重新开放', type: closed ? 'warning' : 'info' });
+    if (ok) onSetCampaignClosed(campaign.id, closed);
   };
 
   const list = (campaigns: Campaign[], hosted: boolean) => campaigns.length ? (
@@ -93,6 +100,7 @@ export const ManageView: React.FC<Props> = ({
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
               <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
+              {!campaign.hasEnded && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '封团'}</button>}
               <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />删除</button>
             </> : !campaign.hasEnded && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
           </div>

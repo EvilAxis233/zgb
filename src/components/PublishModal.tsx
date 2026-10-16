@@ -55,6 +55,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [contact, setContact] = useState(currentUser?.qq || '');
   const [description, setDescription] = useState('');
   const [timeSchedule, setTimeSchedule] = useState('');
+  const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [imageUrl, setImageUrl] = useState('');
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
@@ -63,12 +64,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isOpen && !rule && rules.length) {
-      setRule(rules[0]);
-    }
-  }, [isOpen, rules, rule]);
 
   useEffect(() => {
     if (isOpen && currentUser?.qq && !contact) {
@@ -125,7 +120,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       showAlert({ title: '提示', message: '请将必填信息补充完整', type: 'warning' });
       return;
     }
-    if (!timeSchedule.trim()) {
+    if (!timeSlots.length) {
       showAlert({ title: '提示', message: '请在日历中选择开团日期及开团时段（早/中/晚）', type: 'warning' });
       return;
     }
@@ -147,7 +142,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       gmPraises: currentUser.receivedGmPraises,
       contact: contact.trim() || currentUser.qq,
       description: description.trim() || '暂无详细简介。',
-      timeSchedule: timeSchedule.trim(),
+      timeSchedule: timeSlots[0],
+      timeSlots,
       imageUrl: imageUrl.trim() || undefined,
       bannerColor,
       isFull: false,
@@ -176,7 +172,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     contact: contact.trim() || currentUser?.qq,
     summary: '',
     description: description.trim() || '暂无详细简介',
-    timeSchedule: timeSchedule.trim() || '时间待定',
+    timeSchedule: timeSlots[0] || '时间待定',
+    slots: timeSlots.map((slot, index) => ({ id: `preview-${index}`, timeSchedule: slot, currentPlayers: 0, maxPlayers: Number(maxPlayers) || 4, isFull: false, hasEnded: false, isSignedUp: false })),
     imageUrl: imageUrl.trim() || undefined,
     bannerColor,
     isFull: false,
@@ -210,6 +207,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             <CalendarPicker
               value={timeSchedule}
               onChange={(val) => setTimeSchedule(val)}
+              multiple
+              selectedSlots={timeSlots}
+              onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
               hideHeader={true}
               borderless={true}
             />
@@ -566,7 +566,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           timeSchedule ? 'text-[#121212]' : 'text-[#888888] font-normal italic'
                         }`}
                       >
-                        {timeSchedule || '未选择时间（请在左侧日历选定）'}
+                        {timeSlots.length ? `${timeSlots.length} 个时段：${timeSlots.join('、')}` : '未选择时间（请在左侧日历选定）'}
                       </span>
                     </div>
                     {timeSchedule ? (
@@ -594,6 +594,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         <CalendarPicker
                           value={timeSchedule}
                           onChange={(val) => setTimeSchedule(val)}
+                          multiple
+                          selectedSlots={timeSlots}
+                          onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
                         />
                       </div>
                     )}

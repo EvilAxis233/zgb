@@ -110,7 +110,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         <div className="mt-4 pt-3 border-t-2 border-[#121212] flex items-center text-xs text-[#121212] font-semibold bg-[#FAF9F5] px-2.5 py-2 border border-[#E5E5E0]">
           <Clock className="w-4 h-4 text-[#004E98] shrink-0 mr-1.5" />
           <span className="font-bold mr-1 shrink-0">时间:</span>
-          <span className="leading-normal break-words">{formatDisplayTime(campaign.timeSchedule)}</span>
+          <span className="leading-normal break-words">{campaign.slots && campaign.slots.length > 1 ? campaign.slots.map((slot) => formatDisplayTime(slot.timeSchedule)).join('、') : formatDisplayTime(campaign.timeSchedule)}</span>
         </div>
       </div>
     </article>

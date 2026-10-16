@@ -21,6 +21,9 @@ export type GamePlatform = typeof GAME_PLATFORMS[number];
 
 export interface Campaign {
   id: string;
+  batchId?: string | null;
+  slots?: CampaignSlot[];
+  timeSlots?: string[];
   title: string;
   rule: string;
   sessionType?: SessionType;
@@ -40,10 +43,22 @@ export interface Campaign {
   maxPlayers: number;
   currentPlayers: number;
   isFull: boolean;
+  isClosed?: boolean;
   hasEnded: boolean;
   isSignedUp: boolean;
   createdAt: string;
   imageKey?: string | null;
+}
+
+export interface CampaignSlot {
+  id: string;
+  timeSchedule: string;
+  currentPlayers: number;
+  maxPlayers: number;
+  isFull: boolean;
+  isClosed?: boolean;
+  hasEnded: boolean;
+  isSignedUp: boolean;
 }
 
 export interface CampaignMember {

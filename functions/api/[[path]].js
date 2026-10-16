@@ -35,8 +35,14 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignEnded = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, title: c.title, rule: c.rule, sessionType: c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: !!c.closed_at || currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
+const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: !!c.closed_at || Number(c.member_count || 0) >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: joined.has(c.id) });
+function campaignsDto(rows, joined = new Set(), viewer = null) {
+  const groups = new Map();
+  for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
+  return rows.map((c) => ({ ...campDto(c, joined.has(c.id), viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}) }));
+}
 const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
@@ -270,18 +276,25 @@ export async function onRequest(context) {
       const rules = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
       const presetTags = await db.prepare('SELECT name FROM preset_tags ORDER BY rowid').all();
       const popularCustomTags = await db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all();
-      return json({ campaigns: rows.results.filter((c) => !campaignEnded(c) && Number(c.member_count) < c.max_players).map((c) => campDto(c)), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
+      const campaigns = campaignsDto(rows.results);
+      return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isFull), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'campaigns' && path[1] && path.length === 2 && method === 'GET') {
       const c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(path[1]).first();
       if (!c) return fail('团不存在', 404);
       const membership = user ? await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(c.id, user.qq).first() : null;
-      const isPublic = !campaignEnded(c) && Number(c.member_count) < c.max_players;
+      const siblings = c.batch_id ? await db.prepare(`${campaignSelect} AND c.batch_id=? ORDER BY c.scheduled_date,c.time_period`).bind(c.batch_id).all() : null;
+      const isPublic = !campaignEnded(c) && ((!c.closed_at && Number(c.member_count) < c.max_players) || !!siblings?.results.some((slot) => !campaignEnded(slot) && !slot.closed_at && Number(slot.member_count) < slot.max_players));
       if (!isPublic && (!user || (c.gm_qq !== user.qq && !membership))) return fail('团不存在', 404);
       const players = await db.prepare('SELECT u.* FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id=? ORDER BY m.joined_at,u.qq').bind(c.id).all();
       const gm = await db.prepare('SELECT * FROM users WHERE qq=?').bind(c.gm_qq).first();
       const canSeeContact = !!user && (c.gm_qq === user.qq || !!membership);
-      return json({ campaign: { ...campDto(c, !!membership, canSeeContact), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
+      const joined = new Set();
+      if (user && siblings?.results.length) {
+        const records = await db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=? AND campaign_id IN (SELECT id FROM campaigns WHERE batch_id=?)').bind(user.qq, c.batch_id).all();
+        records.results.forEach((record) => joined.add(record.campaign_id));
+      }
+      return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'bootstrap' && method === 'GET') {
@@ -296,8 +309,9 @@ export async function onRequest(context) {
         db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10')
       ]);
       const joined = new Set(memberships.results.map((m) => m.campaign_id));
-      const visible = cs.results.filter((c) => (!campaignEnded(c) && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
-      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: visible.map((c) => campDto(c, joined.has(c.id), c.gm_qq === user.qq || joined.has(c.id))), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
+      const visible = cs.results.filter((c) => (!campaignEnded(c) && !c.closed_at && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
+      const campaigns = campaignsDto(cs.results, joined, user.qq);
+      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: campaigns.filter((c) => visible.some((item) => item.id === c.id)), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
@@ -355,8 +369,19 @@ export async function onRequest(context) {
       const cid = id();
       const createdAt = new Date().toISOString();
       const contact = c.contact || user.qq;
+      const rawSlots = Array.isArray(b.timeSlots) ? b.timeSlots : [];
+      if (rawSlots.length > 96) return fail('一次最多选择 96 个时段');
+      const slots = rawSlots.length > 1 ? rawSlots.map((timeSchedule) => validateCampaign({ ...b, timeSchedule })) : [c];
+      const slotKeys = slots.map((slot) => `${slot.scheduledDate}:${slot.period}`);
+      const today = dateHK();
+      const latest = new Date(`${today}T00:00:00+08:00`);
+      latest.setUTCDate(latest.getUTCDate() + 31);
+      const latestDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(latest);
+      if (new Set(slotKeys).size !== slots.length || slots.some((slot) => slot.scheduledDate < today || slot.scheduledDate > latestDate) || (rawSlots.length > 1 && !slotKeys.includes(`${c.scheduledDate}:${c.period}`))) return fail('所选时段无效或重复');
+      const batchId = slots.length > 1 ? cid : null;
+      const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId));
       await db.batch([
-        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, c.time, c.scheduledDate, c.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags)),
+        ...statements,
         db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(c.rule, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
       ]);
@@ -370,10 +395,10 @@ export async function onRequest(context) {
       if (!c) return fail('团不存在', 404);
       if (path[2] === 'signup' && path.length === 3 && method === 'POST') {
         if (c.gm_qq === user.qq) return fail('主持人不能报名自己的团');
-        if (campaignEnded(c)) return fail('该团报名已经结束');
+        if (campaignEnded(c) || c.closed_at) return fail('该团报名已经结束');
         const result = await db.prepare(`INSERT INTO campaign_memberships(campaign_id,user_qq,joined_at)
           SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?)
-          AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ?`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players).run();
+          AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL)`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players, cid).run();
         return result.meta.changes ? json({ ok: true }, 201) : fail('你已经报名或该团已满员', 409);
       }
       if (path[2] === 'signup' && path.length === 3 && method === 'DELETE') {
@@ -390,6 +415,13 @@ export async function onRequest(context) {
         return result.meta.changes ? json({ ok: true }) : fail('玩家不在本团', 404);
       }
       if (c.gm_qq !== user.qq) return fail('只有主持人可以操作', 403);
+      if (path[2] === 'status' && path.length === 3 && method === 'PATCH') {
+        const b = await body(request);
+        if (typeof b.closed !== 'boolean') return fail('状态无效');
+        if (campaignEnded(c)) return fail('开团日期已结束');
+        await db.prepare('UPDATE campaigns SET closed_at=? WHERE id=?').bind(b.closed ? new Date().toISOString() : null, cid).run();
+        return json({ ok: true });
+      }
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request), data = validateCampaign(b), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');

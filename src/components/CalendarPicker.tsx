@@ -5,6 +5,7 @@ import {
   getWeekDayName,
   buildTimeSchedule,
   parseTimeSchedule,
+  formatDisplayTime,
   TimePeriod,
   TIME_PERIODS,
 } from '../utils/date';
@@ -13,6 +14,9 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check } from 'luci
 interface CalendarPickerProps {
   value: string;
   onChange: (timeSchedule: string) => void;
+  multiple?: boolean;
+  selectedSlots?: string[];
+  onChangeSlots?: (slots: string[]) => void;
   maxDaysAhead?: number; // 默认最晚31天后
   hideHeader?: boolean;
   borderless?: boolean;
@@ -21,6 +25,9 @@ interface CalendarPickerProps {
 export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   value,
   onChange,
+  multiple = false,
+  selectedSlots = [],
+  onChangeSlots,
   maxDaysAhead = 31,
   hideHeader = false,
   borderless = false,
@@ -47,6 +54,14 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
   const [selectedDate, setSelectedDate] = useState<string>(parsedValue.dateStr || '');
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod | null>(parsedValue.period || null);
+  const slotMap = useMemo(() => {
+    const map = new Map<string, Set<TimePeriod>>();
+    for (const slot of selectedSlots) {
+      const parsed = parseTimeSchedule(slot);
+      if (parsed.dateStr && parsed.period) map.set(parsed.dateStr, new Set([...(map.get(parsed.dateStr) || []), parsed.period]));
+    }
+    return map;
+  }, [selectedSlots]);
 
   // 日历当前展示的年份和月份
   const [viewYear, setViewYear] = useState<number>(() => {
@@ -67,12 +82,13 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
   // 当外部 value 变化且合法时同步内部状态
   useEffect(() => {
+    if (multiple) return;
     const parsed = parseTimeSchedule(value);
     if (parsed.valid && parsed.dateStr && parsed.period) {
       setSelectedDate(parsed.dateStr);
       setSelectedPeriod(parsed.period);
     }
-  }, [value]);
+  }, [value, multiple]);
 
   // 触发 onChange 向上通知
   const handleSelect = (dateStr: string, period: TimePeriod | null) => {
@@ -84,6 +100,18 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
     } else {
       onChange('');
     }
+  };
+  const toggleSlot = (period: TimePeriod) => {
+    if (!selectedDate) return;
+    const target = `${selectedDate}:${period}`;
+    const keys = selectedSlots.map((slot) => {
+      const parsed = parseTimeSchedule(slot);
+      return `${parsed.dateStr}:${parsed.period}`;
+    });
+    const next = keys.includes(target)
+      ? selectedSlots.filter((_, index) => keys[index] !== target)
+      : [...selectedSlots, buildTimeSchedule(selectedDate, period)];
+    onChangeSlots?.(next.sort((a, b) => a.localeCompare(b, 'zh-CN')));
   };
 
   // 月份切换
@@ -181,7 +209,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2">
           <div className="flex items-center gap-1.5 font-black text-xs text-[#121212]">
             <CalendarIcon className="w-4 h-4 text-[#D62828]" />
-            <span>选择开团日期与时段</span>
+            <span>{multiple ? '选择多个开团日期与时段' : '选择开团日期与时段'}</span>
           </div>
           <span className="text-[11px] font-bold text-[#666666] bg-[#FFFFFF] px-2 py-0.5 border border-[#CCCCCC]">
             可选今日起最晚 31 天内
@@ -257,7 +285,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
             <button
               key={day.dateStr}
               type="button"
-              onClick={() => handleSelect(day.dateStr, selectedPeriod)}
+              onClick={() => multiple ? setSelectedDate(day.dateStr) : handleSelect(day.dateStr, selectedPeriod)}
               className={`h-9 relative flex flex-col items-center justify-center text-xs font-bold transition-all cursor-pointer border ${
                 day.isSelected
                   ? 'bg-[#121212] text-white border-[#121212] shadow-[2px_2px_0px_#D62828]'
@@ -265,6 +293,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
               }`}
             >
               <span>{day.dayNumber}</span>
+              {multiple && slotMap.has(day.dateStr) && <span className="text-[9px] leading-none">{[...slotMap.get(day.dateStr)!].join('')}</span>}
               {day.isToday && (
                 <span
                   className={`text-[9px] leading-none font-bold ${
@@ -296,13 +325,13 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
         <div className="grid grid-cols-3 gap-2">
           {TIME_PERIODS.map(({ key, label, desc }) => {
-            const isChosen = selectedPeriod === key;
+            const isChosen = multiple ? !!slotMap.get(selectedDate)?.has(key) : selectedPeriod === key;
             return (
               <button
                 key={key}
                 type="button"
                 disabled={!selectedDate}
-                onClick={() => handleSelect(selectedDate, key)}
+                onClick={() => multiple ? toggleSlot(key) : handleSelect(selectedDate, key)}
                 className={`p-2.5 flex flex-col items-center justify-center border-2 transition-all ${
                   !selectedDate
                     ? 'opacity-40 cursor-not-allowed border-[#CCCCCC] bg-[#EEEEEE] text-[#888888]'
@@ -327,12 +356,14 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
       {/* 底部结果提示栏：未选前留空，选完后直接展示时间 */}
       <div
         className={`px-3 py-2 text-xs font-bold border flex items-center justify-center min-h-[38px] transition-all ${
-          selectedDate && selectedPeriod
+          multiple ? selectedSlots.length > 0 : selectedDate && selectedPeriod
             ? 'bg-[#EBF7EE] border-[#2A9D8F] text-[#1E6B60] shadow-[2px_2px_0px_#121212]'
             : 'bg-white/60 border-[#E0DED7]'
         }`}
       >
-        {selectedDate && selectedPeriod ? (
+        {multiple ? (
+          <span className="text-[#121212] text-center">{selectedSlots.length ? `已选 ${selectedSlots.length} 个时段：${selectedSlots.map(formatDisplayTime).join('、')}` : '点击日期，再选择早 / 中 / 晚；再次点击时段可取消'}</span>
+        ) : selectedDate && selectedPeriod ? (
           <span className="font-mono font-black text-xs sm:text-sm text-[#121212]">
             {`${selectedDate}（${selectedDateWeekDay}）${selectedPeriod}`}
           </span>

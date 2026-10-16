@@ -9,6 +9,7 @@ interface Props {
   campaign: CampaignDetail | null;
   currentUser: UserProfile | null;
   onClose: () => void;
+  onSelectSlot: (id: string) => void;
   onLogin: () => void;
   onSignup: (id: string) => void;
   onCancelSignup: (id: string) => void;
@@ -26,7 +27,7 @@ function Avatar({ member }: { member: CampaignMember }) {
   );
 }
 
-export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise }) => {
+export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise }) => {
   const { showConfirm } = useDialog();
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
@@ -140,9 +141,14 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   </span>
                 ))}
                 {!campaign.hasEnded && !campaign.isFull && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">招募中</span>}
+                {campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已封团</span>}
                 <span className="px-2.5 py-0.5 bg-[#F4A261] text-xs font-bold border border-[#121212] flex items-center gap-1"><Users className="w-3.5 h-3.5" />{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>
               </div>
               <h1 className="text-2xl font-black tracking-tight">{campaign.title}</h1>
+              {campaign.slots && campaign.slots.length > 1 && <div className="mt-3 space-y-1.5">
+                <span className="text-xs font-black">选择开团时段：</span>
+                <div className="flex flex-wrap gap-2">{campaign.slots.map((slot) => <button key={slot.id} type="button" onClick={() => slot.id !== campaign.id && onSelectSlot(slot.id)} aria-pressed={slot.id === campaign.id} className={`px-2.5 py-1.5 text-xs font-bold border-2 border-[#121212] ${slot.id === campaign.id ? 'bg-[#004E98] text-white' : 'bg-white hover:bg-[#F0F5FA]'}`}>{formatDisplayTime(slot.timeSchedule)} · {slot.currentPlayers}/{slot.maxPlayers}{slot.hasEnded ? ' 已结束' : slot.isFull ? ' 已满' : ''}{slot.isSignedUp ? ' 已报名' : ''}</button>)}</div>
+              </div>}
               <div className="mt-4 pt-3 border-t-2 border-[#121212] text-xs font-bold flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#004E98] shrink-0" />
@@ -162,7 +168,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 {!currentUser && !campaign.hasEnded && !campaign.isFull && <button onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold">登录后报名</button>}
                 {currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isFull && <button onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
                 {currentUser && campaign.isSignedUp && !campaign.hasEnded && <button onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-2 text-sm font-bold">取消报名</button>}
-                {(campaign.hasEnded || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '开团日期已结束' : '报名人数已满'}</span>}
+                {(campaign.hasEnded || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '开团日期已结束' : campaign.isClosed ? '本团已封团' : '报名人数已满'}</span>}
               </div>
             </div>
           </div>

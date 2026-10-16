@@ -16,6 +16,8 @@
 
 `migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。报名玩家在开团日期结束后的首次登录请求中幂等获得 1 枚 GM 点赞；每日签到按香港日期获得玩家点赞。团内点赞必须绑定团，且只能在到期后由该团成员发出。站点清空浏览器数据不影响这些服务器记录。
 
+批量发团时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供首页合并展示和详情切换。报名、成员、点赞、修改、封团与删除仍按单条团记录处理；一个批次只写入一条机器人广播事件。部署此功能前须应用 `0009_campaign_batches.sql` 和 `0010_campaign_closure.sql`。
+
 ## 管理后台
 
 访问 `/admin`。后台密码从 Pages Secret `ADMIN_PASSWORD` 读取；未配置时后台登录不可用。后台使用独立的 HttpOnly、Secure、SameSite=Strict Cookie，会话有效期 12 小时；单个 IP 15 分钟内连续五次输错后会暂时拒绝登录。更换密码会使旧管理员会话失效；原来公开于源码的密码不得继续使用。
