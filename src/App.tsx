@@ -126,9 +126,6 @@ export function App() {
   const handleCancelSignup = (campaignId: string) => mutateCampaign(() => api.cancelSignup(campaignId), '已取消报名', campaignId);
   const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
   const handleUploadAvatar = (file: File) => run(() => api.uploadAvatar(file), '头像已更新');
-  const handleLegacyStatus = (id: string, status: string) => run(() => api.legacyStatus(id, status), '旧系统状态已更新');
-  const handleLegacyVoucher = (id: string) => run(async () => { const result = await api.legacyVoucher(id); await navigator.clipboard.writeText(result.voucherCode); }, '旧凭证已生成并复制');
-  const handleLegacyRedeem = (code: string) => run(() => api.legacyRedeem(code), '旧凭证兑换成功');
 
   // Extract all distinct rules for filtering
   const availableRules = useMemo(() => {
@@ -384,9 +381,6 @@ export function App() {
               onCancelSignup={handleCancelSignup}
               onSelectCampaign={openCampaign}
               onUpdateCampaign={handleUpdateCampaign}
-              onLegacyStatus={handleLegacyStatus}
-              onLegacyVoucher={handleLegacyVoucher}
-              onLegacyRedeem={handleLegacyRedeem}
             />
           </div>
         )}

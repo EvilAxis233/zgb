@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, Eye, KeyRound, LogOut, Trash2, X } from 'lucide-react';
+import { Edit2, Eye, LogOut, Trash2, X } from 'lucide-react';
 import type { Campaign } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
@@ -13,16 +13,12 @@ interface Props {
   onCancelSignup: (id: string) => void;
   onSelectCampaign: (campaign: Campaign) => void;
   onUpdateCampaign: (campaign: Campaign) => void;
-  onLegacyStatus: (id: string, status: string) => void;
-  onLegacyVoucher: (id: string) => void;
-  onLegacyRedeem: (code: string) => void;
 }
 
 const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已到期' : campaign.isFull ? '已满员' : '招募中';
 
-export const ManageView: React.FC<Props> = ({ hostedCampaigns, joinedCampaigns, rules, onDeleteCampaign, onCancelSignup, onSelectCampaign, onUpdateCampaign, onLegacyStatus, onLegacyVoucher, onLegacyRedeem }) => {
+export const ManageView: React.FC<Props> = ({ hostedCampaigns, joinedCampaigns, rules, onDeleteCampaign, onCancelSignup, onSelectCampaign, onUpdateCampaign }) => {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
-  const [voucher, setVoucher] = useState('');
 
   const list = (campaigns: Campaign[], hosted: boolean) => campaigns.length ? (
     <div className="space-y-3">
@@ -55,15 +51,6 @@ export const ManageView: React.FC<Props> = ({ hostedCampaigns, joinedCampaigns, 
   };
 
   return <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-    <section className="md:col-span-2 bauhaus-card bg-white p-4 border-dashed">
-      <details>
-        <summary className="font-black text-sm cursor-pointer flex items-center gap-2"><KeyRound className="w-4 h-4 text-[#D62828]" />旧凭证过渡入口</summary>
-        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
-          <form onSubmit={(event) => { event.preventDefault(); if (voucher.trim()) onLegacyRedeem(voucher.trim()); }} className="flex gap-2"><input value={voucher} onChange={(event) => setVoucher(event.target.value)} className="bauhaus-input flex-1 px-3 py-2" placeholder="输入旧凭证码" /><button className="bauhaus-btn bg-[#004E98] text-white px-4">兑换</button></form>
-          <div className="flex flex-wrap gap-2">{hostedCampaigns.map((campaign) => campaign.legacyStatus === 'concluded' ? <button key={campaign.id} onClick={() => campaign.voucherCode ? navigator.clipboard.writeText(campaign.voucherCode) : onLegacyVoucher(campaign.id)} className="bauhaus-btn bg-[#F4A261] px-3 py-1.5">{campaign.voucherCode ? `复制 ${campaign.title} 凭证` : `生成 ${campaign.title} 凭证`}</button> : <button key={campaign.id} onClick={() => onLegacyStatus(campaign.id, 'concluded')} className="bauhaus-btn bg-white px-3 py-1.5">旧系统标记《{campaign.title}》完结</button>)}</div>
-        </div>
-      </details>
-    </section>
     <section className="bauhaus-card bg-[#FAF0F0] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />我主持的团 ({hostedCampaigns.length})</h2>{list(hostedCampaigns, true)}</section>
     <section className="bauhaus-card bg-[#F0F5FA] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#004E98]" />我报名的团 ({joinedCampaigns.length})</h2>{list(joinedCampaigns, false)}</section>
 

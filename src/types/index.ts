@@ -34,8 +34,6 @@ export interface Campaign {
   isSignedUp: boolean;
   createdAt: string;
   imageKey?: string | null;
-  legacyStatus?: 'recruiting' | 'full' | 'closed' | 'concluded';
-  voucherCode?: string;
 }
 
 export interface CampaignMember {

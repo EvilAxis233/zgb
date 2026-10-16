@@ -35,7 +35,7 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignEnded = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, title: c.title, rule: c.rule, summary: c.summary, description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, createdAt: c.created_at.slice(0, 10), legacyStatus: c.status, voucherCode: c.voucher_code || undefined };
+  return { id: c.id, title: c.title, rule: c.rule, summary: c.summary, description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, createdAt: c.created_at.slice(0, 10) };
 };
 const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
@@ -353,30 +353,6 @@ export async function onRequest(context) {
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'DELETE') { await db.prepare('UPDATE campaigns SET deleted_at=? WHERE id=?').bind(new Date().toISOString(), cid).run(); return json({ ok: true }); }
-      if (path[2] === 'status' && method === 'POST') {
-        const status = (await body(request)).status;
-        if (!['recruiting','full','closed','concluded'].includes(status)) return fail('状态无效');
-        await db.prepare('UPDATE campaigns SET status=? WHERE id=?').bind(status, cid).run();
-        return json({ ok: true });
-      }
-      if (path[2] === 'voucher' && method === 'POST') {
-        if (c.status !== 'concluded') return fail('只有旧系统中已完结的团可以生成凭证');
-        if (c.voucher_code) return json({ voucherCode: c.voucher_code });
-        const code = `TRPG-${hex(crypto.getRandomValues(new Uint8Array(6))).toUpperCase()}`;
-        await db.prepare('UPDATE campaigns SET voucher_code=?,voucher_limit=max_players WHERE id=? AND voucher_code IS NULL').bind(code, cid).run();
-        return json({ voucherCode: code });
-      }
-    }
-    if (path[0] === 'redeem' && method === 'POST') {
-      const code = clean((await body(request)).code, 100).toUpperCase();
-      const c = await db.prepare('SELECT * FROM campaigns WHERE voucher_code=? AND deleted_at IS NULL').bind(code).first();
-      if (!c || c.status !== 'concluded' || c.gm_qq === user.qq) return fail('无效凭证');
-      const result = await db.batch([
-        db.prepare('UPDATE campaigns SET voucher_used=voucher_used+1 WHERE id=? AND voucher_used<voucher_limit AND NOT EXISTS(SELECT 1 FROM participations WHERE campaign_id=? AND user_qq=?)').bind(c.id, c.id, user.qq),
-        db.prepare('INSERT INTO participations(id,campaign_id,user_qq,redeemed_at) SELECT ?,?,?,? WHERE changes()=1').bind(id(), c.id, user.qq, new Date().toISOString()),
-        db.prepare('UPDATE users SET gm_hearts=gm_hearts+1 WHERE qq=? AND changes()=1').bind(user.qq)
-      ]);
-      return result[0].meta.changes ? json({ ok: true }) : fail('凭证已领完或你已经领取');
     }
     return fail('接口不存在', 404);
   } catch (error) {
