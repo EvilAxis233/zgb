@@ -30,7 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-[1760px] w-full mx-auto px-4 sm:px-6 py-3 flex flex-wrap lg:flex-nowrap items-center gap-4 lg:gap-6">
         {/* Brand / Logo: Right-aligned to Line 1 (Right border of Left column) */}
         <div
-          className="w-auto lg:w-60 xl:w-64 shrink-0 flex items-center lg:justify-end gap-3 cursor-pointer"
+          className="w-full sm:w-auto lg:w-60 xl:w-64 shrink-0 flex items-center lg:justify-end gap-3 cursor-pointer"
           onClick={() => setActiveTab('board')}
         >
           {/* Pure Bauhaus Red Square without text */}
@@ -41,12 +41,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Center Container: Spans from Line 2 (cards left edge) to Line 3 (cards right edge) */}
-        <div className="flex-1 min-w-0 flex flex-wrap lg:flex-nowrap items-center justify-between gap-4">
+        <div className="w-full sm:flex-1 min-w-0 flex flex-wrap lg:flex-nowrap items-center justify-between gap-4">
           {/* Tab Navigation: Starts at Line 2 */}
-          <nav className="flex items-center gap-1 sm:gap-2">
+          <nav className="grid grid-cols-3 sm:flex w-full sm:w-auto items-center gap-1 sm:gap-2">
             <button
               onClick={() => setActiveTab('board')}
-              className={`px-4 py-2 font-bold text-sm border-2 border-[#121212] transition-all cursor-pointer ${
+              className={`px-2 sm:px-4 py-2 font-bold text-sm border-2 border-[#121212] transition-all cursor-pointer ${
                 activeTab === 'board'
                   ? 'bg-[#121212] text-white shadow-[2px_2px_0px_#D62828]'
                   : 'bg-white text-[#121212] hover:bg-[#F2F0E8]'
@@ -57,7 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('profile')}
-              className={`px-4 py-2 font-bold text-sm border-2 border-[#121212] transition-all cursor-pointer ${
+              className={`px-2 sm:px-4 py-2 font-bold text-sm border-2 border-[#121212] transition-all cursor-pointer ${
                 activeTab === 'profile'
                   ? 'bg-[#121212] text-white shadow-[2px_2px_0px_#004E98]'
                   : 'bg-white text-[#121212] hover:bg-[#F2F0E8]'
@@ -68,7 +68,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('manage')}
-              className={`px-4 py-2 font-bold text-sm border-2 border-[#121212] transition-all cursor-pointer ${
+              className={`px-2 sm:px-4 py-2 font-bold text-sm border-2 border-[#121212] transition-all cursor-pointer ${
                 activeTab === 'manage'
                   ? 'bg-[#121212] text-white shadow-[2px_2px_0px_#F4A261]'
                   : 'bg-white text-[#121212] hover:bg-[#F2F0E8]'
@@ -79,13 +79,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Hearts/Praises Inventory Display & Action Area: Ends at Line 3 */}
-          <div className="flex items-center gap-3">
+          <div className="w-full sm:w-auto flex flex-wrap items-center gap-3">
             <button onClick={currentUser ? onLogout : onOpenLogin} className="bauhaus-btn bg-white px-3 py-2 text-xs font-bold">{currentUser ? `${currentUser.name} · 退出` : '登录'}</button>
             {/* Praise inventory counters */}
-            <div className="flex items-center gap-2 bg-[#F6F5F0] border-2 border-[#121212] p-1.5 shadow-[2px_2px_0px_#121212]">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#F6F5F0] border-2 border-[#121212] p-1.5 shadow-[2px_2px_0px_#121212]">
               {/* GM Praise */}
               <div
-                className="flex items-center gap-1.5 px-2 py-1 bg-white border border-[#121212]"
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 bg-white border border-[#121212]"
                 title="GM点赞：报名团结束后获得，可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
@@ -97,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Player Praise */}
               <div
-                className="flex items-center gap-1.5 px-2 py-1 bg-white border border-[#121212]"
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 bg-white border border-[#121212]"
                 title="玩家点赞：每日签到获得，可给玩家同伴点赞"
               >
                 <Star className="w-4 h-4 text-[#004E98] fill-[#004E98]" />
