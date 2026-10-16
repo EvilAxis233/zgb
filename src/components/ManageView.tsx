@@ -4,6 +4,7 @@ import type { Campaign, SessionType } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
+import { useDialog } from './BauhausDialog';
 
 interface Props {
   hostedCampaigns: Campaign[];
@@ -30,10 +31,31 @@ export const ManageView: React.FC<Props> = ({
   onSelectCampaign,
   onUpdateCampaign,
 }) => {
+  const { showConfirm } = useDialog();
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
   const [customTagInput, setCustomTagInput] = useState('');
+
+  const handleDelete = async (campaign: Campaign) => {
+    const ok = await showConfirm({
+      title: '删除战役',
+      message: `确定删除战役《${campaign.title}》吗？此操作无法撤销。`,
+      confirmText: '确定删除',
+      type: 'danger',
+    });
+    if (ok) onDeleteCampaign(campaign.id);
+  };
+
+  const handleCancel = async (campaign: Campaign) => {
+    const ok = await showConfirm({
+      title: '取消报名',
+      message: `确定取消报名战役《${campaign.title}》吗？`,
+      confirmText: '确定取消',
+      type: 'warning',
+    });
+    if (ok) onCancelSignup(campaign.id);
+  };
 
   const list = (campaigns: Campaign[], hosted: boolean) => campaigns.length ? (
     <div className="space-y-3">
@@ -70,8 +92,8 @@ export const ManageView: React.FC<Props> = ({
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
               <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
-              <button onClick={() => confirm(`确定删除战役《${campaign.title}》吗？`) && onDeleteCampaign(campaign.id)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />删除</button>
-            </> : !campaign.hasEnded && <button onClick={() => onCancelSignup(campaign.id)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
+              <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />删除</button>
+            </> : !campaign.hasEnded && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
           </div>
         </article>
       ))}

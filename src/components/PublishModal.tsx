@@ -4,6 +4,7 @@ import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
 import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
+import { useDialog } from './BauhausDialog';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   popularCustomTags = [],
   onPublish,
 }) => {
+  const { showAlert } = useDialog();
   const [title, setTitle] = useState('');
   const [rule, setRule] = useState('');
   const [sessionType, setSessionType] = useState<SessionType>('语音');
@@ -72,11 +74,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
   const processFile = (file: File) => {
     if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
-      alert('请选择 PNG、JPG、GIF 或 WebP 图片');
+      showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert('上传图片请小于 2MB');
+      showAlert({ title: '图片过大', message: '上传图片请小于 2MB', type: 'warning' });
       return;
     }
     const reader = new FileReader();
@@ -117,19 +119,22 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
-      alert('游客无法发布战役，请先登录');
+      showAlert({ title: '提示', message: '游客无法发布战役，请先登录', type: 'warning' });
       return;
     }
     if (!title.trim() || !contact.trim()) {
-      alert('请将必填信息补充完整');
+      showAlert({ title: '提示', message: '请将必填信息补充完整', type: 'warning' });
       return;
     }
     if (!timeSchedule.trim()) {
-      alert('请在日历中选择开团日期及开团时段（早/中/晚）');
+      showAlert({ title: '提示', message: '请在日历中选择开团日期及开团时段（早/中/晚）', type: 'warning' });
       return;
     }
 
-    if (!rule.trim()) { alert('请填写或选择规则系统'); return; }
+    if (!rule.trim()) {
+      showAlert({ title: '提示', message: '请填写或选择规则系统', type: 'warning' });
+      return;
+    }
 
     const success = await onPublish({
       title: title.trim(),
@@ -363,7 +368,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         if (!val) return;
                         if (selectedPresetTags.includes(val)) return;
                         if (selectedPresetTags.length >= 2) {
-                          alert('最多选择 2 个限选标签');
+                          showAlert('最多选择 2 个限选标签');
                           return;
                         }
                         setSelectedPresetTags([...selectedPresetTags, val]);
@@ -422,7 +427,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                             const tag = customTagInput.trim();
                             if (!tag) return;
                             if (tag.length > 6) {
-                              alert('自选标签最多 6 个字');
+                              showAlert('自选标签最多 6 个字');
                               return;
                             }
                             if (selectedCustomTags.includes(tag)) {
@@ -430,7 +435,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                               return;
                             }
                             if (selectedCustomTags.length >= 2) {
-                              alert('最多添加 2 个自选标签');
+                              showAlert('最多添加 2 个自选标签');
                               return;
                             }
                             setSelectedCustomTags([...selectedCustomTags, tag]);
@@ -474,7 +479,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                                 onClick={() => {
                                   if (selectedCustomTags.includes(tag)) return;
                                   if (selectedCustomTags.length >= 2) {
-                                    alert('最多添加 2 个自选标签');
+                                    showAlert('最多添加 2 个自选标签');
                                     return;
                                   }
                                   setSelectedCustomTags([...selectedCustomTags, tag]);

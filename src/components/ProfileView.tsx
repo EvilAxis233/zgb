@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, Campaign } from '../types';
 import { Flame, Star, Edit3, Check, Upload } from 'lucide-react';
+import { useDialog } from './BauhausDialog';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -19,6 +20,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onSelectCampaign,
   onUploadAvatar,
 }) => {
+  const { showAlert } = useDialog();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(currentUser.name);
@@ -37,7 +39,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      alert('名字不能为空');
+      await showAlert({
+        title: '提示',
+        message: '名字不能为空',
+        type: 'warning',
+      });
       return;
     }
     setIsSaving(true);

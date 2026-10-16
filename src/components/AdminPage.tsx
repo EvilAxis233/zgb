@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Gift, LogOut, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { adminApi, type AdminUser, type GiftRecord } from '../services/api';
+import { useDialog } from './BauhausDialog';
 
 const PAGE_SIZE = 50;
 
 export function AdminPage() {
+  const { showConfirm } = useDialog();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
   const [rules, setRules] = useState<string[]>([]);
@@ -75,7 +77,13 @@ export function AdminPage() {
   };
 
   const deleteRule = async (name: string) => {
-    if (!confirm(`删除规则「${name}」？已有团的历史规则名称仍会保留。`)) return;
+    const ok = await showConfirm({
+      title: '删除规则',
+      message: `确定删除规则「${name}」？已有团的历史规则名称仍会保留。`,
+      confirmText: '确定删除',
+      type: 'danger',
+    });
+    if (!ok) return;
     setBusy(true); setNotice('');
     try { await adminApi.deleteRule(name); await loadRules(); setNotice('规则已删除'); }
     catch (error) { message(error); }
@@ -91,7 +99,13 @@ export function AdminPage() {
   };
 
   const deletePresetTag = async (name: string) => {
-    if (!confirm(`删除限选标签「${name}」？`)) return;
+    const ok = await showConfirm({
+      title: '删除限选标签',
+      message: `确定删除限选标签「${name}」？`,
+      confirmText: '确定删除',
+      type: 'danger',
+    });
+    if (!ok) return;
     setBusy(true); setNotice('');
     try { await adminApi.deletePresetTag(name); await loadPresetTags(); setNotice('限选标签已删除'); }
     catch (error) { message(error); }
@@ -142,45 +156,47 @@ export function AdminPage() {
         )}
 
         {authenticated && (
-          <div className="space-y-7">
-            <div className="grid lg:grid-cols-[340px_1fr] gap-6 items-start">
-              <div className="space-y-6">
-                <section className="bauhaus-card p-5 bg-white">
-                  <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
-                    <h2 className="font-black">规则系统</h2><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">{rules.length} 个</span>
-                  </div>
-                  <form onSubmit={addRule} className="flex gap-2 mb-4">
-                    <input aria-label="新规则名" maxLength={100} required value={newRule} onChange={(event) => setNewRule(event.target.value)} placeholder="输入新规则名" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
-                    <button disabled={busy} title="添加规则" className="bauhaus-btn bg-[#D62828] text-white px-3"><Plus size={18} /></button>
-                  </form>
-                  <ul className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {rules.map((rule) => <li key={rule} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
-                      <span className="font-bold break-all">{rule}</span>
-                      <button disabled={busy} onClick={() => deleteRule(rule)} aria-label={`删除 ${rule}`} title="删除规则" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
-                    </li>)}
-                    {!rules.length && <li className="text-sm text-[#666]">还没有规则名</li>}
-                  </ul>
-                </section>
+          <div className="grid lg:grid-cols-[340px_1fr] gap-6 items-stretch">
+            {/* Left Column: 规则系统 (top) + 限选标签 (bottom) */}
+            <div className="flex flex-col gap-6">
+              <section className="bauhaus-card p-5 bg-white flex flex-col">
+                <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
+                  <h2 className="font-black">规则系统</h2><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">{rules.length} 个</span>
+                </div>
+                <form onSubmit={addRule} className="flex gap-2 mb-4">
+                  <input aria-label="新规则名" maxLength={100} required value={newRule} onChange={(event) => setNewRule(event.target.value)} placeholder="输入新规则名" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
+                  <button disabled={busy} title="添加规则" className="bauhaus-btn bg-[#D62828] text-white px-3"><Plus size={18} /></button>
+                </form>
+                <ul className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {rules.map((rule) => <li key={rule} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
+                    <span className="font-bold break-all">{rule}</span>
+                    <button disabled={busy} onClick={() => deleteRule(rule)} aria-label={`删除 ${rule}`} title="删除规则" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
+                  </li>)}
+                  {!rules.length && <li className="text-sm text-[#666]">还没有规则名</li>}
+                </ul>
+              </section>
 
-                <section className="bauhaus-card p-5 bg-white">
-                  <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
-                    <h2 className="font-black">限选标签</h2><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">{presetTags.length} 个</span>
-                  </div>
-                  <form onSubmit={addPresetTag} className="flex gap-2 mb-4">
-                    <input aria-label="新限选标签" maxLength={20} required value={newPresetTag} onChange={(event) => setNewPresetTag(event.target.value)} placeholder="输入新限选标签" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
-                    <button disabled={busy} title="添加限选标签" className="bauhaus-btn bg-[#004E98] text-white px-3"><Plus size={18} /></button>
-                  </form>
-                  <ul className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {presetTags.map((tag) => <li key={tag} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
-                      <span className="font-bold break-all">{tag}</span>
-                      <button disabled={busy} onClick={() => deletePresetTag(tag)} aria-label={`删除 ${tag}`} title="删除限选标签" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
-                    </li>)}
-                    {!presetTags.length && <li className="text-sm text-[#666]">还没有限选标签</li>}
-                  </ul>
-                </section>
-              </div>
+              <section className="bauhaus-card p-5 bg-white flex flex-col flex-1">
+                <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
+                  <h2 className="font-black">限选标签</h2><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">{presetTags.length} 个</span>
+                </div>
+                <form onSubmit={addPresetTag} className="flex gap-2 mb-4">
+                  <input aria-label="新限选标签" maxLength={20} required value={newPresetTag} onChange={(event) => setNewPresetTag(event.target.value)} placeholder="输入新限选标签" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
+                  <button disabled={busy} title="添加限选标签" className="bauhaus-btn bg-[#004E98] text-white px-3"><Plus size={18} /></button>
+                </form>
+                <ul className="space-y-2 max-h-[260px] overflow-y-auto pr-1 flex-1">
+                  {presetTags.map((tag) => <li key={tag} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
+                    <span className="font-bold break-all">{tag}</span>
+                    <button disabled={busy} onClick={() => deletePresetTag(tag)} aria-label={`删除 ${tag}`} title="删除限选标签" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
+                  </li>)}
+                  {!presetTags.length && <li className="text-sm text-[#666]">还没有限选标签</li>}
+                </ul>
+              </section>
+            </div>
 
-              <section className="bauhaus-card p-5 bg-white min-w-0">
+            {/* Right Column: QQ 账号 (top) + 礼物记录 (bottom) */}
+            <div className="flex flex-col gap-6 min-w-0">
+              <section className="bauhaus-card p-5 bg-white flex flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#121212] pb-3 mb-4">
                   <h2 className="font-black">QQ 账号</h2><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">共 {userTotal} 个</span>
                 </div>
@@ -188,43 +204,57 @@ export function AdminPage() {
                   <input aria-label="搜索 QQ 号或昵称" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="搜索 QQ 号或昵称" className="bauhaus-input min-w-0 flex-1 px-3 py-2 text-sm" />
                   <button title="搜索" className="bauhaus-btn bg-[#121212] text-white px-3"><Search size={17} /></button>
                 </form>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                   {users.map((user) => <button key={user.qq} onClick={() => selectUser(user)} className={`w-full text-left border-2 px-3 py-3 flex flex-wrap items-center justify-between gap-2 cursor-pointer ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white hover:bg-[#FAF9F5]'}`}>
                     <span><strong className="block text-sm">{user.name}</strong><span className="font-mono text-xs text-[#666]">{user.qq}</span></span>
                     <span className="text-xs font-bold text-[#555]">送出 {user.sent_count} · 收到 {user.received_count}</span>
                   </button>)}
                   {!users.length && <p className="py-7 text-center text-sm text-[#666]">没有匹配的账号</p>}
                 </div>
-                <div className="flex items-center justify-end gap-3 mt-4 text-xs font-bold">
+                <div className="flex items-center justify-end gap-3 mt-4 text-xs font-bold pt-2 border-t border-[#EAE8E0]">
                   <button disabled={userOffset === 0} onClick={() => setUserOffset(Math.max(0, userOffset - PAGE_SIZE))} className="bauhaus-btn bg-white p-1 disabled:opacity-40" aria-label="上一页"><ChevronLeft size={17} /></button>
                   <span>{userTotal ? userOffset + 1 : 0}–{Math.min(userOffset + PAGE_SIZE, userTotal)} / {userTotal}</span>
                   <button disabled={userOffset + PAGE_SIZE >= userTotal} onClick={() => setUserOffset(userOffset + PAGE_SIZE)} className="bauhaus-btn bg-white p-1 disabled:opacity-40" aria-label="下一页"><ChevronRight size={17} /></button>
                 </div>
               </section>
-            </div>
 
-            <section className="bauhaus-card p-5 bg-white">
-              <div className="flex items-center gap-2 border-b-2 border-[#121212] pb-3 mb-4"><Gift size={19} className="text-[#D62828]" /><h2 className="font-black">礼物记录</h2></div>
-              {!selected ? <p className="text-sm text-[#666] py-6 text-center">选择一个 QQ 账号查看收礼与送礼记录</p> : <>
-                <div className="flex flex-wrap justify-between gap-2 mb-4 text-sm"><strong>{selected.name} <span className="font-mono text-[#666]">({selected.qq})</span></strong><span>GM 点赞 {selected.received_gm} · 玩家点赞 {selected.received_player}</span></div>
-                <div className="space-y-2">
-                  {gifts.map((gift) => {
-                    const sent = gift.from_qq === selected.qq;
-                    return <div key={gift.id} className="border border-[#121212] bg-[#FAF9F5] p-3 flex items-start gap-3 text-sm">
-                      {sent ? <ArrowUpRight size={18} className="text-[#D62828] shrink-0" /> : <ArrowDownLeft size={18} className="text-[#004E98] shrink-0" />}
-                      <div className="flex-1 min-w-0"><strong>{sent ? '送出' : '收到'}{gift.type === 'gm' ? ' GM 点赞' : '玩家点赞'}</strong><p className="text-[#555] mt-1">{sent ? '收礼：' : '送礼：'}{sent ? gift.to_name : gift.from_name} ({sent ? gift.to_qq : gift.from_qq})</p></div>
-                      <time className="text-xs text-[#777] shrink-0">{new Date(gift.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time>
-                    </div>;
-                  })}
-                  {!gifts.length && <p className="text-sm text-[#666] py-6 text-center">暂无礼物记录</p>}
+              <section className="bauhaus-card p-5 bg-white flex flex-col flex-1">
+                <div className="flex items-center gap-2 border-b-2 border-[#121212] pb-3 mb-4">
+                  <Gift size={19} className="text-[#D62828]" />
+                  <h2 className="font-black">礼物记录</h2>
                 </div>
-                <div className="flex items-center justify-end gap-3 mt-4 text-xs font-bold">
-                  <button disabled={giftOffset === 0} onClick={() => setGiftOffset(Math.max(0, giftOffset - PAGE_SIZE))} className="bauhaus-btn bg-white p-1 disabled:opacity-40" aria-label="上一页礼物记录"><ChevronLeft size={17} /></button>
-                  <span>{giftTotal ? giftOffset + 1 : 0}–{Math.min(giftOffset + PAGE_SIZE, giftTotal)} / {giftTotal}</span>
-                  <button disabled={giftOffset + PAGE_SIZE >= giftTotal} onClick={() => setGiftOffset(giftOffset + PAGE_SIZE)} className="bauhaus-btn bg-white p-1 disabled:opacity-40" aria-label="下一页礼物记录"><ChevronRight size={17} /></button>
-                </div>
-              </>}
-            </section>
+                {!selected ? (
+                  <div className="flex-1 flex items-center justify-center p-6 text-sm text-[#666]">
+                    选择上方一个 QQ 账号查看收礼与送礼记录
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex flex-wrap justify-between gap-2 mb-4 text-sm bg-[#FAF9F5] p-2.5 border border-[#121212]">
+                        <strong>{selected.name} <span className="font-mono text-[#666]">({selected.qq})</span></strong>
+                        <span className="font-bold">GM 点赞 {selected.received_gm} · 玩家点赞 {selected.received_player}</span>
+                      </div>
+                      <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                        {gifts.map((gift) => {
+                          const sent = gift.from_qq === selected.qq;
+                          return <div key={gift.id} className="border border-[#121212] bg-[#FAF9F5] p-3 flex items-start gap-3 text-sm">
+                            {sent ? <ArrowUpRight size={18} className="text-[#D62828] shrink-0" /> : <ArrowDownLeft size={18} className="text-[#004E98] shrink-0" />}
+                            <div className="flex-1 min-w-0"><strong>{sent ? '送出' : '收到'}{gift.type === 'gm' ? ' GM 点赞' : '玩家点赞'}</strong><p className="text-[#555] mt-1">{sent ? '收礼：' : '送礼：'}{sent ? gift.to_name : gift.from_qq ? `${gift.from_name} (${gift.from_qq})` : gift.from_name}</p></div>
+                            <time className="text-xs text-[#777] shrink-0">{new Date(gift.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time>
+                          </div>;
+                        })}
+                        {!gifts.length && <p className="text-sm text-[#666] py-6 text-center">暂无礼物记录</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-3 mt-4 text-xs font-bold pt-2 border-t border-[#EAE8E0]">
+                      <button disabled={giftOffset === 0} onClick={() => setGiftOffset(Math.max(0, giftOffset - PAGE_SIZE))} className="bauhaus-btn bg-white p-1 disabled:opacity-40" aria-label="上一页礼物记录"><ChevronLeft size={17} /></button>
+                      <span>{giftTotal ? giftOffset + 1 : 0}–{Math.min(giftOffset + PAGE_SIZE, giftTotal)} / {giftTotal}</span>
+                      <button disabled={giftOffset + PAGE_SIZE >= giftTotal} onClick={() => setGiftOffset(giftOffset + PAGE_SIZE)} className="bauhaus-btn bg-white p-1 disabled:opacity-40" aria-label="下一页礼物记录"><ChevronRight size={17} /></button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
         )}
       </main>

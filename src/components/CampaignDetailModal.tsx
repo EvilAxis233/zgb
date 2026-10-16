@@ -3,6 +3,7 @@ import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
 import { formatDisplayTime } from '../utils/date';
+import { useDialog } from './BauhausDialog';
 
 interface Props {
   campaign: CampaignDetail | null;
@@ -26,11 +27,32 @@ function Avatar({ member }: { member: CampaignMember }) {
 }
 
 export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise }) => {
+  const { showConfirm } = useDialog();
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
   const isMember = isGm || campaign.isSignedUp;
   const gm = campaign.members.find((member) => member.role === 'gm');
   const players = campaign.members.filter((member) => member.role === 'player');
+
+  const handleRemoveMember = async (member: CampaignMember) => {
+    const ok = await showConfirm({
+      title: '移出成员',
+      message: `确定将玩家「${member.name}」移出本团吗？`,
+      confirmText: '确定移出',
+      type: 'danger',
+    });
+    if (ok) onRemoveMember(campaign.id, member.id);
+  };
+
+  const handleCancelSignup = async () => {
+    const ok = await showConfirm({
+      title: '取消报名',
+      message: `确定取消报名战役《${campaign.title}》吗？`,
+      confirmText: '确定取消',
+      type: 'warning',
+    });
+    if (ok) onCancelSignup(campaign.id);
+  };
 
   const praiseButton = (member: CampaignMember) => {
     if (!currentUser || !campaign.hasEnded || !isMember || member.id === currentUser.id) return null;
@@ -59,7 +81,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         <div className="flex items-center gap-2 shrink-0">
           {praiseButton(member)}
           {isGm && member.role === 'player' && !campaign.hasEnded && (
-            <button type="button" onClick={() => onRemoveMember(campaign.id, member.id)} className="bauhaus-btn p-2 bg-[#FAF0F0] text-[#D62828] border-[#D62828]" title="移出本团"><UserRoundX className="w-4 h-4" /></button>
+            <button type="button" onClick={() => handleRemoveMember(member)} className="bauhaus-btn p-2 bg-[#FAF0F0] text-[#D62828] border-[#D62828]" title="移出本团"><UserRoundX className="w-4 h-4" /></button>
           )}
         </div>
       </div>
@@ -138,7 +160,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               <div className="mt-4">
                 {!currentUser && !campaign.hasEnded && !campaign.isFull && <button onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold">登录后报名</button>}
                 {currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isFull && <button onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
-                {currentUser && campaign.isSignedUp && !campaign.hasEnded && <button onClick={() => onCancelSignup(campaign.id)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-2 text-sm font-bold">取消报名</button>}
+                {currentUser && campaign.isSignedUp && !campaign.hasEnded && <button onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-2 text-sm font-bold">取消报名</button>}
                 {(campaign.hasEnded || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '开团日期已结束' : '报名人数已满'}</span>}
               </div>
             </div>
