@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Campaign, UserProfile } from '../types';
+import { Campaign, UserProfile, SessionType } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
 import { CalendarPicker } from './CalendarPicker';
-import { X, Upload, Trash2, Clock } from 'lucide-react';
+import { X, Upload, Trash2, Clock, BookOpen, Sparkles } from 'lucide-react';
 
 interface PublishModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: UserProfile | null;
   rules: string[];
+  presetTags?: string[];
+  popularCustomTags?: string[];
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
 }
 
@@ -33,10 +35,18 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   onClose,
   currentUser,
   rules,
+  presetTags = [],
+  popularCustomTags = [],
   onPublish,
 }) => {
   const [title, setTitle] = useState('');
   const [rule, setRule] = useState('');
+  const [sessionType, setSessionType] = useState<SessionType>('语音');
+  const [selectedPresetTags, setSelectedPresetTags] = useState<string[]>([]);
+  const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
+  const [customTagInput, setCustomTagInput] = useState('');
+  const [showRuleDropdown, setShowRuleDropdown] = useState(false);
+  const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
   const [contact, setContact] = useState(currentUser?.qq || '');
   const [description, setDescription] = useState('');
   const [timeSchedule, setTimeSchedule] = useState('');
@@ -49,8 +59,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!rules.includes(rule)) setRule(rules[0] || '');
-  }, [rules, rule]);
+    if (isOpen && !rule && rules.length) {
+      setRule(rules[0]);
+    }
+  }, [isOpen, rules, rule]);
 
   useEffect(() => {
     if (isOpen && currentUser?.qq && !contact) {
@@ -117,11 +129,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       return;
     }
 
-    if (!rule || !rules.includes(rule)) { alert('请先选择规则系统'); return; }
+    if (!rule.trim()) { alert('请填写或选择规则系统'); return; }
 
     const success = await onPublish({
       title: title.trim(),
-      rule,
+      rule: rule.trim(),
+      sessionType,
+      presetTags: selectedPresetTags,
+      customTags: selectedCustomTags,
       gmId: currentUser.id,
       gmName: currentUser.name,
       gmPraises: currentUser.receivedGmPraises,
@@ -141,11 +156,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   };
 
   // Live preview campaign object
-  const previewRule = rule || '规则待定';
+  const previewRule = rule.trim() || '规则待定';
   const previewCampaign: Campaign = {
     id: 'preview',
     title: title.trim() || '战役标题预览',
     rule: previewRule,
+    sessionType,
+    presetTags: selectedPresetTags,
+    customTags: selectedCustomTags,
     gmId: currentUser?.id || 'current-user',
     gmName: currentUser?.name || '当前主持',
     gmPraises: currentUser?.receivedGmPraises ?? 0,
@@ -233,26 +251,69 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   />
                 </div>
 
-                {/* Rule and Players Count */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
+                {/* Row 1: Rule, Players Count, and Session Type (3 columns) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Rule with dynamic input and popup */}
+                  <div className="relative">
                     <label className="block font-bold text-[#121212] mb-1">
                       规则系统 <span className="text-[#D62828]">*</span>
                     </label>
-                    <select
-                      value={rule}
-                      onChange={(e) => setRule(e.target.value)}
-                      className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"
-                    >
-                      {!rules.length && <option value="">暂无规则</option>}
-                      {rules.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={rule}
+                        onChange={(e) => setRule(e.target.value)}
+                        placeholder="输入或点击右侧选择"
+                        className="bauhaus-input w-full pl-3 pr-8 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRuleDropdown(!showRuleDropdown)}
+                        className="absolute right-2 top-2.5 text-[#004E98] hover:text-[#D62828] cursor-pointer"
+                        title="选择历史规则标签"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* All historical rules popover */}
+                    {showRuleDropdown && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-2.5 z-30 max-h-56 overflow-y-auto">
+                        <div className="text-[11px] font-bold text-[#666] mb-1.5 flex items-center justify-between border-b border-[#E5E5E0] pb-1">
+                          <span>全部历史规则 ({rules.length})</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowRuleDropdown(false)}
+                            className="hover:text-[#D62828] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {rules.length ? (
+                            rules.map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                onClick={() => {
+                                  setRule(r);
+                                  setShowRuleDropdown(false);
+                                }}
+                                className="px-2 py-1 text-xs font-bold border border-[#121212] bg-[#FAF9F5] hover:bg-[#004E98] hover:text-white transition-colors cursor-pointer text-left"
+                              >
+                                {r}
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[#888]">暂无规则历史</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Players Count */}
                   <div>
                     <label className="block font-bold text-[#121212] mb-1">
                       人数
@@ -265,6 +326,193 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       onChange={(e) => setMaxPlayers(Number(e.target.value))}
                       className="bauhaus-input w-full px-3 py-2 text-sm"
                     />
+                  </div>
+
+                  {/* Session Type */}
+                  <div>
+                    <label className="block font-bold text-[#121212] mb-1">
+                      团类型
+                    </label>
+                    <select
+                      value={sessionType}
+                      onChange={(e) => setSessionType(e.target.value as SessionType)}
+                      className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"
+                    >
+                      <option value="语音">语音</option>
+                      <option value="文字">文字</option>
+                      <option value="留言板">留言板</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 2: Tag System (Left: Preset Tags dropdown, Right: Custom Tags input with popover) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Left: Preset Tags dropdown */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-[#121212]">
+                        限选标签 <span className="text-xs font-normal text-[#666]">(最多2个)</span>
+                      </label>
+                      <span className="text-[11px] text-[#666]">{selectedPresetTags.length}/2</span>
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        if (selectedPresetTags.includes(val)) return;
+                        if (selectedPresetTags.length >= 2) {
+                          alert('最多选择 2 个限选标签');
+                          return;
+                        }
+                        setSelectedPresetTags([...selectedPresetTags, val]);
+                      }}
+                      disabled={selectedPresetTags.length >= 2}
+                      className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
+                    >
+                      <option value="">{selectedPresetTags.length >= 2 ? '已选满 (2个)' : '点击下拉选择限选标签…'}</option>
+                      {presetTags
+                        .filter((t) => !selectedPresetTags.includes(t))
+                        .map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                    </select>
+                    {selectedPresetTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {selectedPresetTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FAF9F5] border border-[#121212] text-xs font-bold text-[#121212]"
+                          >
+                            <span>{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPresetTags(selectedPresetTags.filter((t) => t !== tag))}
+                              className="hover:text-[#D62828] cursor-pointer"
+                              title="删除标签"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Custom Tags input */}
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-[#121212]">
+                        自选标签 <span className="text-xs font-normal text-[#666]">(最多2个，限6字)</span>
+                      </label>
+                      <span className="text-[11px] text-[#666]">{selectedCustomTags.length}/2</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={customTagInput}
+                        onChange={(e) => setCustomTagInput(e.target.value.slice(0, 6))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const tag = customTagInput.trim();
+                            if (!tag) return;
+                            if (tag.length > 6) {
+                              alert('自选标签最多 6 个字');
+                              return;
+                            }
+                            if (selectedCustomTags.includes(tag)) {
+                              setCustomTagInput('');
+                              return;
+                            }
+                            if (selectedCustomTags.length >= 2) {
+                              alert('最多添加 2 个自选标签');
+                              return;
+                            }
+                            setSelectedCustomTags([...selectedCustomTags, tag]);
+                            setCustomTagInput('');
+                          }
+                        }}
+                        disabled={selectedCustomTags.length >= 2}
+                        placeholder={selectedCustomTags.length >= 2 ? '已选满 (2个)' : '输入回车添加 (限6字)'}
+                        className="bauhaus-input w-full pl-3 pr-8 py-2 text-sm disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomTagDropdown(!showCustomTagDropdown)}
+                        className="absolute right-2 top-2.5 text-[#004E98] hover:text-[#D62828] cursor-pointer"
+                        title="查看常用与最新自选标签"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Popover for popular / recent custom tags */}
+                    {showCustomTagDropdown && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-2.5 z-30 max-h-56 overflow-y-auto">
+                        <div className="text-[11px] font-bold text-[#666] mb-1.5 flex items-center justify-between border-b border-[#E5E5E0] pb-1">
+                          <span>热门与最新自选标签</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomTagDropdown(false)}
+                            className="hover:text-[#D62828] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {popularCustomTags.length ? (
+                            popularCustomTags.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => {
+                                  if (selectedCustomTags.includes(tag)) return;
+                                  if (selectedCustomTags.length >= 2) {
+                                    alert('最多添加 2 个自选标签');
+                                    return;
+                                  }
+                                  setSelectedCustomTags([...selectedCustomTags, tag]);
+                                }}
+                                className={`px-2 py-1 text-xs font-bold border border-[#121212] transition-colors cursor-pointer ${
+                                  selectedCustomTags.includes(tag)
+                                    ? 'bg-[#121212] text-white opacity-50 cursor-not-allowed'
+                                    : 'bg-[#FAF9F5] text-[#D62828] hover:bg-[#D62828] hover:text-white'
+                                }`}
+                              >
+                                #{tag}
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[#888]">暂无其他人创建的标签</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedCustomTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {selectedCustomTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]"
+                          >
+                            <span>#{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCustomTags(selectedCustomTags.filter((t) => t !== tag))}
+                              className="hover:text-[#121212] cursor-pointer"
+                              title="删除标签"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

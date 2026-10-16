@@ -35,7 +35,7 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignEnded = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, title: c.title, rule: c.rule, summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, title: c.title, rule: c.rule, sessionType: c.session_type || '语音', presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
@@ -65,7 +65,20 @@ function validateCampaign(b) {
   const players = Number(b.maxPlayers);
   const matched = /^(\d{4}-\d{2}-\d{2}).*(早|中|晚)$/.exec(time);
   if (!title || !rule || !matched || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、日期时段和 1–12 人的预计人数');
-  return { title, rule, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
+  const sessionType = ['语音', '文字', '留言板'].includes(b.sessionType) ? b.sessionType : '语音';
+  const cleanTags = (list, maxCount, maxLen) => {
+    if (!Array.isArray(list)) return [];
+    const res = [];
+    for (const item of list) {
+      const t = clean(item, maxLen);
+      if (t && !res.includes(t)) res.push(t);
+      if (res.length >= maxCount) break;
+    }
+    return res;
+  };
+  const presetTags = cleanTags(b.presetTags, 2, 20);
+  const customTags = cleanTags(b.customTags, 2, 6);
+  return { title, rule, sessionType, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
 }
 const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
 
@@ -159,6 +172,25 @@ export async function onRequest(context) {
           return result.meta.changes ? json({ ok: true }) : fail('规则不存在', 404);
         }
       }
+      if (path[1] === 'preset-tags' && path.length === 2) {
+        if (method === 'GET') {
+          const rows = await db.prepare('SELECT name FROM preset_tags ORDER BY rowid').all();
+          return json({ presetTags: rows.results.map((row) => row.name) });
+        }
+        if (method === 'POST') {
+          const name = clean((await body(request)).name, 20);
+          if (!name) return fail('请输入标签名');
+          const exists = await db.prepare('SELECT 1 FROM preset_tags WHERE name=? COLLATE NOCASE').bind(name).first();
+          if (exists) return fail('标签名已存在', 409);
+          await db.prepare('INSERT INTO preset_tags(name,created_at) VALUES(?,?)').bind(name, new Date().toISOString()).run();
+          return json({ ok: true }, 201);
+        }
+        if (method === 'DELETE') {
+          const name = clean((await body(request)).name, 20);
+          const result = await db.prepare('DELETE FROM preset_tags WHERE name=?').bind(name).run();
+          return result.meta.changes ? json({ ok: true }) : fail('标签不存在', 404);
+        }
+      }
       if (path[1] === 'users' && path.length === 2 && method === 'GET') {
         const search = clean(url.searchParams.get('search'), 40);
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
@@ -235,7 +267,9 @@ export async function onRequest(context) {
       const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
       const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
       const rules = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
-      return json({ campaigns: rows.results.filter((c) => !campaignEnded(c) && Number(c.member_count) < c.max_players).map((c) => campDto(c)), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name) });
+      const presetTags = await db.prepare('SELECT name FROM preset_tags ORDER BY rowid').all();
+      const popularCustomTags = await db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all();
+      return json({ campaigns: rows.results.filter((c) => !campaignEnded(c) && Number(c.member_count) < c.max_players).map((c) => campDto(c)), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'campaigns' && path[1] && path.length === 2 && method === 'GET') {
       const c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(path[1]).first();
@@ -252,15 +286,17 @@ export async function onRequest(context) {
     if (path[0] === 'bootstrap' && method === 'GET') {
       await settleRewards(db, user.qq);
       user = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
-      const [cs, memberships, hosts, rules] = await db.batch([
+      const [cs, memberships, hosts, rules, presetTags, popularCustomTags] = await db.batch([
         db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`),
         db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=?').bind(user.qq),
         db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL'),
-        db.prepare('SELECT name FROM rules ORDER BY rowid')
+        db.prepare('SELECT name FROM rules ORDER BY rowid'),
+        db.prepare('SELECT name FROM preset_tags ORDER BY rowid'),
+        db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10')
       ]);
       const joined = new Set(memberships.results.map((m) => m.campaign_id));
       const visible = cs.results.filter((c) => (!campaignEnded(c) && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
-      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: visible.map((c) => campDto(c, joined.has(c.id), c.gm_qq === user.qq || joined.has(c.id))), rules: rules.results.map((row) => row.name) });
+      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: visible.map((c) => campDto(c, joined.has(c.id), c.gm_qq === user.qq || joined.has(c.id))), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
@@ -313,15 +349,18 @@ export async function onRequest(context) {
     }
     if (path[0] === 'campaigns' && method === 'POST' && path.length === 1) {
       const b = await body(request), c = validateCampaign(b), imageKey = clean(b.imageKey, 100) || null;
-      if (!await db.prepare('SELECT 1 FROM rules WHERE name=?').bind(c.rule).first()) return fail('请选择已配置的规则系统');
       if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
       const cid = id();
       const createdAt = new Date().toISOString();
       const contact = c.contact || user.qq;
       await db.batch([
-        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, c.time, c.scheduledDate, c.period, imageKey, c.color, c.players, createdAt, contact),
+        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,preset_tags,custom_tags) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, c.time, c.scheduledDate, c.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.presetTags), JSON.stringify(c.customTags)),
+        db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(c.rule, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
       ]);
+      for (const tag of c.customTags) {
+        await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, createdAt, createdAt).run();
+      }
       return json({ id: cid }, 201);
     }
     if (path[0] === 'campaigns' && path[1]) {
@@ -351,10 +390,16 @@ export async function onRequest(context) {
       if (c.gm_qq !== user.qq) return fail('只有主持人可以操作', 403);
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request), data = validateCampaign(b), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
-        if (data.rule !== c.rule && !await db.prepare('SELECT 1 FROM rules WHERE name=?').bind(data.rule).first()) return fail('请选择已配置的规则系统');
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
         const contact = data.contact || c.contact || user.qq;
-        await db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, cid).run();
+        const nowIso = new Date().toISOString();
+        await db.batch([
+          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,preset_tags=?,custom_tags=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.presetTags), JSON.stringify(data.customTags), cid),
+          db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(data.rule, nowIso)
+        ]);
+        for (const tag of data.customTags) {
+          await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, nowIso, nowIso).run();
+        }
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'DELETE') { await db.prepare('UPDATE campaigns SET deleted_at=? WHERE id=?').bind(new Date().toISOString(), cid).run(); return json({ ok: true }); }

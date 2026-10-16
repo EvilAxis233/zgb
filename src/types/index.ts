@@ -15,10 +15,15 @@ export interface UserProfile {
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD
 }
 
+export type SessionType = '语音' | '文字' | '留言板';
+
 export interface Campaign {
   id: string;
   title: string;
   rule: string;
+  sessionType?: SessionType;
+  presetTags?: string[];
+  customTags?: string[];
   gmId: string;
   gmName: string;
   gmQq?: string;

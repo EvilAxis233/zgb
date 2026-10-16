@@ -2,7 +2,7 @@ import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { formatDisplayTime } from '../utils/date';
-import { Clock, User, BookOpen, Users } from 'lucide-react';
+import { Clock, User, BookOpen, Users, Mic, MessageSquare, ClipboardList } from 'lucide-react';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -34,10 +34,45 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           />
         )}
 
-        {/* Rule Tag - Bottom Left Overlap */}
-        <div className="absolute -bottom-3.5 left-4 px-2.5 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#121212] flex items-center gap-1.5 z-10">
-          <BookOpen className="w-3.5 h-3.5 text-[#004E98]" />
-          <span>{campaign.rule}</span>
+        {/* Badges Row - Bottom Left Overlap along red arrow direction */}
+        <div className="absolute -bottom-3.5 left-4 right-4 flex items-center gap-1.5 z-10 overflow-x-auto no-scrollbar py-0.5">
+          {/* Rule Tag */}
+          <div className="px-2.5 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#121212] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+            <BookOpen className="w-3.5 h-3.5 text-[#004E98]" />
+            <span>{campaign.rule}</span>
+          </div>
+
+          {/* Session Type Tag */}
+          <div className="px-2 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#004E98] flex items-center gap-1 shrink-0 whitespace-nowrap">
+            {campaign.sessionType === '文字' ? (
+              <MessageSquare className="w-3 h-3" />
+            ) : campaign.sessionType === '留言板' ? (
+              <ClipboardList className="w-3 h-3" />
+            ) : (
+              <Mic className="w-3 h-3" />
+            )}
+            <span>{campaign.sessionType || '语音'}</span>
+          </div>
+
+          {/* Preset Tags */}
+          {campaign.presetTags?.map((tag) => (
+            <div
+              key={`preset-${tag}`}
+              className="px-2 py-0.5 bg-[#FAF9F5] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#121212] shrink-0 whitespace-nowrap"
+            >
+              {tag}
+            </div>
+          ))}
+
+          {/* Custom Tags */}
+          {campaign.customTags?.map((tag) => (
+            <div
+              key={`custom-${tag}`}
+              className="px-2 py-0.5 bg-[#FFF9F9] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#D62828] shrink-0 whitespace-nowrap"
+            >
+              #{tag}
+            </div>
+          ))}
         </div>
       </div>
 

@@ -9,6 +9,8 @@ export function AdminPage() {
   const [password, setPassword] = useState('');
   const [rules, setRules] = useState<string[]>([]);
   const [newRule, setNewRule] = useState('');
+  const [presetTags, setPresetTags] = useState<string[]>([]);
+  const [newPresetTag, setNewPresetTag] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userTotal, setUserTotal] = useState(0);
   const [searchInput, setSearchInput] = useState('');
@@ -23,6 +25,7 @@ export function AdminPage() {
 
   const message = (error: unknown) => setNotice(error instanceof Error ? error.message : '操作失败');
   const loadRules = async () => setRules((await adminApi.rules()).rules);
+  const loadPresetTags = async () => setPresetTags((await adminApi.presetTags()).presetTags);
 
   useEffect(() => {
     adminApi.me().then(({ authenticated: ok }) => setAuthenticated(ok)).catch(() => setAuthenticated(false));
@@ -31,6 +34,7 @@ export function AdminPage() {
   useEffect(() => {
     if (!authenticated) return;
     loadRules().catch(message);
+    loadPresetTags().catch(message);
   }, [authenticated]);
 
   useEffect(() => {
@@ -58,7 +62,7 @@ export function AdminPage() {
   };
 
   const logout = async () => {
-    try { await adminApi.logout(); setAuthenticated(false); setSelected(null); setRules([]); setUsers([]); }
+    try { await adminApi.logout(); setAuthenticated(false); setSelected(null); setRules([]); setPresetTags([]); setUsers([]); }
     catch (error) { message(error); }
   };
 
@@ -74,6 +78,22 @@ export function AdminPage() {
     if (!confirm(`删除规则「${name}」？已有团的历史规则名称仍会保留。`)) return;
     setBusy(true); setNotice('');
     try { await adminApi.deleteRule(name); await loadRules(); setNotice('规则已删除'); }
+    catch (error) { message(error); }
+    finally { setBusy(false); }
+  };
+
+  const addPresetTag = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true); setNotice('');
+    try { await adminApi.addPresetTag(newPresetTag.trim()); setNewPresetTag(''); await loadPresetTags(); setNotice('限选标签已添加'); }
+    catch (error) { message(error); }
+    finally { setBusy(false); }
+  };
+
+  const deletePresetTag = async (name: string) => {
+    if (!confirm(`删除限选标签「${name}」？`)) return;
+    setBusy(true); setNotice('');
+    try { await adminApi.deletePresetTag(name); await loadPresetTags(); setNotice('限选标签已删除'); }
     catch (error) { message(error); }
     finally { setBusy(false); }
   };
@@ -123,23 +143,42 @@ export function AdminPage() {
 
         {authenticated && (
           <div className="space-y-7">
-            <div className="grid lg:grid-cols-[320px_1fr] gap-6 items-start">
-              <section className="bauhaus-card p-5 bg-white">
-                <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
-                  <h2 className="font-black">规则系统</h2><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">{rules.length} 个</span>
-                </div>
-                <form onSubmit={addRule} className="flex gap-2 mb-4">
-                  <input aria-label="新规则名" maxLength={100} required value={newRule} onChange={(event) => setNewRule(event.target.value)} placeholder="输入新规则名" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
-                  <button disabled={busy} title="添加规则" className="bauhaus-btn bg-[#D62828] text-white px-3"><Plus size={18} /></button>
-                </form>
-                <ul className="space-y-2 max-h-[520px] overflow-y-auto">
-                  {rules.map((rule) => <li key={rule} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
-                    <span className="font-bold break-all">{rule}</span>
-                    <button disabled={busy} onClick={() => deleteRule(rule)} aria-label={`删除 ${rule}`} title="删除规则" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
-                  </li>)}
-                  {!rules.length && <li className="text-sm text-[#666]">还没有规则名</li>}
-                </ul>
-              </section>
+            <div className="grid lg:grid-cols-[340px_1fr] gap-6 items-start">
+              <div className="space-y-6">
+                <section className="bauhaus-card p-5 bg-white">
+                  <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
+                    <h2 className="font-black">规则系统</h2><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">{rules.length} 个</span>
+                  </div>
+                  <form onSubmit={addRule} className="flex gap-2 mb-4">
+                    <input aria-label="新规则名" maxLength={100} required value={newRule} onChange={(event) => setNewRule(event.target.value)} placeholder="输入新规则名" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
+                    <button disabled={busy} title="添加规则" className="bauhaus-btn bg-[#D62828] text-white px-3"><Plus size={18} /></button>
+                  </form>
+                  <ul className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {rules.map((rule) => <li key={rule} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
+                      <span className="font-bold break-all">{rule}</span>
+                      <button disabled={busy} onClick={() => deleteRule(rule)} aria-label={`删除 ${rule}`} title="删除规则" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
+                    </li>)}
+                    {!rules.length && <li className="text-sm text-[#666]">还没有规则名</li>}
+                  </ul>
+                </section>
+
+                <section className="bauhaus-card p-5 bg-white">
+                  <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3 mb-4">
+                    <h2 className="font-black">限选标签</h2><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">{presetTags.length} 个</span>
+                  </div>
+                  <form onSubmit={addPresetTag} className="flex gap-2 mb-4">
+                    <input aria-label="新限选标签" maxLength={20} required value={newPresetTag} onChange={(event) => setNewPresetTag(event.target.value)} placeholder="输入新限选标签" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
+                    <button disabled={busy} title="添加限选标签" className="bauhaus-btn bg-[#004E98] text-white px-3"><Plus size={18} /></button>
+                  </form>
+                  <ul className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {presetTags.map((tag) => <li key={tag} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm">
+                      <span className="font-bold break-all">{tag}</span>
+                      <button disabled={busy} onClick={() => deletePresetTag(tag)} aria-label={`删除 ${tag}`} title="删除限选标签" className="text-[#D62828] shrink-0 cursor-pointer"><Trash2 size={16} /></button>
+                    </li>)}
+                    {!presetTags.length && <li className="text-sm text-[#666]">还没有限选标签</li>}
+                  </ul>
+                </section>
+              </div>
 
               <section className="bauhaus-card p-5 bg-white min-w-0">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#121212] pb-3 mb-4">

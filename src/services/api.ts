@@ -11,8 +11,8 @@ const patch = <T>(path: string, value: unknown) => request<T>(path, { method: 'P
 
 export const api = {
   me: () => request<{ user: UserProfile | null }>('auth/me'),
-  campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[] }>('campaigns'),
-  bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; rules: string[] }>('bootstrap'),
+  campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[]; presetTags: string[]; popularCustomTags: string[] }>('campaigns'),
+  bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; rules: string[]; presetTags: string[]; popularCustomTags: string[] }>('bootstrap'),
   requestCode: (qq: string) => post<{ ok: boolean }>('auth/request-code', { qq }),
   verify: (qq: string, code: string) => post<{ user: UserProfile }>('auth/verify', { qq, code }),
   logout: () => post('auth/logout'),
@@ -65,6 +65,9 @@ export const adminApi = {
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
+  presetTags: () => request<{ presetTags: string[] }>('admin/preset-tags'),
+  addPresetTag: (name: string) => post('admin/preset-tags', { name }),
+  deletePresetTag: (name: string) => request('admin/preset-tags', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
   users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
   gifts: (qq: string, offset: number) => request<{ records: GiftRecord[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/gifts?offset=${offset}`),
 };

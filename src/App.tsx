@@ -28,6 +28,8 @@ export function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rules, setRules] = useState<string[]>([]);
+  const [presetTags, setPresetTags] = useState<string[]>([]);
+  const [popularCustomTags, setPopularCustomTags] = useState<string[]>([]);
   const [currentUserId, setUserIdState] = useState<string | null>(null);
 
   // UI States
@@ -50,12 +52,16 @@ export function App() {
       setUsers([...data.users.filter((u) => u.id !== data.user.id), data.user]);
       setCampaigns(data.campaigns);
       setRules(data.rules);
+      setPresetTags(data.presetTags || []);
+      setPopularCustomTags(data.popularCustomTags || []);
       setUserIdState(data.user.id);
     } else {
       const data = await api.campaigns();
       setUsers(data.users);
       setCampaigns(data.campaigns);
       setRules(data.rules);
+      setPresetTags(data.presetTags || []);
+      setPopularCustomTags(data.popularCustomTags || []);
       setUserIdState(null);
     }
   };
@@ -127,14 +133,19 @@ export function App() {
   const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
   const handleUploadAvatar = (file: File) => run(() => api.uploadAvatar(file), '头像已更新');
 
-  // Extract all distinct rules for filtering
-  const availableRules = useMemo(() => {
-    const ruleSet = new Set<string>(rules);
+  // Extract recruiting rules ordered by recruiting campaign count descending
+  const recruitingRules = useMemo(() => {
+    const countMap = new Map<string, number>();
     campaigns.forEach((c) => {
-      if (c.rule) ruleSet.add(c.rule.trim());
+      if (!c.hasEnded && !c.isFull && c.rule?.trim()) {
+        const r = c.rule.trim();
+        countMap.set(r, (countMap.get(r) || 0) + 1);
+      }
     });
-    return Array.from(ruleSet);
-  }, [campaigns, rules]);
+    return Array.from(countMap.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([rule, count]) => ({ rule, count }));
+  }, [campaigns]);
 
   const enrichedCampaigns = useMemo(() => {
     return campaigns.map((c) => ({
@@ -293,16 +304,16 @@ export function App() {
 
                 {/* Rule Filter */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-[#121212]">规则系统</label>
+                  <label className="block text-xs font-bold text-[#121212]">按规则筛选</label>
                   <select
                     value={ruleFilter}
                     onChange={(e) => setRuleFilter(e.target.value)}
                     className="bauhaus-input w-full px-3 py-1.5 text-xs font-bold cursor-pointer"
                   >
                     <option value="all">全部规则</option>
-                    {availableRules.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
+                    {recruitingRules.map(({ rule, count }) => (
+                      <option key={rule} value={rule}>
+                        {rule} ({count})
                       </option>
                     ))}
                   </select>
@@ -384,6 +395,8 @@ export function App() {
               hostedCampaigns={myCampaigns}
               joinedCampaigns={myJoinedCampaigns}
               rules={rules}
+              presetTags={presetTags}
+              popularCustomTags={popularCustomTags}
               onDeleteCampaign={handleDeleteCampaign}
               onCancelSignup={handleCancelSignup}
               onSelectCampaign={openCampaign}
@@ -412,6 +425,8 @@ export function App() {
         onClose={() => setIsPublishOpen(false)}
         currentUser={currentUser}
         rules={rules}
+        presetTags={presetTags}
+        popularCustomTags={popularCustomTags}
         onPublish={handlePublish}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
