@@ -6,7 +6,7 @@ interface ProfileViewProps {
   currentUser: UserProfile;
   myCampaigns: Campaign[];
   myJoinedCampaigns: Campaign[];
-  onUpdateProfile: (updates: Partial<UserProfile>) => void;
+  onUpdateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   onSelectCampaign: (campaign: Campaign) => void;
   onUploadAvatar: (file: File) => void;
 }
@@ -34,18 +34,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setTaboos(currentUser.taboos || []);
   }, [currentUser]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       alert('名字不能为空');
       return;
     }
-    onUpdateProfile({
+    const success = await onUpdateProfile({
       name: name.trim(),
       bio,
       preferences,
       taboos,
     });
-    setIsEditing(false);
+    if (success) {
+      setIsEditing(false);
+    }
   };
 
   const addPreference = () => {

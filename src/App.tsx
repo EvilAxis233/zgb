@@ -136,15 +136,22 @@ export function App() {
     return Array.from(ruleSet);
   }, [campaigns, rules]);
 
+  const enrichedCampaigns = useMemo(() => {
+    return campaigns.map((c) => ({
+      ...c,
+      gmPraises: c.gmPraises ?? users.find((u) => u.id === c.gmId)?.receivedGmPraises ?? 0,
+    }));
+  }, [campaigns, users]);
+
   // Filter campaigns
   const filteredCampaigns = useMemo(() => {
-    return campaigns.filter((c) => {
+    return enrichedCampaigns.filter((c) => {
       const matchQuery =
         !searchQuery.trim() ||
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.gmName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.rule.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.summary.toLowerCase().includes(searchQuery.toLowerCase());
+        c.description.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
       const matchPeriod =
@@ -152,18 +159,18 @@ export function App() {
 
       return !c.hasEnded && !c.isFull && matchQuery && matchRule && matchPeriod;
     });
-  }, [campaigns, searchQuery, ruleFilter, periodFilter]);
+  }, [enrichedCampaigns, searchQuery, ruleFilter, periodFilter]);
 
   // Derived user campaign records
   const myCampaigns = useMemo(() => {
     if (!currentUser) return [];
-    return campaigns.filter((c) => c.gmId === currentUser.id);
-  }, [campaigns, currentUser]);
+    return enrichedCampaigns.filter((c) => c.gmId === currentUser.id);
+  }, [enrichedCampaigns, currentUser]);
 
   const myJoinedCampaigns = useMemo(() => {
     if (!currentUser) return [];
-    return campaigns.filter((campaign) => campaign.isSignedUp);
-  }, [campaigns, currentUser]);
+    return enrichedCampaigns.filter((campaign) => campaign.isSignedUp);
+  }, [enrichedCampaigns, currentUser]);
 
   return (
     <div className="min-h-screen bg-[#F6F5F0] text-[#121212] flex flex-col font-sans">

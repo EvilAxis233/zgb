@@ -49,11 +49,11 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <h2 className="text-xl font-black text-[#121212] tracking-tight group-hover:text-[#D62828] transition-colors leading-snug line-clamp-1 flex-1">
               {campaign.title}
             </h2>
-            <span className="px-2.5 py-1 text-xs font-black border-2 border-[#121212] tracking-wider shadow-[2px_2px_0px_#121212] shrink-0 bg-[#004E98] text-white">招募中</span>
+            <span className="px-2.5 py-1 text-xs font-black border-2 border-[#121212] tracking-wider shadow-[2px_2px_0px_#121212] shrink-0 bg-[#004E98] text-white">GM获赞：{campaign.gmPraises ?? 0}</span>
           </div>
 
           {/* GM & Player Ratio */}
-          <div className="mt-2.5 flex items-center justify-between text-xs font-medium text-[#444444] border-b border-[#E5E5E0] pb-2.5">
+          <div className="mt-2.5 flex items-center justify-between text-xs font-medium text-[#444444]">
             <div className="flex items-center gap-1.5 font-bold text-[#121212]">
               <User className="w-3.5 h-3.5 text-[#D62828]" />
               <span>主持: {campaign.gmName}</span>
@@ -65,11 +65,6 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
               </span>
             </div>
           </div>
-
-          {/* Brief Summary */}
-          <p className="mt-3 text-sm text-[#444444] leading-relaxed line-clamp-2">
-            {campaign.summary}
-          </p>
         </div>
 
         {/* Footer: Dedicated full line for time */}

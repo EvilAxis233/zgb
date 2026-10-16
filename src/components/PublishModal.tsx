@@ -37,7 +37,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [rule, setRule] = useState('');
-  const [summary, setSummary] = useState('');
+  const [contact, setContact] = useState(currentUser?.qq || '');
   const [description, setDescription] = useState('');
   const [timeSchedule, setTimeSchedule] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
@@ -51,6 +51,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   useEffect(() => {
     if (!rules.includes(rule)) setRule(rules[0] || '');
   }, [rules, rule]);
+
+  useEffect(() => {
+    if (isOpen && currentUser?.qq && !contact) {
+      setContact(currentUser.qq);
+    }
+  }, [isOpen, currentUser?.qq]);
 
   const processFile = (file: File) => {
     if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
@@ -102,7 +108,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       alert('游客无法发布战役，请先登录');
       return;
     }
-    if (!title.trim() || !summary.trim()) {
+    if (!title.trim() || !contact.trim()) {
       alert('请将必填信息补充完整');
       return;
     }
@@ -118,7 +124,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       rule,
       gmId: currentUser.id,
       gmName: currentUser.name,
-      summary: summary.trim(),
+      gmPraises: currentUser.receivedGmPraises,
+      contact: contact.trim() || currentUser.qq,
       description: description.trim() || '暂无详细简介。',
       timeSchedule: timeSchedule.trim(),
       imageUrl: imageUrl.trim() || undefined,
@@ -141,7 +148,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     rule: previewRule,
     gmId: currentUser?.id || 'current-user',
     gmName: currentUser?.name || '当前主持',
-    summary: summary.trim() || '这里是一句话概括预览...',
+    gmPraises: currentUser?.receivedGmPraises ?? 0,
+    contact: contact.trim() || currentUser?.qq,
+    summary: '',
     description: description.trim() || '暂无详细简介',
     timeSchedule: timeSchedule.trim() || '时间待定',
     imageUrl: imageUrl.trim() || undefined,
@@ -316,20 +325,23 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </div>
                 </div>
 
-              {/* Short Summary */}
-              <div>
-                <label className="block font-bold text-[#121212] mb-1">
-                  一句话概括 <span className="text-[#D62828]">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  placeholder="展示在卡片上的一句话概括..."
-                  className="bauhaus-input w-full px-3 py-2 text-sm"
-                />
-              </div>
+                {/* Contact Information */}
+                <div>
+                  <label className="block font-bold text-[#121212] mb-1">
+                    联系方式 <span className="text-[#D62828]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={contact}
+                    onChange={(e) => setContact(e.target.value)}
+                    placeholder="默认填入你的 QQ 号"
+                    className="bauhaus-input w-full px-3 py-2 text-sm"
+                  />
+                  <p className="mt-1 text-[11px] text-[#666]">
+                    报名成功的玩家将在战役详情中查看此联系方式。
+                  </p>
+                </div>
 
               {/* Detailed Description */}
               <div>

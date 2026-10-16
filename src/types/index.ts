@@ -22,7 +22,9 @@ export interface Campaign {
   gmId: string;
   gmName: string;
   gmQq?: string;
-  summary: string;
+  gmPraises?: number;
+  contact?: string;
+  summary?: string;
   description: string;
   timeSchedule: string;
   imageUrl?: string;

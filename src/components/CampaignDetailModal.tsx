@@ -101,8 +101,21 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 <span className="px-2.5 py-0.5 bg-[#F4A261] text-xs font-bold border border-[#121212] flex items-center gap-1"><Users className="w-3.5 h-3.5" />{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>
               </div>
               <h1 className="text-2xl font-black tracking-tight">{campaign.title}</h1>
-              <p className="mt-3 text-sm text-[#444] leading-relaxed bg-[#F6F5F0] p-3 border-l-4 border-[#D62828]">{campaign.summary}</p>
-              <div className="mt-4 pt-3 border-t-2 border-[#121212] text-xs font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-[#004E98]" />{formatDisplayTime(campaign.timeSchedule)}</div>
+              <div className="mt-4 pt-3 border-t-2 border-[#121212] text-xs font-bold flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#004E98] shrink-0" />
+                  <span>{formatDisplayTime(campaign.timeSchedule)}</span>
+                </div>
+                <div className="text-xs">
+                  {isGm || campaign.isSignedUp ? (
+                    <span className="text-[#121212]">
+                      联系方式：<span className="font-mono text-[#004E98] select-all font-black">{campaign.contact || campaign.gmQq}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[#777777]">联系方式：报名后可查看</span>
+                  )}
+                </div>
+              </div>
               <div className="mt-4">
                 {!currentUser && !campaign.hasEnded && !campaign.isFull && <button onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold">登录后报名</button>}
                 {currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isFull && <button onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
