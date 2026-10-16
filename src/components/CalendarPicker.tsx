@@ -281,14 +281,14 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
       {/* 时段划分：早、中、晚 */}
       <div className="border-t-2 border-[#121212] pt-3">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-black text-[#121212] flex items-center gap-1">
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <label className="text-xs font-black text-[#121212] flex items-center gap-1 shrink-0">
             <span className="w-2 h-2 bg-[#004E98]" />
             <span>开团时段 (早 / 中 / 晚)</span>
             <span className="text-[#D62828]">*</span>
           </label>
           {selectedDate && (
-            <span className="text-xs font-bold text-[#004E98]">
+            <span className="text-xs font-bold text-[#004E98] shrink-0">
               已选日期: {selectedDate} ({selectedDateWeekDay})
             </span>
           )}
@@ -324,24 +324,19 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         </div>
       </div>
 
-      {/* 底部结果提示栏 */}
+      {/* 底部结果提示栏：未选前留空，选完后直接展示时间 */}
       <div
-        className={`px-3 py-2 text-xs font-bold border flex items-center justify-between ${
+        className={`px-3 py-2 text-xs font-bold border flex items-center justify-center min-h-[38px] transition-all ${
           selectedDate && selectedPeriod
-            ? 'bg-[#EBF7EE] border-[#2A9D8F] text-[#1E6B60]'
-            : selectedDate
-            ? 'bg-[#FFF9E6] border-[#F4A261] text-[#9E5D00]'
-            : 'bg-white border-[#E0DED7] text-[#888888]'
+            ? 'bg-[#EBF7EE] border-[#2A9D8F] text-[#1E6B60] shadow-[2px_2px_0px_#121212]'
+            : 'bg-white/60 border-[#E0DED7]'
         }`}
       >
-        <span className="shrink-0 font-bold">最终时间展示:</span>
-        <span className="font-mono text-right font-black text-xs sm:text-sm">
-          {selectedDate && selectedPeriod
-            ? `${selectedDate}（${selectedDateWeekDay}）${selectedPeriod}`
-            : selectedDate
-            ? '请点击上方选择时段（早/中/晚）'
-            : '请先在日历中点击选择开团日期'}
-        </span>
+        {selectedDate && selectedPeriod ? (
+          <span className="font-mono font-black text-xs sm:text-sm text-[#121212]">
+            {`${selectedDate}（${selectedDateWeekDay}）${selectedPeriod}`}
+          </span>
+        ) : null}
       </div>
     </div>
   );

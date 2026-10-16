@@ -146,11 +146,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 my-auto w-full max-w-6xl">
-        {/* 左侧悬浮：开团时间设定面板 */}
-        <div className="hidden lg:flex w-[320px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden max-h-[88vh]">
+      <div className="relative flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 my-auto w-full max-w-[1540px]">
+        {/* 左侧悬浮：开团时间设定面板 (与右侧预览等宽 440px) */}
+        <div className="hidden lg:flex w-[440px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden max-h-[88vh]">
           {/* Header */}
-          <div className="bg-[#121212] text-white px-4 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
+          <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 bg-[#D62828] inline-block" />
               <h3 className="text-sm font-black tracking-wider">开团时间</h3>
@@ -161,7 +161,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="p-3 bg-[#FAF9F5] overflow-y-auto flex-1">
+          <div className="p-4 bg-[#FAF9F5] overflow-y-auto flex-1">
             <CalendarPicker
               value={timeSchedule}
               onChange={(val) => setTimeSchedule(val)}
@@ -171,8 +171,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
           </div>
         </div>
 
-        {/* 右侧主弹窗 */}
-        <div className="relative w-full flex-1 max-w-5xl bg-[#FFFFFF] border-4 border-[#121212] shadow-[8px_8px_0px_#121212] flex flex-col h-[88vh] max-h-[88vh] overflow-hidden">
+        {/* 右侧主弹窗 (中间主信息栏 594px + 右侧预览栏 440px) */}
+        <div className="relative w-full lg:w-[1034px] shrink-0 bg-[#FFFFFF] border-4 border-[#121212] shadow-[8px_8px_0px_#121212] flex flex-col h-[88vh] max-h-[88vh] overflow-hidden">
           {/* Modal Header */}
           <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
             <div className="flex items-center gap-2">
@@ -189,12 +189,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </button>
           </div>
 
-          {/* Modal Body: Left form, Right preview (same height) */}
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* LEFT: Form Inputs (Scrollable) */}
+          {/* Modal Body: Left form, Right preview */}
+          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+            {/* 中间主信息栏 (比两侧栏扩大 35%，宽度为 594px) */}
             <form
               onSubmit={handleSubmit}
-              className="w-full md:w-1/2 h-full overflow-y-auto p-5 sm:p-6 text-sm flex flex-col"
+              className="w-full lg:w-[594px] shrink-0 h-full overflow-y-auto p-5 sm:p-6 text-sm flex flex-col"
             >
               <div className="space-y-3.5 flex-1 pb-4">
                 {/* Title */}
@@ -432,8 +432,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </div>
           </form>
 
-          {/* RIGHT: Live Preview (Top half: Card Preview, Bottom half: Markdown Preview) */}
-          <div className="w-full md:w-1/2 h-full flex flex-col border-t-4 md:border-t-0 md:border-l-4 border-[#121212] bg-[#FAF9F5] overflow-hidden">
+          {/* RIGHT: Live Preview (与左侧时间弹窗等宽 440px) */}
+          <div className="w-full lg:w-[440px] shrink-0 h-full flex flex-col border-t-4 lg:border-t-0 lg:border-l-4 border-[#121212] bg-[#FAF9F5] overflow-hidden">
             {/* Top Half: Card Preview (fits complete card without scrollbar) */}
             <div className="flex-[1.4] min-h-[380px] flex flex-col border-b-4 border-[#121212] overflow-hidden">
               <div className="bg-[#121212] text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shrink-0">
