@@ -467,14 +467,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 {description.trim() ? (
                   <MarkdownView content={description} />
                 ) : (
-                  <div className="p-2 text-xs font-mono text-[#666666] leading-relaxed select-none">
-                    <p className="font-bold text-[#121212] mb-1">支持如下markdown语法：</p>
-                    <p># 一级标题</p>
-                    <p>## 二级标题</p>
-                    <p>### 三级标题</p>
-                    <p>**粗体**</p>
-                    <p>&gt; 引用</p>
-                    <p>- 列表</p>
+                  <div className="h-full flex items-center justify-center text-xs text-[#AAAAAA] italic">
+                    输入简介内容即在此处实时渲染
                   </div>
                 )}
               </div>
