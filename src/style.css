@@ -85,3 +85,20 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.bauhaus-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #004E98 #EAE8E0;
+}
+
+.bauhaus-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bauhaus-scrollbar::-webkit-scrollbar-track {
+  background: #EAE8E0;
+}
+
+.bauhaus-scrollbar::-webkit-scrollbar-thumb {
+  background: #004E98;
+}

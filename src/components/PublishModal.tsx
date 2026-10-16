@@ -279,18 +279,19 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
                     {/* All historical rules popover */}
                     {showRuleDropdown && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-2.5 z-30 max-h-56 overflow-y-auto">
-                        <div className="text-[11px] font-bold text-[#666] mb-1.5 flex items-center justify-between border-b border-[#E5E5E0] pb-1">
-                          <span>全部历史规则 ({rules.length})</span>
+                      <div className="absolute left-0 top-full mt-1 w-full sm:w-80 max-w-[calc(100vw-3rem)] bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2.5 z-30">
+                        <div className="text-xs font-bold text-[#121212] mb-2 flex items-center justify-between border-b border-[#D8D6CC] pb-2">
+                          <span>历史规则 ({rules.length})</span>
                           <button
                             type="button"
                             onClick={() => setShowRuleDropdown(false)}
-                            className="hover:text-[#D62828] cursor-pointer"
+                            className="w-7 h-7 flex items-center justify-center bg-[#121212] text-white hover:bg-[#D62828] cursor-pointer"
+                            aria-label="关闭历史规则"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" strokeWidth={3} />
                           </button>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 pt-1">
+                        <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto bauhaus-scrollbar">
                           {rules.length ? (
                             rules.map((r) => (
                               <button
