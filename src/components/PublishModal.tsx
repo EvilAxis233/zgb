@@ -459,9 +459,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           <button
                             type="button"
                             onClick={() => setShowCustomTagDropdown(false)}
-                            className="hover:text-[#D62828] cursor-pointer"
+                            className="w-7 h-7 flex items-center justify-center bg-[#121212] text-white hover:bg-[#D62828] cursor-pointer"
+                            aria-label="关闭自选标签"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" strokeWidth={3} />
                           </button>
                         </div>
                         <div className="flex flex-wrap gap-1.5 pt-1">
@@ -505,10 +506,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setSelectedCustomTags(selectedCustomTags.filter((t) => t !== tag))}
-                              className="hover:text-[#121212] cursor-pointer"
+                              className="w-5 h-5 flex items-center justify-center bg-[#D62828] text-white hover:bg-[#121212] cursor-pointer"
                               title="删除标签"
+                              aria-label={`删除标签 ${tag}`}
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-3.5 h-3.5" strokeWidth={3} />
                             </button>
                           </span>
                         ))}

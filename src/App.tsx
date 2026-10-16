@@ -432,7 +432,7 @@ export function App() {
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
 
       {/* Toast Notifications */}
-      <aside aria-label="系统通知" className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+      <aside aria-label="系统通知" className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-[calc(100vw-2.5rem)] sm:max-w-sm pointer-events-none">
         {toasts.map((t) => (
           <div
             key={t.id}
