@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles } from 'lucide-react';
+import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, Plus } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign, type SessionType, type GamePlatform } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
+import { MarkdownView } from './MarkdownView';
 import { useDialog } from './BauhausDialog';
 
 interface Props {
@@ -14,9 +15,10 @@ interface Props {
   popularCustomTags?: string[];
   onDeleteCampaign: (id: string) => void;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
+  onAddBatchSlot: (batchId: string, timeSchedule: string) => Promise<boolean>;
   onCancelSignup: (id: string) => void;
   onSelectCampaign: (campaign: Campaign) => void;
-  onUpdateCampaign: (campaign: Campaign) => void;
+  onUpdateCampaign: (campaign: Campaign) => Promise<boolean>;
 }
 
 const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已到期' : campaign.isClosed ? '已封团' : campaign.isFull ? '已满员' : '招募中';
@@ -29,6 +31,7 @@ export const ManageView: React.FC<Props> = ({
   popularCustomTags = [],
   onDeleteCampaign,
   onSetCampaignClosed,
+  onAddBatchSlot,
   onCancelSignup,
   onSelectCampaign,
   onUpdateCampaign,
@@ -38,6 +41,9 @@ export const ManageView: React.FC<Props> = ({
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
   const [customTagInput, setCustomTagInput] = useState('');
+  const [addingBatchId, setAddingBatchId] = useState<string | null>(null);
+  const [newTimeSchedule, setNewTimeSchedule] = useState('');
+  const [addingSlot, setAddingSlot] = useState(false);
 
   const handleDelete = async (campaign: Campaign) => {
     const ok = await showConfirm({
@@ -64,9 +70,19 @@ export const ManageView: React.FC<Props> = ({
     if (ok) onSetCampaignClosed(campaign.id, closed);
   };
 
-  const list = (campaigns: Campaign[], hosted: boolean) => campaigns.length ? (
-    <div className="space-y-3">
-      {campaigns.map((campaign) => (
+  const addSlot = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!addingBatchId || !newTimeSchedule || addingSlot) return;
+    setAddingSlot(true);
+    try {
+      if (await onAddBatchSlot(addingBatchId, newTimeSchedule)) {
+        setAddingBatchId(null);
+        setNewTimeSchedule('');
+      }
+    } finally { setAddingSlot(false); }
+  };
+
+  const campaignCard = (campaign: Campaign, hosted: boolean) => (
         <article key={campaign.id} className="border-2 border-[#121212] bg-white p-4 shadow-[3px_3px_0px_#121212]">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -99,30 +115,70 @@ export const ManageView: React.FC<Props> = ({
           <div className="mt-3 pt-3 border-t border-[#D8D5CC] flex flex-wrap gap-2">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
-              <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
+              <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />{campaign.batchId ? '修改简介' : '修改'}</button>
               {!campaign.hasEnded && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '封团'}</button>}
               <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />删除</button>
             </> : !campaign.hasEnded && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
           </div>
         </article>
-      ))}
-    </div>
-  ) : <div className="py-10 text-center text-xs text-[#888]">暂无记录</div>;
+  );
 
-  const save = (event: React.FormEvent) => {
+  const hostedGroups = new Map<string, Campaign[]>();
+  hostedCampaigns.forEach((campaign) => {
+    const key = campaign.batchId || campaign.id;
+    hostedGroups.set(key, [...(hostedGroups.get(key) || []), campaign]);
+  });
+  const visibleHostedGroups = [...hostedGroups.entries()].filter(([, items]) => !items[0].batchId || items.some((item) => !item.isClosed));
+  const hostedList = visibleHostedGroups.length ? <div className="space-y-3">{visibleHostedGroups.map(([key, items]) => {
+    if (!items[0].batchId) return campaignCard(items[0], true);
+    const master = items[0].batchMaster || items.find((item) => item.id === key) || items[0];
+    return <details key={key} className="border-2 border-[#121212] bg-white shadow-[3px_3px_0px_#121212] group">
+      <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none font-black">
+        <span className="min-w-0"><span className="block truncate">{master.title}</span><span className="block mt-1 text-xs font-bold text-[#666]">{master.rule} · {master.sessionType || '语音'} · {items.length} 个时段 · 每团 {master.maxPlayers} 人</span></span>
+        <ChevronDown className="w-5 h-5 shrink-0 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t-2 border-[#121212] p-4 space-y-3 bg-[#FAF9F5]">
+        <div className="text-xs text-[#555] space-y-1"><p>主团信息已锁定；各时段可分别修改简介、封团和删除。</p><p>游戏平台：{master.platforms?.join('、') || '无'} · 联系方式：{master.contact || '未设置'}</p><p>标签：{[...(master.presetTags || []), ...(master.customTags || []).map((tag) => `#${tag}`)].join('、') || '无'}</p></div>
+        <div className="border border-[#D8D5CC] bg-white p-3 text-xs">
+          {master.imageUrl && <img src={master.imageUrl} alt="主团封面" className="w-full max-h-40 object-cover mb-3 border border-[#121212]" />}
+          <strong className="block mb-1">发布时简介</strong>
+          <MarkdownView content={master.description} />
+        </div>
+        <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />添加时间点</button>
+        <div className="space-y-3">{items.sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)).map((item) => campaignCard(item, true))}</div>
+      </div>
+    </details>;
+  })}</div> : <div className="py-10 text-center text-xs text-[#888]">暂无记录</div>;
+  const joinedList = joinedCampaigns.length ? <div className="space-y-3">{joinedCampaigns.map((campaign) => campaignCard(campaign, false))}</div> : <div className="py-10 text-center text-xs text-[#888]">暂无记录</div>;
+
+  const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingCampaign?.title.trim() || !editingCampaign?.rule.trim() || !editingCampaign?.timeSchedule.trim()) return;
-    onUpdateCampaign(editingCampaign);
-    setEditingCampaign(null);
+    if (await onUpdateCampaign(editingCampaign)) setEditingCampaign(null);
   };
 
   return <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-    <section className="bauhaus-card bg-[#FAF0F0] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />我主持的团 ({hostedCampaigns.length})</h2>{list(hostedCampaigns, true)}</section>
-    <section className="bauhaus-card bg-[#F0F5FA] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#004E98]" />我报名的团 ({joinedCampaigns.length})</h2>{list(joinedCampaigns, false)}</section>
+    <section className="bauhaus-card bg-[#FAF0F0] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />我主持的团 ({visibleHostedGroups.length})</h2>{hostedList}</section>
+    <section className="bauhaus-card bg-[#F0F5FA] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#004E98]" />我报名的团 ({joinedCampaigns.length})</h2>{joinedList}</section>
+
+    {addingBatchId && <div className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center overflow-y-auto">
+      <form onSubmit={addSlot} className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] p-6 space-y-4">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">添加团副本</h2><button type="button" onClick={() => setAddingBatchId(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
+        <p className="text-xs text-[#555]">选择一个尚未使用的时段。新团会复制主团发布时的信息，简介之后可单独修改。</p>
+        <CalendarPicker value={newTimeSchedule} onChange={setNewTimeSchedule} />
+        <div className="flex justify-end gap-2"><button type="button" onClick={() => setAddingBatchId(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button type="submit" disabled={!newTimeSchedule || addingSlot} className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs disabled:opacity-40">{addingSlot ? '添加中…' : '添加时间点'}</button></div>
+      </form>
+    </div>}
 
     {editingCampaign && <div className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center overflow-y-auto">
       <form onSubmit={save} className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] p-6 space-y-4">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">修改战役</h2><button type="button" onClick={() => setEditingCampaign(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
+        {editingCampaign.batchId ? <>
+          <p className="text-xs font-bold">{editingCampaign.title} · {formatDisplayTime(editingCampaign.timeSchedule)}</p>
+          <p className="text-xs text-[#666]">主团信息已锁定，此时段仅可修改简介。</p>
+          <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
+          <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存简介</button></div>
+        </> : <>
         <label className="block text-xs font-bold">团名<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.title} onChange={(e) => setEditingCampaign({ ...editingCampaign, title: e.target.value })} /></label>
         
         {/* Rule, players, game type, and platforms */}
@@ -246,6 +302,7 @@ export const ManageView: React.FC<Props> = ({
         <label className="block text-xs font-bold">联系方式<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.contact || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, contact: e.target.value })} placeholder="默认填入你的 QQ 号" /></label>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
+        </>}
       </form>
     </div>}
   </div>;

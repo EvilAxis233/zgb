@@ -113,9 +113,10 @@ export function App() {
   // Delete Campaign
   const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已删除');
   const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), closed ? '本团已封团' : '本团已重新开放报名');
+  const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
 
   // Update existing campaign
-  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, await prepareCampaign(updated)); }, '战役信息已更新');
+  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, updated.batchId ? { description: updated.description } : await prepareCampaign(updated)); }, '战役信息已更新');
 
   // Update User Profile
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
@@ -437,6 +438,7 @@ export function App() {
               popularCustomTags={popularCustomTags}
               onDeleteCampaign={handleDeleteCampaign}
               onSetCampaignClosed={handleSetCampaignClosed}
+              onAddBatchSlot={handleAddBatchSlot}
               onCancelSignup={handleCancelSignup}
               onSelectCampaign={openCampaign}
               onUpdateCampaign={handleUpdateCampaign}

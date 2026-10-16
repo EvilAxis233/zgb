@@ -38,10 +38,11 @@ const campDto = (c, signedUp = false, canSeeContact = false) => {
   return { id: c.id, batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: !!c.closed_at || currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: !!c.closed_at || Number(c.member_count || 0) >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: joined.has(c.id) });
-function campaignsDto(rows, joined = new Set(), viewer = null) {
+const batchMasterDto = (b) => ({ id: b.id, title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: parseTags(b.preset_tags), customTags: parseTags(b.custom_tags), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
+function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = new Map()) {
   const groups = new Map();
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
-  return rows.map((c) => ({ ...campDto(c, joined.has(c.id), viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}) }));
+  return rows.map((c) => ({ ...campDto(c, joined.has(c.id), viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
 const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
@@ -86,6 +87,19 @@ function validateCampaign(b) {
   const presetTags = cleanTags(b.presetTags, 2, 20);
   const customTags = cleanTags(b.customTags, 2, 6);
   return { title, rule, sessionType, platforms, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
+}
+function validateNewSlot(raw) {
+  const time = clean(raw, 100);
+  const matched = /^(\d{4}-\d{2}-\d{2})（星期[一二三四五六日]）(早|中|晚)$/.exec(time);
+  if (!matched) throw new Error('请填写有效的开团日期和时段');
+  const date = matched[1];
+  const parsed = new Date(`${date}T00:00:00+08:00`);
+  const actualDate = Number.isNaN(parsed.getTime()) ? '' : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(parsed);
+  const latest = new Date(`${dateHK()}T00:00:00+08:00`);
+  latest.setUTCDate(latest.getUTCDate() + 31);
+  const latestDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(latest);
+  if (actualDate !== date || date < dateHK() || date > latestDate) throw new Error('请填写有效的开团日期和时段');
+  return { time, date, period: matched[2] };
 }
 const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
 
@@ -310,7 +324,8 @@ export async function onRequest(context) {
       ]);
       const joined = new Set(memberships.results.map((m) => m.campaign_id));
       const visible = cs.results.filter((c) => (!campaignEnded(c) && !c.closed_at && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
-      const campaigns = campaignsDto(cs.results, joined, user.qq);
+      const masters = await db.prepare('SELECT * FROM campaign_batches WHERE gm_qq=?').bind(user.qq).all();
+      const campaigns = campaignsDto(cs.results, joined, user.qq, new Map(masters.results.map((master) => [master.id, master])));
       return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: campaigns.filter((c) => visible.some((item) => item.id === c.id)), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && method === 'PATCH') {
@@ -371,7 +386,7 @@ export async function onRequest(context) {
       const contact = c.contact || user.qq;
       const rawSlots = Array.isArray(b.timeSlots) ? b.timeSlots : [];
       if (rawSlots.length > 96) return fail('一次最多选择 96 个时段');
-      const slots = rawSlots.length > 1 ? rawSlots.map((timeSchedule) => validateCampaign({ ...b, timeSchedule })) : [c];
+      const slots = rawSlots.length > 1 ? rawSlots.map((raw) => { const slot = validateNewSlot(raw); return { ...c, time: slot.time, scheduledDate: slot.date, period: slot.period }; }) : [c];
       const slotKeys = slots.map((slot) => `${slot.scheduledDate}:${slot.period}`);
       const today = dateHK();
       const latest = new Date(`${today}T00:00:00+08:00`);
@@ -381,6 +396,7 @@ export async function onRequest(context) {
       const batchId = slots.length > 1 ? cid : null;
       const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId));
       await db.batch([
+        ...(batchId ? [db.prepare('INSERT INTO campaign_batches(id,gm_qq,title,rule,summary,description,image_key,banner_color,max_players,contact,session_type,platforms,preset_tags,custom_tags,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, imageKey, c.color, c.players, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), createdAt)] : []),
         ...statements,
         db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(c.rule, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
@@ -389,6 +405,18 @@ export async function onRequest(context) {
         await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, createdAt, createdAt).run();
       }
       return json({ id: cid }, 201);
+    }
+    if (path[0] === 'batches' && path[1] && path[2] === 'slots' && path.length === 3 && method === 'POST') {
+      const slot = validateNewSlot((await body(request)).timeSchedule);
+      const cid = id(), createdAt = new Date().toISOString();
+      const result = await db.prepare(`INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id)
+        SELECT ?,b.gm_qq,b.title,b.rule,b.summary,b.description,?,?,?,b.image_key,b.banner_color,b.max_players,?,b.contact,b.session_type,b.platforms,b.preset_tags,b.custom_tags,b.id
+        FROM campaign_batches b WHERE b.id=? AND b.gm_qq=?
+        AND (SELECT COUNT(*) FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL)<96
+        AND EXISTS(SELECT 1 FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL AND closed_at IS NULL)
+        AND NOT EXISTS(SELECT 1 FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL AND scheduled_date=? AND time_period=?)`)
+        .bind(cid, slot.time, slot.date, slot.period, createdAt, path[1], user.qq, slot.date, slot.period).run();
+      return result.meta.changes ? json({ id: cid }, 201) : fail('主团不存在、已封团或该时段已有团', 409);
     }
     if (path[0] === 'campaigns' && path[1]) {
       const cid = path[1], c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(cid).first();
@@ -423,7 +451,13 @@ export async function onRequest(context) {
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'PATCH') {
-        const b = await body(request), data = validateCampaign(b), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
+        const b = await body(request);
+        if (c.batch_id) {
+          if (!b || typeof b.description !== 'string' || Object.keys(b).some((key) => key !== 'description')) return fail('批量团只允许修改简介');
+          await db.prepare('UPDATE campaigns SET description=? WHERE id=?').bind(clean(b.description, 10000), cid).run();
+          return json({ ok: true });
+        }
+        const data = validateCampaign(b), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
         const contact = data.contact || c.contact || user.qq;
         const nowIso = new Date().toISOString();

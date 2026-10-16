@@ -24,6 +24,7 @@ export const api = {
   cancelSignup: (id: string) => request(`campaigns/${id}/signup`, { method: 'DELETE' }),
   removeMember: (id: string, qq: string) => request(`campaigns/${id}/members/${encodeURIComponent(qq)}`, { method: 'DELETE' }),
   createCampaign: (value: unknown) => post<{ id: string }>('campaigns', value),
+  addBatchSlot: (batchId: string, timeSchedule: string) => post<{ id: string }>(`batches/${batchId}/slots`, { timeSchedule }),
   updateCampaign: (id: string, value: unknown) => patch(`campaigns/${id}`, value),
   setCampaignClosed: (id: string, closed: boolean) => patch(`campaigns/${id}/status`, { closed }),
   deleteCampaign: (id: string) => request(`campaigns/${id}`, { method: 'DELETE' }),
