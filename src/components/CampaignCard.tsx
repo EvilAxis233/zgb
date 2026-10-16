@@ -56,7 +56,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           <div className="mt-2.5 flex items-center justify-between text-xs font-medium text-[#444444] border-b border-[#E5E5E0] pb-2.5">
             <div className="flex items-center gap-1.5 font-bold text-[#121212]">
               <User className="w-3.5 h-3.5 text-[#D62828]" />
-              <span>主持: {campaign.gmName}({campaign.gmQq || campaign.gmId})</span>
+              <span>主持: {campaign.gmName}</span>
             </div>
             <div className="flex items-center gap-1 font-bold text-[#121212]">
               <Users className="w-3.5 h-3.5 text-[#004E98]" />

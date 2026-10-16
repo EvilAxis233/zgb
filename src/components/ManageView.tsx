@@ -3,6 +3,7 @@ import { Edit2, Eye, KeyRound, LogOut, Trash2, X } from 'lucide-react';
 import type { Campaign } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
+import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 
 interface Props {
   hostedCampaigns: Campaign[];
@@ -74,7 +75,7 @@ export const ManageView: React.FC<Props> = ({ hostedCampaigns, joinedCampaigns, 
         <CalendarPicker value={editingCampaign.timeSchedule} onChange={(value) => setEditingCampaign({ ...editingCampaign, timeSchedule: value })} />
         <label className="block text-xs font-bold">预计玩家人数<input type="number" min={1} max={12} required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.maxPlayers} onChange={(e) => setEditingCampaign({ ...editingCampaign, maxPlayers: Number(e.target.value) })} /></label>
         <label className="block text-xs font-bold">一句话简介<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.summary} onChange={(e) => setEditingCampaign({ ...editingCampaign, summary: e.target.value })} /></label>
-        <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} /></label>
+        <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
       </form>
     </div>}

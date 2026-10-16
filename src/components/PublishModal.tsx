@@ -26,8 +26,7 @@ export const MARKDOWN_SUPPORT_HINT = `支持如下markdown语法：
 ### 三级标题
 **粗体**
 > 引用
-- 列表
---- 分割线`;
+- 列表`;
 
 export const PublishModal: React.FC<PublishModalProps> = ({
   isOpen,
@@ -207,9 +206,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             {/* 中间主信息栏 (比两侧栏扩大 35%，宽度为 594px) */}
             <form
               onSubmit={handleSubmit}
-              className="w-full lg:w-[594px] shrink-0 h-full overflow-y-auto p-5 sm:p-6 text-sm flex flex-col"
+              className="w-full lg:w-[594px] shrink-0 h-full overflow-y-auto no-scrollbar p-5 sm:p-6 text-sm flex flex-col"
             >
-              <div className="space-y-3.5 flex-1 pb-4">
+              <div className="space-y-3 flex-1 pb-3">
                 {/* Title */}
                 <div>
                   <label className="block font-bold text-[#121212] mb-1">
@@ -338,7 +337,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   简介
                 </label>
                 <textarea
-                  rows={6}
+                  rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={MARKDOWN_SUPPORT_HINT}
@@ -347,8 +346,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </div>
 
               {/* Cover Image: Drag & Drop / Click upload big rectangle */}
-              <div className="border-2 border-[#121212] p-3.5 bg-[#FAF9F5]">
-                <div className="flex items-center justify-between mb-2">
+              <div className="border-2 border-[#121212] p-3 bg-[#FAF9F5]">
+                <div className="flex items-center justify-between mb-1.5">
                   <span className="font-bold text-xs text-[#121212]">
                     留空使用默认图片
                   </span>
@@ -378,7 +377,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`w-full h-28 border-2 border-dashed border-[#121212] bg-white flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden select-none ${
+                  className={`w-full h-24 border-2 border-dashed border-[#121212] bg-white flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden select-none ${
                     isDragging ? 'bg-[#FFF3E0] border-[#004E98]' : 'hover:bg-[#F2F0E8]'
                   }`}
                 >
@@ -476,7 +475,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <p>**粗体**</p>
                     <p>&gt; 引用</p>
                     <p>- 列表</p>
-                    <p>--- 分割线</p>
                   </div>
                 )}
               </div>
