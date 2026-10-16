@@ -146,9 +146,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-4 my-auto w-full max-w-[1540px]">
-        {/* 左侧悬浮：开团时间设定面板 (与右侧预览等宽 440px) */}
-        <div className="hidden lg:flex w-[440px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden max-h-[88vh]">
+      <div className="relative flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 my-auto w-full max-w-[1540px]">
+        {/* 左侧悬浮：开团时间设定面板 (与右侧预览等宽 440px，自适应内容高度) */}
+        <div className="hidden lg:flex w-[440px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden self-start">
           {/* Header */}
           <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
             <div className="flex items-center gap-2">
@@ -161,7 +161,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="p-4 bg-[#FAF9F5] overflow-y-auto flex-1">
+          <div className="p-4 bg-[#FAF9F5]">
             <CalendarPicker
               value={timeSchedule}
               onChange={(val) => setTimeSchedule(val)}
