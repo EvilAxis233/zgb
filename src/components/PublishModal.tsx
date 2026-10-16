@@ -3,7 +3,7 @@ import { Campaign, UserProfile, SessionType } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
 import { CalendarPicker } from './CalendarPicker';
-import { X, Upload, Trash2, Clock, BookOpen, Sparkles } from 'lucide-react';
+import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -265,12 +265,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         value={rule}
                         onChange={(e) => setRule(e.target.value)}
                         placeholder="输入或点击右侧选择"
-                        className="bauhaus-input w-full pl-3 pr-8 py-2 text-sm"
+                        className="bauhaus-input w-full pl-3 pr-10 py-2 text-sm"
                       />
                       <button
                         type="button"
                         onClick={() => setShowRuleDropdown(!showRuleDropdown)}
-                        className="absolute right-2 top-2.5 text-[#004E98] hover:text-[#D62828] cursor-pointer"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-[#004E98] hover:text-[#D62828] cursor-pointer"
                         title="选择历史规则标签"
                       >
                         <BookOpen className="w-4 h-4" />
@@ -438,15 +438,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         }}
                         disabled={selectedCustomTags.length >= 2}
                         placeholder={selectedCustomTags.length >= 2 ? '已选满 (2个)' : '输入回车添加 (限6字)'}
-                        className="bauhaus-input w-full pl-3 pr-8 py-2 text-sm disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
+                        className="bauhaus-input w-full pl-3 pr-10 py-2 text-sm disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
                         onClick={() => setShowCustomTagDropdown(!showCustomTagDropdown)}
-                        className="absolute right-2 top-2.5 text-[#004E98] hover:text-[#D62828] cursor-pointer"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-[#004E98] hover:text-[#D62828] cursor-pointer"
                         title="查看常用与最新自选标签"
                       >
-                        <Sparkles className="w-4 h-4" />
+                        <BookOpen className="w-4 h-4" />
                       </button>
                     </div>
 
@@ -587,7 +587,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     className="bauhaus-input w-full px-3 py-2 text-sm"
                   />
                   <p className="mt-1 text-[11px] text-[#666]">
-                    报名成功的玩家将在战役详情中查看此联系方式。
+                    报名成功的玩家才能看到联系方式
                   </p>
                 </div>
 
