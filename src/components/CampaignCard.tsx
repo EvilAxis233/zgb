@@ -46,13 +46,17 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           <div className="px-2 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#004E98] flex items-center gap-1 shrink-0 whitespace-nowrap">
             {campaign.sessionType === '文字' ? (
               <MessageSquare className="w-3 h-3" />
-            ) : campaign.sessionType === '留言板' ? (
+            ) : campaign.sessionType === '其他游戏形式' ? (
               <ClipboardList className="w-3 h-3" />
             ) : (
               <Mic className="w-3 h-3" />
             )}
             <span>{campaign.sessionType || '语音'}</span>
           </div>
+
+          {campaign.platforms?.map((platform) => (
+            <div key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#004E98] shrink-0 whitespace-nowrap">{platform}</div>
+          ))}
 
           {/* Preset Tags */}
           {campaign.presetTags?.map((tag) => (

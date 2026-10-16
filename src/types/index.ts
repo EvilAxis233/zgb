@@ -15,13 +15,16 @@ export interface UserProfile {
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD
 }
 
-export type SessionType = '语音' | '文字' | '留言板';
+export type SessionType = '语音' | '文字' | '其他游戏形式';
+export const GAME_PLATFORMS = ['Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'] as const;
+export type GamePlatform = typeof GAME_PLATFORMS[number];
 
 export interface Campaign {
   id: string;
   title: string;
   rule: string;
   sessionType?: SessionType;
+  platforms?: GamePlatform[];
   presetTags?: string[];
   customTags?: string[];
   gmId: string;

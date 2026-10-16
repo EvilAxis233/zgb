@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Campaign, UserProfile, SessionType } from '../types';
+import { Campaign, UserProfile, SessionType, GAME_PLATFORMS, GamePlatform } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
 import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
+import { ImageCropper } from './ImageCropper';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -44,6 +45,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [title, setTitle] = useState('');
   const [rule, setRule] = useState('');
   const [sessionType, setSessionType] = useState<SessionType>('语音');
+  const [platforms, setPlatforms] = useState<GamePlatform[]>([]);
+  const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
   const [selectedPresetTags, setSelectedPresetTags] = useState<string[]>([]);
   const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState('');
@@ -54,6 +57,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [timeSchedule, setTimeSchedule] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [imageUrl, setImageUrl] = useState('');
+  const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
   const [bannerColor, setBannerColor] = useState(BAUHAUS_COLORS[0].hex);
   const [isDragging, setIsDragging] = useState(false);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
@@ -77,17 +81,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showAlert({ title: '图片过大', message: '上传图片请小于 2MB', type: 'warning' });
+    if (file.size > 20 * 1024 * 1024) {
+      showAlert({ title: '图片过大', message: '原图请小于 20MB，裁剪后将压缩至 2MB 内', type: 'warning' });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setImageUrl(event.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
+    setCoverToCrop(file);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,6 +93,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     if (file) {
       processFile(file);
     }
+    e.target.value = '';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -140,6 +139,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       title: title.trim(),
       rule: rule.trim(),
       sessionType,
+      platforms,
       presetTags: selectedPresetTags,
       customTags: selectedCustomTags,
       gmId: currentUser.id,
@@ -167,6 +167,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     title: title.trim() || '战役标题预览',
     rule: previewRule,
     sessionType,
+    platforms,
     presetTags: selectedPresetTags,
     customTags: selectedCustomTags,
     gmId: currentUser?.id || 'current-user',
@@ -256,8 +257,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   />
                 </div>
 
-                {/* Row 1: Rule, Players Count, and Session Type (3 columns) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Rule, player count, game type, and platforms */}
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
                   {/* Rule with dynamic input and popup */}
                   <div className="relative">
                     <label className="block font-bold text-[#121212] mb-1">
@@ -330,14 +331,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       max={12}
                       value={maxPlayers}
                       onChange={(e) => setMaxPlayers(Number(e.target.value))}
-                      className="bauhaus-input w-full px-3 py-2 text-sm"
+                      className="bauhaus-input w-full px-2 py-2 text-sm"
                     />
                   </div>
 
                   {/* Session Type */}
                   <div>
                     <label className="block font-bold text-[#121212] mb-1">
-                      团类型
+                      游戏类型
                     </label>
                     <select
                       value={sessionType}
@@ -346,10 +347,28 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     >
                       <option value="语音">语音</option>
                       <option value="文字">文字</option>
-                      <option value="留言板">留言板</option>
+                      <option value="其他游戏形式">其他游戏形式</option>
                     </select>
                   </div>
+                  <div className="relative">
+                    <label className="block font-bold text-[#121212] mb-1">游戏平台</label>
+                    <button type="button" onClick={() => setShowPlatformDropdown(!showPlatformDropdown)} aria-expanded={showPlatformDropdown} className="bauhaus-input w-full px-2 py-2 text-sm text-left truncate cursor-pointer">
+                      {platforms.length ? `已选 ${platforms.length} 个平台` : '选择平台 ▾'}
+                    </button>
+                    {showPlatformDropdown && (
+                      <div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">
+                        {GAME_PLATFORMS.map((platform) => (
+                          <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold cursor-pointer hover:bg-white">
+                            <input type="checkbox" checked={platforms.includes(platform)} onChange={() => setPlatforms((current) => current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform])} className="accent-[#004E98]" />
+                            {platform}
+                          </label>
+                        ))}
+                        <button type="button" onClick={() => setShowPlatformDropdown(false)} className="w-full text-xs font-bold border border-[#121212] bg-white py-1 hover:bg-[#004E98] hover:text-white">完成</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+                {platforms.length > 0 && <div className="flex flex-wrap gap-1.5">{platforms.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border border-[#004E98] text-[#004E98] text-xs font-bold">{platform}</span>)}</div>}
 
                 {/* Row 2: Tag System (Left: Preset Tags dropdown, Right: Custom Tags input with popover) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -667,7 +686,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         单击上传或拖拽图片至此
                       </span>
                       <span className="text-[10px] text-[#888888]">
-                        支持 PNG, JPG, GIF (小于 2MB)
+                        支持 PNG、JPG、GIF、WebP（原图小于 20MB）
                       </span>
                     </div>
                   )}
@@ -745,6 +764,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
         </div>
       </div>
     </div>
+    {coverToCrop && <ImageCropper file={coverToCrop} shape="cover" onClose={() => setCoverToCrop(null)} onConfirm={(file) => {
+      const reader = new FileReader();
+      reader.onload = () => { if (typeof reader.result === 'string') setImageUrl(reader.result); };
+      reader.readAsDataURL(file);
+      setCoverToCrop(null);
+    }} />}
   </div>
 );
 };

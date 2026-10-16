@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 .playwright-cli/
+.playwright-mcp/
 dist-ssr
 *.local
 .dev.vars*

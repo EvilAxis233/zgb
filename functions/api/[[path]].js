@@ -35,7 +35,7 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignEnded = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, title: c.title, rule: c.rule, sessionType: c.session_type || '语音', presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, title: c.title, rule: c.rule, sessionType: c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isFull: currentPlayers >= c.max_players, hasEnded: campaignEnded(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
@@ -65,7 +65,8 @@ function validateCampaign(b) {
   const players = Number(b.maxPlayers);
   const matched = /^(\d{4}-\d{2}-\d{2}).*(早|中|晚)$/.exec(time);
   if (!title || !rule || !matched || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、日期时段和 1–12 人的预计人数');
-  const sessionType = ['语音', '文字', '留言板'].includes(b.sessionType) ? b.sessionType : '语音';
+  const sessionType = ['语音', '文字', '其他游戏形式'].includes(b.sessionType) ? b.sessionType : '语音';
+  const platforms = Array.isArray(b.platforms) ? [...new Set(b.platforms.filter((item) => ['Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'].includes(item)))].slice(0, 7) : [];
   const cleanTags = (list, maxCount, maxLen) => {
     if (!Array.isArray(list)) return [];
     const res = [];
@@ -78,7 +79,7 @@ function validateCampaign(b) {
   };
   const presetTags = cleanTags(b.presetTags, 2, 20);
   const customTags = cleanTags(b.customTags, 2, 6);
-  return { title, rule, sessionType, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
+  return { title, rule, sessionType, platforms, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
 }
 const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
 
@@ -355,7 +356,7 @@ export async function onRequest(context) {
       const createdAt = new Date().toISOString();
       const contact = c.contact || user.qq;
       await db.batch([
-        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,preset_tags,custom_tags) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, c.time, c.scheduledDate, c.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.presetTags), JSON.stringify(c.customTags)),
+        db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, c.time, c.scheduledDate, c.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags)),
         db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(c.rule, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
       ]);
@@ -395,7 +396,7 @@ export async function onRequest(context) {
         const contact = data.contact || c.contact || user.qq;
         const nowIso = new Date().toISOString();
         await db.batch([
-          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,preset_tags=?,custom_tags=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.presetTags), JSON.stringify(data.customTags), cid),
+          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), cid),
           db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(data.rule, nowIso)
         ]);
         for (const tag of data.customTags) {

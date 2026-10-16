@@ -36,4 +36,6 @@ GitHub 仓库为 [dqqql/zgb](https://github.com/dqqql/zgb)，生产地址为 [zg
 
 Pages 生产环境还需设置独立的加密 Secret `ADMIN_PASSWORD`，替换已公开的旧密码后再部署本版本；旧管理员 Cookie 会失效。`BOT_BRIDGE_TOKEN` 仅在准备接入相应机器人时设置，并与测试环境分别生成。`RESEND_FROM` 在 `wrangler.jsonc` 中设置。更换任何 Secret 后重新部署，再验证 `/api/health`、空首页和实际 QQ 邮件登录。不要在预览环境复用生产 Secret 或向真实用户发送测试验证码。
 
+发布包含游戏平台字段的版本前，先运行 `npm run db:migrate:remote` 应用 `0008_game_platforms.sql`；Pages 的 Git 自动部署不会自动执行 D1 迁移。
+
 此前用于释放 D1 配额的旧 `ssjz` 数据库已备份至本机 `backups/ssjz-2026-10-15.sql`；该目录被 Git 忽略。旧 `ssjz` Pages 项目仍存在，但原 D1 绑定已失效。

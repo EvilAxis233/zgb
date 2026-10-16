@@ -121,13 +121,14 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212] flex items-center gap-1">
                   {campaign.sessionType === '文字' ? (
                     <MessageSquare className="w-3.5 h-3.5" />
-                  ) : campaign.sessionType === '留言板' ? (
+                  ) : campaign.sessionType === '其他游戏形式' ? (
                     <ClipboardList className="w-3.5 h-3.5" />
                   ) : (
                     <Mic className="w-3.5 h-3.5" />
                   )}
                   <span>{campaign.sessionType || '语音'}</span>
                 </span>
+                {campaign.platforms?.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>)}
                 {campaign.presetTags?.map((tag) => (
                   <span key={`dt-preset-${tag}`} className="px-2 py-0.5 bg-[#FAF9F5] border border-[#121212] text-xs font-bold text-[#121212]">
                     {tag}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles } from 'lucide-react';
-import type { Campaign, SessionType } from '../types';
+import { GAME_PLATFORMS, type Campaign, type SessionType, type GamePlatform } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
@@ -73,6 +73,7 @@ export const ManageView: React.FC<Props> = ({
                 </span>
               </div>
               <p className="mt-1 text-xs text-[#666]">{campaign.rule} · {formatDisplayTime(campaign.timeSchedule)}</p>
+              {!!campaign.platforms?.length && <p className="mt-1 text-xs text-[#004E98] font-bold">游戏平台：{campaign.platforms.join('、')}</p>}
               <div className="mt-1 flex flex-wrap gap-1">
                 {campaign.presetTags?.map((tag) => (
                   <span key={tag} className="text-[10px] font-bold px-1.5 py-0.2 bg-[#FAF9F5] border border-[#CCCCCC]">
@@ -91,7 +92,7 @@ export const ManageView: React.FC<Props> = ({
           <div className="mt-3 pt-3 border-t border-[#D8D5CC] flex flex-wrap gap-2">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
-              <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
+              <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
               <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />删除</button>
             </> : !campaign.hasEnded && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
           </div>
@@ -116,8 +117,8 @@ export const ManageView: React.FC<Props> = ({
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">修改战役</h2><button type="button" onClick={() => setEditingCampaign(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
         <label className="block text-xs font-bold">团名<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.title} onChange={(e) => setEditingCampaign({ ...editingCampaign, title: e.target.value })} /></label>
         
-        {/* Rule, Players, Session Type in 3 cols */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Rule, players, game type, and platforms */}
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
           <div className="relative">
             <label className="block text-xs font-bold mb-1">规则系统</label>
             <div className="relative">
@@ -140,16 +141,31 @@ export const ManageView: React.FC<Props> = ({
 
           <div>
             <label className="block text-xs font-bold mb-1">人数</label>
-            <input type="number" min={1} max={12} required className="bauhaus-input w-full p-2 text-xs" value={editingCampaign.maxPlayers} onChange={(e) => setEditingCampaign({ ...editingCampaign, maxPlayers: Number(e.target.value) })} />
+            <input type="number" min={1} max={12} required className="bauhaus-input w-full px-1 py-2 text-xs" value={editingCampaign.maxPlayers} onChange={(e) => setEditingCampaign({ ...editingCampaign, maxPlayers: Number(e.target.value) })} />
           </div>
 
           <div>
-            <label className="block text-xs font-bold mb-1">团类型</label>
+            <label className="block text-xs font-bold mb-1">游戏类型</label>
             <select className="bauhaus-input w-full p-2 text-xs cursor-pointer" value={editingCampaign.sessionType || '语音'} onChange={(e) => setEditingCampaign({ ...editingCampaign, sessionType: e.target.value as SessionType })}>
               <option value="语音">语音</option>
               <option value="文字">文字</option>
-              <option value="留言板">留言板</option>
+              <option value="其他游戏形式">其他游戏形式</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold mb-1">游戏平台</label>
+            <details className="relative group">
+              <summary className="bauhaus-input w-full p-2 text-xs cursor-pointer truncate">{editingCampaign.platforms?.length ? `已选 ${editingCampaign.platforms.length} 个` : '选择平台'}</summary>
+              <div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">
+                {GAME_PLATFORMS.map((platform) => <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold cursor-pointer hover:bg-white">
+                  <input type="checkbox" checked={editingCampaign.platforms?.includes(platform) || false} onChange={() => {
+                    const current = editingCampaign.platforms || [];
+                    const platforms: GamePlatform[] = current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform];
+                    setEditingCampaign({ ...editingCampaign, platforms });
+                  }} className="accent-[#004E98]" />{platform}
+                </label>)}
+              </div>
+            </details>
           </div>
         </div>
 
