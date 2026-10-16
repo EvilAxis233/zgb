@@ -14,12 +14,16 @@ interface CalendarPickerProps {
   value: string;
   onChange: (timeSchedule: string) => void;
   maxDaysAhead?: number; // 默认最晚31天后
+  hideHeader?: boolean;
+  borderless?: boolean;
 }
 
 export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   value,
   onChange,
   maxDaysAhead = 31,
+  hideHeader = false,
+  borderless = false,
 }) => {
   // 今日与最晚日期
   const today = useMemo(() => {
@@ -171,17 +175,19 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   }, [selectedDate]);
 
   return (
-    <div className="border-2 border-[#121212] bg-[#FAF9F5] p-3.5 space-y-3.5">
+    <div className={`${borderless ? 'p-1 space-y-3' : 'border-2 border-[#121212] bg-[#FAF9F5] p-3.5 space-y-3.5'}`}>
       {/* 顶部标题与范围提示 */}
-      <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2">
-        <div className="flex items-center gap-1.5 font-black text-xs text-[#121212]">
-          <CalendarIcon className="w-4 h-4 text-[#D62828]" />
-          <span>选择开团日期与时段</span>
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2">
+          <div className="flex items-center gap-1.5 font-black text-xs text-[#121212]">
+            <CalendarIcon className="w-4 h-4 text-[#D62828]" />
+            <span>选择开团日期与时段</span>
+          </div>
+          <span className="text-[11px] font-bold text-[#666666] bg-[#FFFFFF] px-2 py-0.5 border border-[#CCCCCC]">
+            可选今日起最晚 31 天内
+          </span>
         </div>
-        <span className="text-[11px] font-bold text-[#666666] bg-[#FFFFFF] px-2 py-0.5 border border-[#CCCCCC]">
-          可选今日起最晚 31 天内
-        </span>
-      </div>
+      )}
 
       {/* 日历导航条 */}
       <div className="flex items-center justify-between bg-white px-3 py-1.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]">

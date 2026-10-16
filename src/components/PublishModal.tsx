@@ -3,7 +3,7 @@ import { Campaign, UserProfile } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
 import { CalendarPicker } from './CalendarPicker';
-import { X, Upload, Trash2 } from 'lucide-react';
+import { X, Upload, Trash2, Clock } from 'lucide-react';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -36,6 +36,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [bannerColor, setBannerColor] = useState(BAUHAUS_COLORS[0].hex);
   const [isDragging, setIsDragging] = useState(false);
+  const [showMobileCalendar, setShowMobileCalendar] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,91 +146,163 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-[#FFFFFF] border-4 border-[#121212] shadow-[8px_8px_0px_#121212] my-4 flex flex-col h-[88vh] max-h-[88vh] overflow-hidden">
-        {/* Modal Header */}
-        <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-[#D62828] inline-block" />
-            <h2 className="text-sm font-black tracking-wider">
-              发布新团
-            </h2>
+      <div className="relative flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 my-auto w-full max-w-6xl">
+        {/* 左侧悬浮：开团时间设定面板 */}
+        <div className="hidden lg:flex w-[320px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden max-h-[88vh]">
+          {/* Header */}
+          <div className="bg-[#121212] text-white px-4 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-[#D62828] inline-block" />
+              <h3 className="text-sm font-black tracking-wider">开团时间</h3>
+            </div>
+            <span className="text-[10px] text-[#E0E0E0] bg-[#222] px-2 py-0.5 font-bold border border-[#444]">
+              今日起 31 天内
+            </span>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828] text-white font-bold cursor-pointer transition-colors border border-[#444]"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Body */}
+          <div className="p-3 bg-[#FAF9F5] overflow-y-auto flex-1">
+            <CalendarPicker
+              value={timeSchedule}
+              onChange={(val) => setTimeSchedule(val)}
+              hideHeader={true}
+              borderless={true}
+            />
+          </div>
         </div>
 
-        {/* Modal Body: Left form, Right preview (same height) */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* LEFT: Form Inputs (Scrollable) */}
-          <form
-            onSubmit={handleSubmit}
-            className="w-full md:w-1/2 h-full overflow-y-auto p-5 sm:p-6 text-sm flex flex-col"
-          >
-            <div className="space-y-3.5 flex-1 pb-4">
-              {/* Title */}
-              <div>
-                <label className="block font-bold text-[#121212] mb-1">
-                  团名 <span className="text-[#D62828]">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="例如：狂乱极光：纳斯卡之眼"
-                  className="bauhaus-input w-full px-3 py-2 text-sm"
-                />
-              </div>
+        {/* 右侧主弹窗 */}
+        <div className="relative w-full flex-1 max-w-5xl bg-[#FFFFFF] border-4 border-[#121212] shadow-[8px_8px_0px_#121212] flex flex-col h-[88vh] max-h-[88vh] overflow-hidden">
+          {/* Modal Header */}
+          <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-[#D62828] inline-block" />
+              <h2 className="text-sm font-black tracking-wider">
+                发布新团
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828] text-white font-bold cursor-pointer transition-colors border border-[#444]"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-              {/* Rule and Players Count */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Modal Body: Left form, Right preview (same height) */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            {/* LEFT: Form Inputs (Scrollable) */}
+            <form
+              onSubmit={handleSubmit}
+              className="w-full md:w-1/2 h-full overflow-y-auto p-5 sm:p-6 text-sm flex flex-col"
+            >
+              <div className="space-y-3.5 flex-1 pb-4">
+                {/* Title */}
                 <div>
                   <label className="block font-bold text-[#121212] mb-1">
-                    规则系统 <span className="text-[#D62828]">*</span>
-                  </label>
-                  <select
-                    value={rule}
-                    onChange={(e) => setRule(e.target.value)}
-                    className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"
-                  >
-                    {!rules.length && <option value="">暂无规则</option>}
-                    {rules.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#121212] mb-1">
-                    人数
+                    团名 <span className="text-[#D62828]">*</span>
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={maxPlayers}
-                    onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                    type="text"
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="例如：狂乱极光：纳斯卡之眼"
                     className="bauhaus-input w-full px-3 py-2 text-sm"
                   />
                 </div>
-              </div>
 
-              {/* Time Schedule */}
-              <div>
-                <label className="block font-bold text-[#121212] mb-1">
-                  开团时间 <span className="text-[#D62828]">*</span>
-                </label>
-                <CalendarPicker
-                  value={timeSchedule}
-                  onChange={(val) => setTimeSchedule(val)}
-                />
-              </div>
+                {/* Rule and Players Count */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#121212] mb-1">
+                      规则系统 <span className="text-[#D62828]">*</span>
+                    </label>
+                    <select
+                      value={rule}
+                      onChange={(e) => setRule(e.target.value)}
+                      className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"
+                    >
+                      {!rules.length && <option value="">暂无规则</option>}
+                      {rules.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#121212] mb-1">
+                      人数
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={maxPlayers}
+                      onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                      className="bauhaus-input w-full px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Time Schedule (表单内状态提示栏) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-[#121212]">
+                      开团时间 <span className="text-[#D62828]">*</span>
+                    </label>
+                    <span className="hidden lg:inline text-xs font-bold text-[#004E98]">
+                      ← 请在左侧悬浮日历中选择
+                    </span>
+                  </div>
+
+                  <div
+                    className={`w-full p-2.5 border-2 border-[#121212] flex items-center justify-between transition-colors ${
+                      timeSchedule ? 'bg-[#FAF9F5]' : 'bg-[#FFF9E6] border-dashed'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Clock className="w-4 h-4 text-[#004E98] shrink-0" />
+                      <span
+                        className={`text-xs sm:text-sm font-black truncate ${
+                          timeSchedule ? 'text-[#121212]' : 'text-[#888888] font-normal italic'
+                        }`}
+                      >
+                        {timeSchedule || '未选择时间（请在左侧日历选定）'}
+                      </span>
+                    </div>
+                    {timeSchedule ? (
+                      <span className="shrink-0 text-[11px] font-black bg-[#2A9D8F] text-white px-2 py-0.5 border border-[#121212]">
+                        已选定
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-[11px] font-black bg-[#D62828] text-white px-2 py-0.5 border border-[#121212]">
+                        待选择
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 仅在窄屏/移动端提供折叠展开 */}
+                  <div className="lg:hidden mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowMobileCalendar(!showMobileCalendar)}
+                      className="w-full py-1.5 px-3 text-xs font-bold bg-[#EAE8E0] hover:bg-[#DEDCD2] text-[#121212] border border-[#121212] flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <span>{showMobileCalendar ? '收起开团日历' : '展开选择开团日历与时段'}</span>
+                    </button>
+                    {showMobileCalendar && (
+                      <div className="mt-2 border-2 border-[#121212] p-2 bg-white">
+                        <CalendarPicker
+                          value={timeSchedule}
+                          onChange={(val) => setTimeSchedule(val)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
 
               {/* Short Summary */}
               <div>
@@ -392,5 +465,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
