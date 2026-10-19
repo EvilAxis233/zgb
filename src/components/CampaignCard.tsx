@@ -51,25 +51,25 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         {/* Rule, session type, and platforms share the image/content seam. */}
         <div className="absolute -bottom-3 left-3 right-3 flex items-center gap-1.5 z-10 overflow-hidden py-0.5">
           {/* Rule Tag */}
-          <div className="px-3.5 py-1 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#121212] flex items-center gap-2 shrink-0 whitespace-nowrap">
-            <BookOpen className="w-5 h-5 text-[#004E98]" />
+          <div className="px-3 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#121212] flex items-center gap-2 shrink-0 whitespace-nowrap">
+            <BookOpen className="w-[18px] h-[18px] text-[#004E98]" />
             <span>{campaign.rule}</span>
           </div>
 
           {/* Session Type Tag */}
-          <div className="px-3 py-1 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+          <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             {campaign.sessionType === '文字' ? (
-              <MessageSquare className="w-[18px] h-[18px]" />
+              <MessageSquare className="w-[15px] h-[15px]" />
             ) : campaign.sessionType === '其他游戏形式' ? (
-              <ClipboardList className="w-[18px] h-[18px]" />
+              <ClipboardList className="w-[15px] h-[15px]" />
             ) : (
-              <Mic className="w-[18px] h-[18px]" />
+              <Mic className="w-[15px] h-[15px]" />
             )}
             <span>{campaign.sessionType || '语音'}</span>
           </div>
 
           {campaign.platforms?.map((platform) => (
-            <div key={platform} className="px-3 py-1 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#004E98] shrink-0 whitespace-nowrap">
+            <div key={platform} className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">
               {platform}
             </div>
           ))}
@@ -92,10 +92,10 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         {/* Business tags sit directly below the metadata divider. */}
         <div className="mt-2 flex flex-wrap content-start items-start gap-2">
           {campaign.presetTags?.map((tag) => (
-            <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2.5 py-1 text-base font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
+            <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2 py-0.5 text-sm font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
           ))}
           {campaign.customTags?.map((tag) => (
-            <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2.5 py-1 text-base font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
+            <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
           ))}
         </div>
       </div>
