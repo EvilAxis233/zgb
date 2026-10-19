@@ -48,7 +48,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           />
         )}
 
-        {/* Only identity badges stay on the image seam; business tags live below. */}
+        {/* Rule, session type, and platforms share the image/content seam. */}
         <div className="absolute -bottom-3 left-3 right-3 flex items-center gap-1.5 z-10 overflow-hidden py-0.5">
           {/* Rule Tag */}
           <div className="px-3.5 py-1 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#121212] flex items-center gap-2 shrink-0 whitespace-nowrap">
@@ -68,6 +68,12 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <span>{campaign.sessionType || '语音'}</span>
           </div>
 
+          {campaign.platforms?.map((platform) => (
+            <div key={platform} className="px-3 py-1 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#004E98] shrink-0 whitespace-nowrap">
+              {platform}
+            </div>
+          ))}
+
         </div>
       </div>
 
@@ -85,9 +91,6 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
 
         {/* Business tags sit directly below the metadata divider. */}
         <div className="mt-2 flex flex-wrap content-start items-start gap-2">
-          {campaign.platforms?.map((platform) => (
-            <span key={platform} className="whitespace-nowrap border border-[#004E98] bg-[#F0F5FA] px-2.5 py-1 text-base font-bold text-[#004E98] shadow-[1px_1px_0px_#004E98]">{platform}</span>
-          ))}
           {campaign.presetTags?.map((tag) => (
             <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2.5 py-1 text-base font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
           ))}
