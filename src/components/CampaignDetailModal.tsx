@@ -34,7 +34,6 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   const isMember = isGm || campaign.isSignedUp;
   const gm = campaign.members.find((member) => member.role === 'gm');
   const players = campaign.members.filter((member) => member.role === 'player');
-  const members = gm ? [gm, ...players] : players;
 
   const handleRemoveMember = async (member: CampaignMember) => {
     const ok = await showConfirm({
@@ -69,16 +68,16 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     );
   };
 
-  const memberTile = (member: CampaignMember, index: number) => {
-    const hasRightNeighbor = index % 2 === 0 && index + 1 < members.length;
-    const hasNextRow = Math.floor(index / 2) * 2 + 2 < members.length;
+  const memberRow = (member: CampaignMember, index = 0, total = 1, playerGrid = false) => {
+    const hasRightNeighbor = playerGrid && index % 2 === 0 && index + 1 < total;
+    const hasNextRow = playerGrid && Math.floor(index / 2) * 2 + 2 < total;
     return (
-    <div key={member.id} className={`min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasRightNeighbor ? 'md:border-r-2 md:border-r-[#121212]' : ''}`}>
-      <div className="flex items-start gap-3">
+    <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasRightNeighbor ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
+      <div className={`flex items-center gap-3 ${playerGrid ? '' : 'px-4 py-3'}`}>
         <Avatar member={member} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <strong className="text-sm break-all">{member.name}</strong>
+            <strong className={playerGrid ? 'text-sm break-all' : 'truncate text-sm'}>{member.name}</strong>
             <span className={`px-1.5 py-0.5 text-[10px] font-black border border-[#121212] ${member.role === 'gm' ? 'bg-[#D62828]' : 'bg-[#004E98]'} text-white`}>{member.role === 'gm' ? 'GM' : '玩家'}</span>
           </div>
           <span className="text-xs text-[#666]">获{member.role === 'gm' ? ' GM' : '玩家'}点赞：<strong className={member.role === 'gm' ? 'text-[#D62828]' : 'text-[#004E98]'}>{member.receivedPraises}</strong></span>
@@ -91,9 +90,8 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         </div>
       </div>
       {member.role === 'gm' && (
-        <div className="mt-3 space-y-3">
-          <p className="text-xs text-[#555] leading-relaxed">{member.bio || '暂无个人简介'}</p>
-          <div className="grid grid-cols-1 gap-2">
+        <div className="px-4 pb-4 sm:pl-[4.5rem]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-[#F0F5FA] border border-[#004E98] p-3">
               <div className="text-xs font-bold text-[#004E98] flex items-center gap-1 mb-2"><CheckCircle2 className="w-3.5 h-3.5" />喜好偏好</div>
               <div className="flex flex-wrap gap-1.5">{member.preferences?.length ? member.preferences.map((item) => <span key={item} className="px-2 py-0.5 bg-white border border-[#004E98] text-xs">{item}</span>) : <span className="text-xs text-[#777]">未设置喜好</span>}</div>
@@ -191,12 +189,13 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           </section>
           <section className="col-span-full border-2 border-[#121212] bg-white shadow-[4px_4px_0px_#121212]">
             <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">成员名单</h2><span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span></div>
-            {members.length ? (
+            {gm && memberRow(gm)}
+            {players.length ? (
               <div className="grid grid-cols-1 md:grid-cols-2">
-                {members.map(memberTile)}
+                {players.map((member, index) => memberRow(member, index, players.length, true))}
               </div>
             ) : (
-              <div className="px-4 py-6 text-center text-xs text-[#777]">尚无成员</div>
+              <div className="px-4 py-6 text-center text-xs text-[#777]">尚无玩家报名</div>
             )}
           </section>
           </div>
