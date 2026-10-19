@@ -1,7 +1,7 @@
 import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
-import { User, BookOpen, Users, Mic, MessageSquare, ClipboardList, ThumbsUp } from 'lucide-react';
+import { User, BookOpen, Mic, MessageSquare, ClipboardList, ThumbsUp } from 'lucide-react';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -34,7 +34,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             />
             <div className="absolute inset-0 bg-black/10" />
             <div className="absolute inset-0 flex items-center justify-center p-4">
-              <h2 className="max-w-[86%] break-words border-2 border-[#121212] bg-white/95 px-3 py-2 text-center text-sm font-black leading-tight tracking-tight text-[#121212] shadow-[3px_3px_0px_#121212] sm:text-base">
+              <h2 className="max-w-[86%] break-words border-2 border-[#121212] bg-white/95 px-3 py-2 text-center text-xl font-black leading-tight tracking-tight text-[#121212] shadow-[3px_3px_0px_#121212] sm:text-2xl">
                 {campaign.title}
               </h2>
             </div>
@@ -51,19 +51,19 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         {/* Only identity badges stay on the image seam; business tags live below. */}
         <div className="absolute -bottom-3 left-3 right-3 flex items-center gap-1.5 z-10 overflow-hidden py-0.5">
           {/* Rule Tag */}
-          <div className="px-2.5 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#121212] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <BookOpen className="w-3.5 h-3.5 text-[#004E98]" />
+          <div className="px-3.5 py-1 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#121212] flex items-center gap-2 shrink-0 whitespace-nowrap">
+            <BookOpen className="w-5 h-5 text-[#004E98]" />
             <span>{campaign.rule}</span>
           </div>
 
           {/* Session Type Tag */}
-          <div className="px-2 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#004E98] flex items-center gap-1 shrink-0 whitespace-nowrap">
+          <div className="px-3 py-1 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-lg font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             {campaign.sessionType === '文字' ? (
-              <MessageSquare className="w-3 h-3" />
+              <MessageSquare className="w-[18px] h-[18px]" />
             ) : campaign.sessionType === '其他游戏形式' ? (
-              <ClipboardList className="w-3 h-3" />
+              <ClipboardList className="w-[18px] h-[18px]" />
             ) : (
-              <Mic className="w-3 h-3" />
+              <Mic className="w-[18px] h-[18px]" />
             )}
             <span>{campaign.sessionType || '语音'}</span>
           </div>
@@ -72,41 +72,27 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       </div>
 
       {/* Main Content Area */}
-      <div className="p-3.5 pt-6 flex-1 flex flex-col">
-        <div>
-          {/* Title & Status Badge Row */}
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="min-w-0 flex-1 break-words text-base font-black leading-tight tracking-tight text-[#121212] transition-colors group-hover:text-[#D62828]">
-              {campaign.title}
-            </h3>
+      <div className="p-3.5 pt-8 flex-1 flex flex-col">
+        <div className="flex items-center justify-between gap-3 border-b border-dashed border-[#D8D5CC] pb-3">
+          <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
+            <User className="h-5 w-5 shrink-0 text-[#D62828]" />
+            <span className="truncate">主持: {campaign.gmName}</span>
+          </div>
             <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
               <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
             </span>
-          </div>
-
-          {/* GM & Player Ratio */}
-          <div className="mt-2.5 flex items-center justify-between gap-2 border-b border-dashed border-[#D8D5CC] pb-3 text-xs font-medium text-[#444444]">
-            <div className="flex min-w-0 items-center gap-1.5 font-bold text-[#121212]">
-              <User className="w-3.5 h-3.5 text-[#D62828]" />
-              <span className="truncate">主持: {campaign.gmName}</span>
-            </div>
-            <div className="flex shrink-0 items-center gap-1 font-bold text-[#004E98]">
-              <Users className="w-3.5 h-3.5 text-[#004E98]" />
-              <span>{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>
-            </div>
-          </div>
         </div>
 
         {/* Business tags sit directly below the metadata divider. */}
-        <div className="mt-2 flex flex-wrap content-start items-start gap-1.5">
+        <div className="mt-2 flex flex-wrap content-start items-start gap-2">
           {campaign.platforms?.map((platform) => (
-            <span key={platform} className="whitespace-nowrap border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98] shadow-[1px_1px_0px_#004E98]">{platform}</span>
+            <span key={platform} className="whitespace-nowrap border border-[#004E98] bg-[#F0F5FA] px-2.5 py-1 text-base font-bold text-[#004E98] shadow-[1px_1px_0px_#004E98]">{platform}</span>
           ))}
           {campaign.presetTags?.map((tag) => (
-            <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-1.5 py-0.5 text-[11px] font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
+            <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2.5 py-1 text-base font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
           ))}
           {campaign.customTags?.map((tag) => (
-            <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
+            <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2.5 py-1 text-base font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
           ))}
         </div>
       </div>

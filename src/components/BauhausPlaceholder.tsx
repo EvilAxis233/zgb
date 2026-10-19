@@ -63,7 +63,7 @@ export const BauhausPlaceholder: React.FC<BauhausPlaceholderProps> = ({
 
       {/* Centerpiece campaign title. Rule remains available as the fallback label. */}
       <div className="relative z-10 bg-[#FFFFFF]/95 border-2 border-[#121212] px-3 py-2 shadow-[3px_3px_0px_#121212] flex items-center justify-center max-w-[84%]">
-        <span className="text-sm sm:text-base font-black tracking-tight text-[#121212] text-center leading-tight break-words">
+        <span className="text-xl sm:text-2xl font-black tracking-tight text-[#121212] text-center leading-tight break-words">
           {title || rule}
         </span>
       </div>
