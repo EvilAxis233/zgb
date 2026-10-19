@@ -301,7 +301,7 @@ export function App() {
                   <p className="text-base font-bold text-[#222222]">暂无符合条件的战役</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 items-stretch">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                   {filteredCampaigns.map((camp) => (
                     <CampaignCard
                       key={camp.id}

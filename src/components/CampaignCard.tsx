@@ -72,7 +72,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       </div>
 
       {/* Main Content Area */}
-      <div className="p-3.5 pt-6 flex-1 flex flex-col justify-between">
+      <div className="p-3.5 pt-6 flex-1 flex flex-col">
         <div>
           {/* Title & Status Badge Row */}
           <div className="flex items-start justify-between gap-3">
@@ -98,7 +98,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         </div>
 
         {/* Business tags sit directly below the metadata divider. */}
-        <div className="mt-3 flex min-h-7 flex-wrap content-start items-center gap-1.5">
+        <div className="mt-2 flex flex-wrap content-start items-start gap-1.5">
           {campaign.platforms?.map((platform) => (
             <span key={platform} className="whitespace-nowrap border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98] shadow-[1px_1px_0px_#004E98]">{platform}</span>
           ))}
