@@ -28,6 +28,7 @@ async function hmac(value, secret) {
 }
 const qqValid = (v) => typeof v === 'string' && /^[1-9][0-9]{4,11}$/.test(v);
 const clean = (v, max) => typeof v === 'string' ? v.trim().slice(0, max) : '';
+const nicknameLength = (value) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
 const parseTags = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 const assetUrl = (key) => key ? `/api/images/${key}` : '';
 const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '' });
@@ -332,6 +333,7 @@ export async function onRequest(context) {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
       const tags = (v) => Array.isArray(v) ? [...new Set(v.map((x) => clean(x, 40)).filter(Boolean))].slice(0, 20) : [];
       if (!name) return fail('昵称不能为空');
+      if (nicknameLength(name) > 20) return fail('昵称最多 10 个中文字符或 20 个英文字符，中文及全角字符按 2 个计算');
       const duplicate = await db.prepare('SELECT 1 FROM users WHERE name=? COLLATE NOCASE AND qq!=?').bind(name, user.qq).first();
       if (duplicate) return fail('该昵称已被使用，请换一个昵称', 409);
       await db.prepare('UPDATE users SET name=?,bio=?,preferences=?,taboos=? WHERE qq=?').bind(name, bio, JSON.stringify(tags(b.preferences)), JSON.stringify(tags(b.taboos)), user.qq).run();

@@ -13,6 +13,11 @@ interface ProfileViewProps {
   onUploadAvatar: (file: File) => void;
 }
 
+const nicknameLength = (value: string) => Array.from(value).reduce(
+  (total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2),
+  0,
+);
+
 export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   myCampaigns,
@@ -31,6 +36,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [taboos, setTaboos] = useState<string[]>(currentUser.taboos || []);
   const [newPref, setNewPref] = useState('');
   const [newTaboo, setNewTaboo] = useState('');
+  const nameLength = nicknameLength(name.trim());
 
   React.useEffect(() => {
     setName(currentUser.name);
@@ -43,7 +49,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     if (!name.trim()) {
       await showAlert({
         title: '提示',
-        message: '名字不能为空',
+        message: '昵称不能为空',
+        type: 'warning',
+      });
+      return;
+    }
+    if (nameLength > 20) {
+      await showAlert({
+        title: '昵称过长',
+        message: '昵称最多 10 个中文字符或 20 个英文字符，中文及全角字符按 2 个计算。',
         type: 'warning',
       });
       return;
@@ -110,9 +124,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="请输入姓名/昵称"
-                    className="bauhaus-input px-3 py-1 text-lg font-black max-w-[220px]"
+                    aria-describedby="nickname-length-hint"
+                    aria-invalid={nameLength > 20}
+                    className={`bauhaus-input px-3 py-1 text-lg font-black max-w-[220px] ${nameLength > 20 ? 'border-[#D62828]' : ''}`}
                     autoFocus
                   />
+                  <p id="nickname-length-hint" className={`mt-1 text-[11px] font-bold ${nameLength > 20 ? 'text-[#D62828]' : 'text-[#666]'}`}>
+                    {nameLength}/20（中文计 2，英文计 1）
+                  </p>
                 </div>
               ) : (
                 <h1 className="text-2xl font-black text-[#121212]">{currentUser.name}</h1>
