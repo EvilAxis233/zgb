@@ -1,4 +1,4 @@
-import { AlertOctagon, CheckCircle2, Clock, Flame, Star, UserPlus, UserRoundX, Users, X, Mic, MessageSquare, ClipboardList } from 'lucide-react';
+import { Clock, Flame, Star, UserPlus, UserRoundX, Users, X, Mic, MessageSquare, ClipboardList } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -69,10 +69,10 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   };
 
   const memberRow = (member: CampaignMember, index = 0, total = 1, playerGrid = false) => {
-    const hasRightNeighbor = playerGrid && index % 2 === 0 && index + 1 < total;
-    const hasNextRow = playerGrid && Math.floor(index / 2) * 2 + 2 < total;
+    const hasColumnDivider = playerGrid && index % 3 !== 2;
+    const hasNextRow = playerGrid && Math.floor(index / 3) * 3 + 3 < total;
     return (
-    <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasRightNeighbor ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
+    <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasColumnDivider ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
       <div className={`flex items-center gap-3 ${playerGrid ? '' : 'px-4 py-3'}`}>
         <Avatar member={member} />
         <div className="min-w-0 flex-1">
@@ -89,20 +89,6 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           )}
         </div>
       </div>
-      {member.role === 'gm' && (
-        <div className="px-4 pb-4 sm:pl-[4.5rem]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="bg-[#F0F5FA] border border-[#004E98] p-3">
-              <div className="text-xs font-bold text-[#004E98] flex items-center gap-1 mb-2"><CheckCircle2 className="w-3.5 h-3.5" />喜好偏好</div>
-              <div className="flex flex-wrap gap-1.5">{member.preferences?.length ? member.preferences.map((item) => <span key={item} className="px-2 py-0.5 bg-white border border-[#004E98] text-xs">{item}</span>) : <span className="text-xs text-[#777]">未设置喜好</span>}</div>
-            </div>
-            <div className="bg-[#FAF0F0] border border-[#D62828] p-3">
-              <div className="text-xs font-bold text-[#D62828] flex items-center gap-1 mb-2"><AlertOctagon className="w-3.5 h-3.5" />雷区禁忌</div>
-              <div className="flex flex-wrap gap-1.5">{member.taboos?.length ? member.taboos.map((item) => <span key={item} className="px-2 py-0.5 bg-white border border-[#D62828] text-xs">{item}</span>) : <span className="text-xs text-[#777]">未设置禁忌</span>}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
     );
   };
@@ -191,7 +177,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">成员名单</h2><span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span></div>
             {gm && memberRow(gm)}
             {players.length ? (
-              <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="grid grid-cols-1 md:grid-cols-3">
                 {players.map((member, index) => memberRow(member, index, players.length, true))}
               </div>
             ) : (
