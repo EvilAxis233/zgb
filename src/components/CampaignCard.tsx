@@ -1,8 +1,7 @@
 import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
-import { formatDisplayTime } from '../utils/date';
-import { Clock, User, BookOpen, Users, Mic, MessageSquare, ClipboardList } from 'lucide-react';
+import { User, BookOpen, Users, Mic, MessageSquare, ClipboardList, ThumbsUp } from 'lucide-react';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -13,29 +12,44 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
   return (
     <article
       onClick={onClick}
-      className="bauhaus-card bauhaus-card-interactive flex flex-col justify-between cursor-pointer group bg-white"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`查看战役：${campaign.title}`}
+      className="bauhaus-card bauhaus-card-interactive flex min-h-[340px] flex-col cursor-pointer group bg-white focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#004E98]"
     >
       {/* Top Banner / Image Area */}
-      <div className="relative">
+      <div className="relative h-[154px] shrink-0">
         {campaign.imageUrl ? (
-          <div className="h-44 w-full overflow-hidden border-b-2 border-[#121212] bg-[#EAE8E0]">
+          <div className="relative h-full w-full overflow-hidden border-b-2 border-[#121212] bg-[#EAE8E0]">
             <img
               src={campaign.imageUrl}
-              alt={campaign.title}
+              alt=""
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
+            <div className="absolute inset-0 bg-black/10" />
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              <h2 className="max-w-[86%] break-words border-2 border-[#121212] bg-white/95 px-3 py-2 text-center text-sm font-black leading-tight tracking-tight text-[#121212] shadow-[3px_3px_0px_#121212] sm:text-base">
+                {campaign.title}
+              </h2>
+            </div>
           </div>
         ) : (
           <BauhausPlaceholder
             rule={campaign.rule}
             title={campaign.title}
             seedColor={campaign.bannerColor || '#D62828'}
-            className="h-44 w-full"
+            className="h-full w-full"
           />
         )}
 
-        {/* Badges Row - Bottom Left Overlap along red arrow direction */}
-        <div className="absolute -bottom-3.5 left-4 right-4 flex items-center gap-1.5 z-10 overflow-x-auto no-scrollbar py-0.5">
+        {/* Only identity badges stay on the image seam; business tags live below. */}
+        <div className="absolute -bottom-3 left-3 right-3 flex items-center gap-1.5 z-10 overflow-hidden py-0.5">
           {/* Rule Tag */}
           <div className="px-2.5 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#121212] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             <BookOpen className="w-3.5 h-3.5 text-[#004E98]" />
@@ -54,63 +68,46 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <span>{campaign.sessionType || '语音'}</span>
           </div>
 
-          {campaign.platforms?.map((platform) => (
-            <div key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#004E98] shrink-0 whitespace-nowrap">{platform}</div>
-          ))}
-
-          {/* Preset Tags */}
-          {campaign.presetTags?.map((tag) => (
-            <div
-              key={`preset-${tag}`}
-              className="px-2 py-0.5 bg-[#FAF9F5] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#121212] shrink-0 whitespace-nowrap"
-            >
-              {tag}
-            </div>
-          ))}
-
-          {/* Custom Tags */}
-          {campaign.customTags?.map((tag) => (
-            <div
-              key={`custom-${tag}`}
-              className="px-2 py-0.5 bg-[#FFF9F9] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-xs font-bold text-[#D62828] shrink-0 whitespace-nowrap"
-            >
-              #{tag}
-            </div>
-          ))}
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="p-5 pt-6 flex-1 flex flex-col justify-between">
+      <div className="p-3.5 pt-6 flex-1 flex flex-col justify-between">
         <div>
           {/* Title & Status Badge Row */}
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-xl font-black text-[#121212] tracking-tight group-hover:text-[#D62828] transition-colors leading-snug line-clamp-1 flex-1">
+            <h3 className="min-w-0 flex-1 break-words text-base font-black leading-tight tracking-tight text-[#121212] transition-colors group-hover:text-[#D62828]">
               {campaign.title}
-            </h2>
-            <span className="px-2.5 py-1 text-xs font-black border-2 border-[#121212] tracking-wider shadow-[2px_2px_0px_#121212] shrink-0 bg-[#004E98] text-white">GM获赞：{campaign.gmPraises ?? 0}</span>
+            </h3>
+            <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#004E98] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
+              <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
+            </span>
           </div>
 
           {/* GM & Player Ratio */}
-          <div className="mt-2.5 flex items-center justify-between text-xs font-medium text-[#444444]">
-            <div className="flex items-center gap-1.5 font-bold text-[#121212]">
+          <div className="mt-2.5 flex items-center justify-between gap-2 border-b border-dashed border-[#D8D5CC] pb-3 text-xs font-medium text-[#444444]">
+            <div className="flex min-w-0 items-center gap-1.5 font-bold text-[#121212]">
               <User className="w-3.5 h-3.5 text-[#D62828]" />
-              <span>主持: {campaign.gmName}</span>
+              <span className="truncate">主持: {campaign.gmName}</span>
             </div>
-            <div className="flex items-center gap-1 font-bold text-[#121212]">
+            <div className="flex shrink-0 items-center gap-1 font-bold text-[#004E98]">
               <Users className="w-3.5 h-3.5 text-[#004E98]" />
-              <span>
-                人数: {campaign.currentPlayers}/{campaign.maxPlayers} 人
-              </span>
+              <span>{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>
             </div>
           </div>
         </div>
 
-        {/* Footer: Dedicated full line for time */}
-        <div className="mt-4 pt-3 border-t-2 border-[#121212] flex items-center text-xs text-[#121212] font-semibold bg-[#FAF9F5] px-2.5 py-2 border border-[#E5E5E0]">
-          <Clock className="w-4 h-4 text-[#004E98] shrink-0 mr-1.5" />
-          <span className="font-bold mr-1 shrink-0">时间:</span>
-          <span className="leading-normal break-words">{campaign.slots && campaign.slots.length > 1 ? campaign.slots.map((slot) => formatDisplayTime(slot.timeSchedule)).join('、') : formatDisplayTime(campaign.timeSchedule)}</span>
+        {/* Business tags sit directly below the metadata divider. */}
+        <div className="mt-3 flex min-h-7 flex-wrap content-start items-center gap-1.5">
+          {campaign.platforms?.map((platform) => (
+            <span key={platform} className="whitespace-nowrap border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98] shadow-[1px_1px_0px_#004E98]">{platform}</span>
+          ))}
+          {campaign.presetTags?.map((tag) => (
+            <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-1.5 py-0.5 text-[11px] font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
+          ))}
+          {campaign.customTags?.map((tag) => (
+            <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
+          ))}
         </div>
       </div>
     </article>

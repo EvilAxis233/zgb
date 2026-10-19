@@ -113,8 +113,8 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         </header>
         <div className="overflow-y-auto p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            <div className="md:col-span-5 border-2 border-[#121212] shadow-[4px_4px_0px_#121212]">
-              {campaign.imageUrl ? <img src={campaign.imageUrl} alt={campaign.title} className="w-full h-56 object-cover" /> : <BauhausPlaceholder rule={campaign.rule} title={campaign.title} seedColor={campaign.bannerColor || '#D62828'} className="h-56 w-full" />}
+            <div className="md:col-span-5 overflow-hidden border-2 border-[#121212] bg-[#EAE8E0] shadow-[4px_4px_0px_#121212]">
+              {campaign.imageUrl ? <img src={campaign.imageUrl} alt={`${campaign.title}封面`} className="block aspect-video h-auto w-full object-contain" /> : <BauhausPlaceholder rule={campaign.rule} title={campaign.title} seedColor={campaign.bannerColor || '#D62828'} className="aspect-video h-auto w-full" />}
             </div>
             <div className="md:col-span-7">
               <div className="flex flex-wrap items-center gap-2 mb-2">

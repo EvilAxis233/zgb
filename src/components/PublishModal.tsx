@@ -58,6 +58,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [imageUrl, setImageUrl] = useState('');
+  const [coverSource, setCoverSource] = useState<File | null>(null);
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
   const [bannerColor, setBannerColor] = useState(BAUHAUS_COLORS[0].hex);
   const [isDragging, setIsDragging] = useState(false);
@@ -80,6 +81,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       showAlert({ title: '图片过大', message: '原图请小于 20MB，裁剪后将压缩至 2MB 内', type: 'warning' });
       return;
     }
+    setCoverSource(file);
     setCoverToCrop(file);
   };
 
@@ -641,16 +643,21 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   <span className="font-bold text-xs text-[#121212]">
                     留空使用默认图片
                   </span>
-                  {imageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setImageUrl('')}
-                      className="text-xs text-[#D62828] font-bold flex items-center gap-1 hover:underline cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>移除图片</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {imageUrl && coverSource && (
+                      <button type="button" onClick={() => setCoverToCrop(coverSource)} className="text-xs text-[#004E98] font-bold hover:underline cursor-pointer">重新裁剪</button>
+                    )}
+                    {imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => { setImageUrl(''); setCoverSource(null); }}
+                        className="text-xs text-[#D62828] font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>移除图片</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Big Rectangular Upload Box */}
@@ -662,12 +669,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   className="hidden"
                 />
 
-                <div
+                <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`w-full h-24 border-2 border-dashed border-[#121212] bg-white flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden select-none ${
+                  className={`w-full h-24 border-2 border-dashed border-[#121212] bg-white flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden select-none focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#004E98] ${
                     isDragging ? 'bg-[#FFF3E0] border-[#004E98]' : 'hover:bg-[#F2F0E8]'
                   }`}
                 >
@@ -686,14 +694,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <div className="flex flex-col items-center gap-1 text-center p-2">
                       <Upload className="w-5 h-5 text-[#004E98]" />
                       <span className="text-xs font-bold text-[#121212]">
-                        单击上传或拖拽图片至此
+                        单击上传或拖拽图片至此，随后可裁剪和移动
                       </span>
                       <span className="text-[10px] text-[#888888]">
                         支持 PNG、JPG、GIF、WebP（原图小于 20MB）
                       </span>
                     </div>
                   )}
-                </div>
+                </button>
 
                 {/* Main Color Selection */}
                 <div className="mt-2.5 flex items-center gap-3">

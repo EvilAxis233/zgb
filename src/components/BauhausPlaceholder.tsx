@@ -15,6 +15,7 @@ const PALETTES: Record<string, { primary: string; secondary: string; accent: str
 };
 
 export const BauhausPlaceholder: React.FC<BauhausPlaceholderProps> = ({
+  title,
   rule = 'TRPG',
   seedColor = '#D62828',
   className = 'w-full h-44',
@@ -60,10 +61,10 @@ export const BauhausPlaceholder: React.FC<BauhausPlaceholderProps> = ({
       {/* Diagonal Bauhaus accent line */}
       <div className="absolute w-44 h-1 bg-[#121212] -rotate-45 transform origin-top-left -top-4 -left-4 opacity-70" />
 
-      {/* Centerpiece Minimalist Rule Display */}
-      <div className="relative z-10 bg-[#FFFFFF] border-2 border-[#121212] px-5 py-2.5 shadow-[3px_3px_0px_#121212] flex items-center justify-center min-w-[120px]">
-        <span className="text-lg font-black tracking-wider text-[#121212] text-center">
-          {rule}
+      {/* Centerpiece campaign title. Rule remains available as the fallback label. */}
+      <div className="relative z-10 bg-[#FFFFFF]/95 border-2 border-[#121212] px-3 py-2 shadow-[3px_3px_0px_#121212] flex items-center justify-center max-w-[84%]">
+        <span className="text-sm sm:text-base font-black tracking-tight text-[#121212] text-center leading-tight break-words">
+          {title || rule}
         </span>
       </div>
 

@@ -292,7 +292,7 @@ export function App() {
               </div>
             </aside>
 
-            {/* Center Column: Dual-Column Card Layout */}
+            {/* Center Column: responsive four-column card layout */}
             <section className="flex-1 min-w-0 w-full order-3 lg:order-2">
               {loading ? (
                 <div className="bauhaus-card p-12 text-center bg-white">加载中…</div>
@@ -301,7 +301,7 @@ export function App() {
                   <p className="text-base font-bold text-[#222222]">暂无符合条件的战役</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 items-stretch">
                   {filteredCampaigns.map((camp) => (
                     <CampaignCard
                       key={camp.id}

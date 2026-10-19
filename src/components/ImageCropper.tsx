@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Minus, Plus, X } from 'lucide-react';
+import { Minus, Move, Plus, RotateCcw, X } from 'lucide-react';
 
 interface Props {
   file: File;
@@ -66,6 +66,15 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
     setOffset((current) => clampOffset(current, value));
   };
 
+  const reset = () => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  const moveImage = (dx: number, dy: number) => {
+    setOffset((current) => clampOffset({ x: current.x + dx, y: current.y + dy }, zoom));
+  };
+
   const save = async () => {
     const canvas = canvasRef.current;
     if (!canvas || !image) return;
@@ -96,12 +105,15 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
-          <p className="text-xs text-[#555]">拖动图片调整位置，使用下方滑块缩放。确认后才会使用裁剪结果。</p>
+          <p className="flex items-center gap-2 text-xs text-[#555]"><Move className="h-4 w-4 shrink-0 text-[#004E98]" />拖动图片调整取景位置，使用下方滑块缩放；也可聚焦图片后用方向键微调。</p>
           <canvas
             ref={canvasRef}
             width={width}
             height={height}
-            className={`block mx-auto max-w-full bg-[#EAE8E0] border-2 border-[#121212] cursor-grab active:cursor-grabbing select-none ${shape === 'avatar' ? 'w-72' : 'w-full'}`}
+            tabIndex={0}
+            role="img"
+            aria-label="图片裁剪区域，可拖动或使用方向键调整位置"
+            className={`block mx-auto max-w-full bg-[#EAE8E0] border-2 border-[#121212] cursor-grab active:cursor-grabbing select-none focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#004E98] ${shape === 'avatar' ? 'w-72' : 'w-full'}`}
             style={{ touchAction: 'none' }}
             onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { x: event.clientX, y: event.clientY }; }}
             onPointerMove={(event) => {
@@ -114,12 +126,24 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
             }}
             onPointerUp={() => { dragRef.current = null; }}
             onPointerCancel={() => { dragRef.current = null; }}
+            onKeyDown={(event) => {
+              const step = event.shiftKey ? 20 : 5;
+              if (event.key === 'ArrowLeft') moveImage(-step, 0);
+              else if (event.key === 'ArrowRight') moveImage(step, 0);
+              else if (event.key === 'ArrowUp') moveImage(0, -step);
+              else if (event.key === 'ArrowDown') moveImage(0, step);
+              else return;
+              event.preventDefault();
+            }}
           />
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => changeZoom(zoom - 0.1)} className="bauhaus-btn w-8 h-8 bg-white" aria-label="缩小"><Minus className="w-4 h-4" /></button>
             <input type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => changeZoom(Number(event.target.value))} className="flex-1 accent-[#004E98]" aria-label="缩放图片" />
             <button type="button" onClick={() => changeZoom(zoom + 0.1)} className="bauhaus-btn w-8 h-8 bg-white" aria-label="放大"><Plus className="w-4 h-4" /></button>
             <span className="text-xs font-bold w-10 text-right">{Math.round(zoom * 100)}%</span>
+          </div>
+          <div className="flex justify-center">
+            <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#004E98] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004E98]"><RotateCcw className="h-3.5 w-3.5" />恢复居中</button>
           </div>
           {error && <p role="alert" className="text-xs font-bold text-[#D62828]">{error}</p>}
           <div className="flex justify-end gap-3">
