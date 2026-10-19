@@ -21,7 +21,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       role="button"
       tabIndex={0}
       aria-label={`查看战役：${campaign.title}`}
-      className="bauhaus-card bauhaus-card-interactive flex min-h-[340px] flex-col cursor-pointer group bg-white focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#004E98]"
+      className="bauhaus-card bauhaus-card-interactive flex min-h-[310px] flex-col cursor-pointer group bg-white focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#004E98]"
     >
       {/* Top Banner / Image Area */}
       <div className="relative h-[154px] shrink-0">
@@ -79,7 +79,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
 
       {/* Main Content Area */}
       <div className="p-3.5 pt-8 flex-1 flex flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-dashed border-[#D8D5CC] pb-3">
+        <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
             <User className="h-5 w-5 shrink-0 text-[#D62828]" />
             <span className="truncate">主持: {campaign.gmName}</span>
@@ -89,14 +89,17 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             </span>
         </div>
 
-        {/* Business tags sit directly below the metadata divider. */}
-        <div className="mt-2 flex flex-wrap content-start items-start gap-2">
-          {campaign.presetTags?.map((tag) => (
-            <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2 py-0.5 text-sm font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
-          ))}
-          {campaign.customTags?.map((tag) => (
-            <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
-          ))}
+        {/* Two equal lower rows: row one is reserved for future badges/stickers. */}
+        <div className="grid flex-1 grid-rows-2">
+          <div aria-hidden="true" />
+          <div className="flex flex-wrap content-start items-start gap-2 border-t border-dashed border-[#D8D5CC] pt-2">
+            {campaign.presetTags?.map((tag) => (
+              <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2 py-0.5 text-sm font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
+            ))}
+            {campaign.customTags?.map((tag) => (
+              <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
+            ))}
+          </div>
         </div>
       </div>
     </article>
