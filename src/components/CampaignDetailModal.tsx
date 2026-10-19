@@ -111,8 +111,8 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           <span className="text-sm font-bold tracking-wider flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />模组档案</span>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828] border border-[#444]" aria-label="关闭详情"><X className="w-5 h-5" /></button>
         </header>
-        <div className="overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+        <div className="overflow-y-auto p-5 sm:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-x-6 gap-y-4 items-start">
             <div className="md:col-span-5 overflow-hidden border-2 border-[#121212] bg-[#EAE8E0] shadow-[4px_4px_0px_#121212]">
               {campaign.imageUrl ? <img src={campaign.imageUrl} alt={`${campaign.title}封面`} className="block aspect-video h-auto w-full object-contain" /> : <BauhausPlaceholder rule={campaign.rule} title={campaign.title} seedColor={campaign.bannerColor || '#D62828'} className="aspect-video h-auto w-full" />}
             </div>
@@ -164,25 +164,28 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   )}
                 </div>
               </div>
-              <div className="mt-4">
-                {!currentUser && !campaign.hasEnded && !campaign.isFull && <button onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold">登录后报名</button>}
-                {currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isFull && <button onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-sm font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
-                {currentUser && campaign.isSignedUp && !campaign.hasEnded && <button onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-2 text-sm font-bold">取消报名</button>}
-                {(campaign.hasEnded || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '开团日期已结束' : campaign.isClosed ? '本团已封团' : '报名人数已满'}</span>}
-              </div>
             </div>
-          </div>
-          <section className="border-2 border-[#121212] p-5 bg-[#FAF9F5]">
+          <section className="col-span-full border-2 border-[#121212] p-5 bg-[#FAF9F5]">
             <h2 className="text-sm font-black tracking-widest border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-2.5 h-2.5 bg-[#004E98]" />简介</h2>
             <MarkdownView content={campaign.description} />
           </section>
-          <section className="border-2 border-[#121212] bg-white shadow-[4px_4px_0px_#121212]">
+          <section className="col-span-full border-2 border-[#121212] bg-white shadow-[4px_4px_0px_#121212]">
             <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">成员名单</h2><span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span></div>
             {gm && memberRow(gm)}
             {players.length ? players.map(memberRow) : <div className="px-4 py-6 text-center text-xs text-[#777]">尚无玩家报名</div>}
           </section>
+          </div>
         </div>
-        <footer className="bg-[#F6F5F0] border-t-2 border-[#121212] px-6 py-3 flex items-center justify-between"><span className="text-xs text-[#666]">发布时间: {campaign.createdAt}</span><button onClick={onClose} className="bauhaus-btn bg-white px-5 py-1.5 text-xs font-bold">关闭</button></footer>
+        <footer className="bg-[#F6F5F0] border-t-2 border-[#121212] px-5 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs text-[#666]">发布时间: {campaign.createdAt}</span>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {!currentUser && !campaign.hasEnded && !campaign.isFull && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold">登录后报名</button>}
+            {currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isFull && <button type="button" onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
+            {currentUser && campaign.isSignedUp && !campaign.hasEnded && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
+            {(campaign.hasEnded || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '开团日期已结束' : campaign.isClosed ? '本团已封团' : '报名人数已满'}</span>}
+            <button type="button" onClick={onClose} className="bauhaus-btn bg-white px-5 py-1.5 text-xs font-bold">关闭</button>
+          </div>
+        </footer>
       </div>
     </div>
   );

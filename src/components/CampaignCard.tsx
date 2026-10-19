@@ -79,7 +79,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <h3 className="min-w-0 flex-1 break-words text-base font-black leading-tight tracking-tight text-[#121212] transition-colors group-hover:text-[#D62828]">
               {campaign.title}
             </h3>
-            <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#004E98] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
+            <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
               <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
             </span>
           </div>
