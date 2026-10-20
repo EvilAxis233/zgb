@@ -320,8 +320,11 @@ export function App() {
           <div className="w-full">
             {/* 卡片展示与右侧筛选栏 (图2原返回栏已按要求彻底去除) */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
-              {/* Left Column: Responsive cards layout */}
-              <section className="flex-1 min-w-0 w-full order-2 lg:order-1">
+              {/* Keep the former instructions column empty to preserve the original card width and position. */}
+              <aside className="hidden lg:block lg:w-60 xl:w-64 shrink-0" aria-hidden="true" />
+
+              {/* Center Column: Responsive cards layout */}
+              <section className="flex-1 min-w-0 w-full order-2">
                 {loading ? (
                   <div className="bauhaus-card p-12 text-center bg-white border-2 border-[#121212]">
                     加载中…
@@ -357,7 +360,7 @@ export function App() {
               </section>
 
               {/* Right Column: 筛选检索（保持原先宽度与日历组件） */}
-              <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:order-2 lg:sticky lg:top-20">
+              <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:order-3 lg:sticky lg:top-20">
                 <div className="bauhaus-card p-4 sm:p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] space-y-4">
                   <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2.5">
                     <div className="flex items-center gap-2">
