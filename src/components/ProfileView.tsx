@@ -349,7 +349,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         <span>{camp.timeSchedule}</span>
                       </div>
                     </div>
-                    <span className="text-xs font-bold underline decoration-[#D62828]">查看</span>
                   </div>
                 ))}
               </div>
@@ -402,10 +401,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         <span className="mx-2">|</span>
                         <span>{camp.timeSchedule}</span>
                       </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs font-bold underline decoration-[#004E98]">查看</span>
                     </div>
                   </div>
                 ))}
