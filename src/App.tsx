@@ -275,8 +275,8 @@ export function App() {
         isDarkMode={isDarkMode}
       />
 
-      {/* Main Container: max-w-[1440px] px-4 sm:px-6 保证与导航栏各线条绝对对齐 */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
+      {/* Main Container: 整体缩短到原先的 60% (max-w-[864px])，保证导航栏与下方所有组件线条绝对对齐 */}
+      <main className="flex-1 max-w-[864px] w-full mx-auto px-4 sm:px-6 py-6">
         {/* VIEW 1-A: Home Portal (主页：四个长矩形纵向排列) */}
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
@@ -310,32 +310,8 @@ export function App() {
 
         {/* VIEW 1-B: Online Sessions (点开“网团”后展示排布：卡片列表 + 右侧筛选框) */}
         {activeTab === 'board' && boardView === 'online' && (
-          <div className="space-y-4 w-full">
-            {/* 网团页面内返回与标题栏 */}
-            <div className="flex items-center justify-between pb-3 border-b-2 border-[#121212]">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setBoardView('portal')}
-                  className="bauhaus-btn bg-white hover:bg-[#121212] hover:text-white px-3 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer border-2 border-[#121212] shadow-[2px_2px_0px_#121212] active:translate-y-0.5"
-                  title="返回诸告板主入口"
-                >
-                  <span>← 返回主入口</span>
-                </button>
-                <div className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 bg-[#D62828] inline-block" />
-                  <h2 className="text-base sm:text-lg font-black text-[#121212] tracking-wide">
-                    网团 · 线上战役列表
-                  </h2>
-                </div>
-              </div>
-
-              <span className="bg-[#121212] text-white text-xs font-bold px-2.5 py-1">
-                共 {filteredCampaigns.length} 个招募中
-              </span>
-            </div>
-
-            {/* 卡片展示与右侧筛选栏 */}
+          <div className="w-full">
+            {/* 卡片展示与右侧筛选栏 (图2原返回栏已按要求彻底去除) */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
               {/* Left Column: Responsive cards layout */}
               <section className="flex-1 min-w-0 w-full order-2 lg:order-1">
@@ -361,7 +337,7 @@ export function App() {
                     )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
                     {filteredCampaigns.map((camp) => (
                       <CampaignCard
                         key={camp.id}
@@ -374,7 +350,7 @@ export function App() {
               </section>
 
               {/* Right Column: 筛选检索（收在网团内显示） */}
-              <aside className="w-full lg:w-72 xl:w-80 shrink-0 order-1 lg:order-2 lg:sticky lg:top-20">
+              <aside className="w-full lg:w-64 xl:w-72 shrink-0 order-1 lg:order-2 lg:sticky lg:top-20">
                 <div className="bauhaus-card p-4 sm:p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] space-y-4">
                   <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2.5">
                     <div className="flex items-center gap-2">
@@ -577,7 +553,7 @@ export function App() {
 
       {/* Footer */}
       <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4 sm:px-6">
-        <div className="max-w-[1440px] mx-auto w-full relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-between">
+        <div className="max-w-[864px] mx-auto w-full relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-between">
           <span className="font-black text-sm text-[#121212] tracking-widest text-left">诸告板 · TRPG 招募平台</span>
           <span className="text-xs text-[#666666] md:text-right font-medium">
             有问题请反馈至管理员：不冻港 (3486636827)、EvilAxis (407457008)

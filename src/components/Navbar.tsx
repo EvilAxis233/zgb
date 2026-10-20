@@ -73,11 +73,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="border-b-4 border-[#121212] bg-[#FFFFFF] sticky top-0 z-30 select-none">
       {/* 
         Swiss Grid Alignment:
-        Navbar 和 main 容器共用相同的 max-w-[1440px] 与水平内边距 px-4 sm:px-6。
-        左侧“诸告板”与页面中每个长矩形/卡片左边缘完美位于同一垂直基准线上。
+        Navbar 和四个矩形及主体内容统一缩短到原来的 60% (max-w-[864px])，
+        各线条与左侧 Logo 及右侧组件绝对对齐。
       */}
-      <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-        {/* 左侧：诸告板 Logo（与下方长矩形左边缘绝对对齐） */}
+      <div className="max-w-[864px] w-full mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+        {/* 左侧：诸告板 Logo + 二级页面同字体缩小无外框标识 */}
         <div
           className="flex items-center gap-3 cursor-pointer group"
           onClick={handleGoHome}
@@ -89,26 +89,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             <h1 className="text-2xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
               诸告板
             </h1>
+            {/* 图3修改：改成同字体但是缩小，不加外框 */}
             {activeTab === 'board' && boardView === 'online' && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-black text-[#666666]">
-                <span className="text-[#CCCCCC]">/</span>
-                <span className="px-1.5 py-0.5 bg-[#FAF9F5] border border-[#121212] text-[#121212]">
+              <span className="inline-flex items-center gap-1.5 font-black text-[#121212]">
+                <span className="text-[#888888] font-bold text-sm">/</span>
+                <span className="text-sm font-black tracking-tight text-[#121212]">
                   网团
                 </span>
               </span>
             )}
             {activeTab === 'profile' && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-black text-[#666666]">
-                <span className="text-[#CCCCCC]">/</span>
-                <span className="px-1.5 py-0.5 bg-[#FAF9F5] border border-[#121212] text-[#004E98]">
+              <span className="inline-flex items-center gap-1.5 font-black text-[#004E98]">
+                <span className="text-[#888888] font-bold text-sm">/</span>
+                <span className="text-sm font-black tracking-tight text-[#004E98]">
                   个人档案
                 </span>
               </span>
             )}
             {activeTab === 'manage' && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-black text-[#666666]">
-                <span className="text-[#CCCCCC]">/</span>
-                <span className="px-1.5 py-0.5 bg-[#FAF9F5] border border-[#121212] text-[#121212]">
+              <span className="inline-flex items-center gap-1.5 font-black text-[#121212]">
+                <span className="text-[#888888] font-bold text-sm">/</span>
+                <span className="text-sm font-black tracking-tight text-[#121212]">
                   团务管理
                 </span>
               </span>
@@ -116,12 +117,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* 右侧动作区：发布新团 -> 签到 -> ID加头像及下拉三角 */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* 右侧动作区：发布新团 -> 签到 -> 名字(下拉框) -> 图像单独出来 */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           {/* 发布新团按钮 */}
           <button
             onClick={onOpenPublish}
-            className="bauhaus-btn bg-[#D62828] text-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold flex items-center gap-1.5 shrink-0 hover:bg-[#b52020] cursor-pointer"
+            className="bauhaus-btn bg-[#D62828] text-white px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-bold flex items-center gap-1.5 shrink-0 hover:bg-[#b52020] cursor-pointer"
             title="发布新战役招募"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
@@ -129,11 +130,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="inline xs:hidden sm:hidden">发团</span>
           </button>
 
-          {/* 签到按钮：保留签到，点赞券数量已移除到个人档案 */}
+          {/* 签到按钮：在头像左侧，保留签到交互 */}
           <button
             onClick={onDailyCheckIn}
             disabled={alreadyCheckedIn}
-            className={`px-3 py-2 text-xs sm:text-sm font-bold border-2 border-[#121212] flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-bold border-2 border-[#121212] flex items-center gap-1.5 cursor-pointer transition-all ${
               alreadyCheckedIn
                 ? 'bg-[#E5E5E0] text-[#888888] cursor-not-allowed border-[#121212]'
                 : 'bg-[#F4A261] text-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#e7924d] hover:shadow-[3px_3px_0px_#121212] active:translate-y-0.5'
@@ -144,38 +145,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : '点击签到获取 1 枚玩家点赞券'
             }
           >
-            <CalendarCheck className="w-4 h-4 shrink-0" />
+            <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span>{alreadyCheckedIn ? '已签' : '签到'}</span>
           </button>
 
-          {/* 最右侧：ID加头像 + 下拉小三角 */}
+          {/* 下拉框做到名字那里 */}
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setIsDropdownOpen((prev) => !prev)}
               aria-haspopup="true"
               aria-expanded={isDropdownOpen}
-              className="flex items-center gap-2 px-2.5 py-1.5 bg-white border-2 border-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#FAF9F5] hover:shadow-[3px_3px_0px_#121212] cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white border-2 border-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#FAF9F5] hover:shadow-[3px_3px_0px_#121212] cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
+              title="用户设置与操作菜单"
             >
-              {/* ID / 昵称 */}
-              <span className="font-bold text-xs sm:text-sm text-[#121212] max-w-[90px] sm:max-w-[130px] truncate">
+              <span className="font-bold text-xs sm:text-sm text-[#121212] max-w-[85px] sm:max-w-[110px] truncate">
                 {currentUser ? currentUser.name : '未登录'}
               </span>
-
-              {/* 头像 */}
-              <div className="w-7 h-7 bg-[#121212] text-white font-black text-xs flex items-center justify-center border border-[#121212] overflow-hidden shrink-0">
-                {currentUser?.avatar ? (
-                  <img
-                    src={currentUser.avatar}
-                    alt={currentUser.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  (currentUser?.name || '?').charAt(0)
-                )}
-              </div>
-
-              {/* 下拉小三角 */}
               <ChevronDown
                 className={`w-3.5 h-3.5 text-[#121212] transition-transform duration-150 ${
                   isDropdownOpen ? 'rotate-180' : ''
@@ -183,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </button>
 
-            {/* 下拉框 */}
+            {/* 下拉菜单 */}
             {isDropdownOpen && (
               <div className="absolute right-0 mt-1.5 w-48 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] py-1 z-50">
                 {/* 选项 1: 个人档案 */}
@@ -270,6 +256,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </div>
+
+          {/* 图像单独出来（最右侧独立头像块） */}
+          <button
+            type="button"
+            onClick={() => {
+              if (currentUser) {
+                setActiveTab('profile');
+              } else {
+                onOpenLogin();
+              }
+            }}
+            title={currentUser ? `${currentUser.name} 的个人头像（点击进入个人档案）` : '点击登录'}
+            className="w-8 h-8 bg-[#121212] text-white font-black text-xs flex items-center justify-center border-2 border-[#121212] shadow-[2px_2px_0px_#121212] hover:shadow-[3px_3px_0px_#121212] hover:-translate-y-0.5 transition-all overflow-hidden shrink-0 cursor-pointer"
+          >
+            {currentUser?.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              (currentUser?.name || '?').charAt(0)
+            )}
+          </button>
         </div>
       </div>
     </header>
