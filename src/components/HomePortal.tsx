@@ -109,7 +109,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           className="group w-full bg-white border-2 sm:border-3 border-[#121212] shadow-[4px_4px_0px_#121212] hover:shadow-[7px_7px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col md:flex-row items-stretch min-h-[130px] sm:min-h-[140px]"
         >
           {/* Left: Bauhaus Default Graphic Art Block */}
-          <div className="w-full md:w-56 lg:w-64 shrink-0 relative overflow-hidden bg-[#F2F0E8] border-b-2 md:border-b-0 md:border-r-2 border-[#121212] flex items-center justify-center p-5 select-none">
+          <div className="w-full md:w-64 lg:w-72 shrink-0 relative overflow-hidden bg-[#F2F0E8] border-b-2 md:border-b-0 md:border-r-2 border-[#121212] flex items-center justify-center p-5 select-none">
             {/* Grid background lines */}
             <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 pointer-events-none opacity-20">
               <div className="border-r border-b border-[#121212]" />

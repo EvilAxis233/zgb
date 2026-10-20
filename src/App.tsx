@@ -257,9 +257,7 @@ export function App() {
   const isOnlineView = activeTab === 'board' && boardView === 'online';
   const mainContainerMaxWidth = isOnlineView
     ? 'max-w-[1760px]'
-    : (activeTab === 'profile' || activeTab === 'manage')
-    ? 'max-w-5xl'
-    : 'max-w-[864px]';
+    : 'max-w-5xl';
 
   return (
     <div className="min-h-screen bg-[#F6F5F0] text-[#121212] flex flex-col font-sans">

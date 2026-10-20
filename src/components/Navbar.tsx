@@ -72,9 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isOnlineView = activeTab === 'board' && boardView === 'online';
   const containerMaxWidth = isOnlineView
     ? 'max-w-[1760px]'
-    : (activeTab === 'profile' || activeTab === 'manage')
-    ? 'max-w-5xl'
-    : 'max-w-[864px]';
+    : 'max-w-5xl';
 
   return (
     <header className="border-b-4 border-[#121212] bg-[#FFFFFF] sticky top-0 z-30 select-none">
