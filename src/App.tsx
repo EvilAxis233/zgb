@@ -16,10 +16,9 @@ import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
 import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
-import { useDialog } from './components/BauhausDialog';
 import { parseTimeSchedule, TimePeriod } from './utils/date';
 
-import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase } from 'lucide-react';
 
 interface ToastState {
   id: number;
@@ -28,8 +27,6 @@ interface ToastState {
 }
 
 export function App() {
-  const { showAlert } = useDialog();
-
   // Application Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -40,7 +37,7 @@ export function App() {
 
   // UI States
   const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>('board');
-  const [boardView, setBoardView] = useState<'portal' | 'online'>('portal');
+  const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
@@ -268,7 +265,6 @@ export function App() {
         boardView={boardView}
         setActiveTab={setActiveTab}
         setBoardView={setBoardView}
-        onOpenPublish={() => currentUser ? setIsPublishOpen(true) : setIsLoginOpen(true)}
         onDailyCheckIn={handleDailyCheckIn}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={() => run(() => api.logout(), '已退出登录').then(() => { setActiveTab('board'); setBoardView('portal'); })}
@@ -288,20 +284,8 @@ export function App() {
             <HomePortal
               recruitingCount={enrichedCampaigns.filter((c) => !c.hasEnded && !c.isFull).length}
               onSelectOnline={() => setBoardView('online')}
-              onSelectOffline={() => {
-                showAlert({
-                  title: '面团板块筹备中',
-                  message: '同城实体面团与组局功能正在全力建设中，敬请期待！',
-                  type: 'info',
-                });
-              }}
-              onSelectPromo={() => {
-                showAlert({
-                  title: '宣群板块筹备中',
-                  message: '跑团公会与同好社群宣发功能正在全力建设中，敬请期待！',
-                  type: 'info',
-                });
-              }}
+              onSelectOffline={() => setBoardView('offline')}
+              onSelectPromo={() => setBoardView('promo')}
               onSelectManage={() => {
                 if (currentUser) {
                   setActiveTab('manage');
@@ -313,13 +297,36 @@ export function App() {
           </div>
         )}
 
+        {activeTab === 'board' && (boardView === 'offline' || boardView === 'promo') && (
+          <div className="bauhaus-card bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-8 sm:p-12 text-center">
+            <h2 className="text-2xl font-black mb-3">{boardView === 'offline' ? '面团' : '宣群'}</h2>
+            <p className="text-sm font-bold text-[#666666]">{boardView === 'offline' ? '同城实体面团与组局功能筹备中' : '跑团公会与同好社群宣发功能筹备中'}</p>
+          </div>
+        )}
+
         {/* VIEW 1-B: Online Sessions (点开“网团”后展示排布：卡片列表 + 右侧筛选框，宽度与原来一样) */}
         {activeTab === 'board' && boardView === 'online' && (
           <div className="w-full">
             {/* 卡片展示与右侧筛选栏 (图2原返回栏已按要求彻底去除) */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
-              {/* Keep the former instructions column empty to preserve the original card width and position. */}
-              <aside className="hidden lg:block lg:w-60 xl:w-64 shrink-0" aria-hidden="true" />
+              <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:sticky lg:top-20 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => currentUser ? setIsPublishOpen(true) : setIsLoginOpen(true)}
+                  className="bauhaus-btn w-full bg-[#D62828] text-white px-4 py-3 text-sm font-black flex items-center justify-center gap-2 hover:bg-[#b52020] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  发布新团
+                </button>
+                <button
+                  type="button"
+                  onClick={() => currentUser ? setActiveTab('manage') : setIsLoginOpen(true)}
+                  className="bauhaus-btn w-full bg-white text-[#121212] px-4 py-3 text-sm font-black flex items-center justify-center gap-2 hover:bg-[#FAF9F5] cursor-pointer"
+                >
+                  <Briefcase className="w-4 h-4" />
+                  团务管理
+                </button>
+              </aside>
 
               {/* Center Column: Responsive cards layout */}
               <section className="flex-1 min-w-0 w-full order-2">
