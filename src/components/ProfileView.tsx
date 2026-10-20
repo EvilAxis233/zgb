@@ -306,11 +306,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {/* GM History */}
         <div className="bauhaus-card p-5 bg-white flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4">
+            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4 gap-2 flex-wrap sm:flex-nowrap">
               <h2 className="text-base font-black text-[#121212] flex items-center gap-2">
                 <span className="w-3 h-3 bg-[#D62828]" />
                 带团履历 (共 {myCampaigns.length} 次)
               </h2>
+              {/* 红框处：GM点赞券数量 */}
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
+                title="GM点赞券：报名团结束后获得，可在团详情给GM点赞"
+              >
+                <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
+                <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
+                <span className="font-black text-sm text-[#D62828] font-mono">
+                  {currentUser.inventory?.gmHearts ?? 0}
+                </span>
+              </div>
             </div>
 
             {myCampaigns.length === 0 ? (
@@ -349,11 +360,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {/* Player Participation History */}
         <div className="bauhaus-card p-5 bg-white flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4">
+            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4 gap-2 flex-wrap sm:flex-nowrap">
               <h2 className="text-base font-black text-[#121212] flex items-center gap-2">
                 <span className="w-3 h-3 bg-[#004E98]" />
                 参团记录 (共 {myJoinedCampaigns.length} 次)
               </h2>
+              {/* 红框处：玩家点赞券数量 */}
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
+                title="玩家点赞券：每日签到获得，可给玩家同伴点赞"
+              >
+                <Star className="w-4 h-4 text-[#004E98] fill-[#004E98]" />
+                <span className="font-bold text-xs text-[#121212]">玩家点赞券:</span>
+                <span className="font-black text-sm text-[#004E98] font-mono">
+                  {currentUser.inventory?.playerHearts ?? 0}
+                </span>
+              </div>
             </div>
 
             {myJoinedCampaigns.length === 0 ? (

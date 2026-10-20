@@ -13,6 +13,10 @@ import { PublishModal } from './components/PublishModal';
 import { ProfileView } from './components/ProfileView';
 import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
+import { HomePortal } from './components/HomePortal';
+import { CalendarFilter } from './components/CalendarFilter';
+import { InstructionsModal } from './components/InstructionsModal';
+import { useDialog } from './components/BauhausDialog';
 import { parseTimeSchedule, TimePeriod } from './utils/date';
 
 import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle } from 'lucide-react';
@@ -24,6 +28,8 @@ interface ToastState {
 }
 
 export function App() {
+  const { showAlert } = useDialog();
+
   // Application Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -34,6 +40,9 @@ export function App() {
 
   // UI States
   const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>('board');
+  const [boardView, setBoardView] = useState<'portal' | 'online'>('portal');
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -46,6 +55,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [ruleFilter, setRuleFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<'all' | TimePeriod>('all');
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
 
   const refresh = async () => {
     const { user } = await api.me();
@@ -187,6 +197,27 @@ export function App() {
     }));
   }, [campaigns, users]);
 
+  // Active dates with recruiting campaigns (for calendar indicators)
+  const activeDatesWithCampaigns = useMemo(() => {
+    const dates = new Set<string>();
+    enrichedCampaigns.forEach((c) => {
+      if (!c.hasEnded && !c.isFull) {
+        if (c.slots?.length) {
+          c.slots.forEach((s) => {
+            if (!s.hasEnded && !s.isFull) {
+              const parsed = parseTimeSchedule(s.timeSchedule);
+              if (parsed.dateStr) dates.add(parsed.dateStr);
+            }
+          });
+        } else {
+          const parsed = parseTimeSchedule(c.timeSchedule);
+          if (parsed.dateStr) dates.add(parsed.dateStr);
+        }
+      }
+    });
+    return dates;
+  }, [enrichedCampaigns]);
+
   // Filter campaigns
   const filteredCampaigns = useMemo(() => {
     const matching = enrichedCampaigns.filter((c) => {
@@ -199,8 +230,9 @@ export function App() {
 
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
       const matchPeriod = periodFilter === 'all' || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isFull && parseTimeSchedule(slot.timeSchedule).period === periodFilter) : parseTimeSchedule(c.timeSchedule).period === periodFilter);
+      const matchDate = !dateFilter || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isFull && parseTimeSchedule(slot.timeSchedule).dateStr === dateFilter) : parseTimeSchedule(c.timeSchedule).dateStr === dateFilter);
 
-      return !c.hasEnded && !c.isFull && matchQuery && matchRule && matchPeriod;
+      return !c.hasEnded && !c.isFull && matchQuery && matchRule && matchPeriod && matchDate;
     });
     const seen = new Set<string>();
     return matching.filter((c) => {
@@ -209,7 +241,7 @@ export function App() {
       seen.add(key);
       return true;
     });
-  }, [enrichedCampaigns, searchQuery, ruleFilter, periodFilter]);
+  }, [enrichedCampaigns, searchQuery, ruleFilter, periodFilter, dateFilter]);
 
   // Derived user campaign records
   const myCampaigns = useMemo(() => {
@@ -228,193 +260,231 @@ export function App() {
       <Navbar
         currentUser={currentUser}
         activeTab={activeTab}
+        boardView={boardView}
         setActiveTab={setActiveTab}
+        setBoardView={setBoardView}
         onOpenPublish={() => currentUser ? setIsPublishOpen(true) : setIsLoginOpen(true)}
         onDailyCheckIn={handleDailyCheckIn}
         onOpenLogin={() => setIsLoginOpen(true)}
-        onLogout={() => run(() => api.logout(), '已退出登录').then(() => setActiveTab('board'))}
+        onLogout={() => run(() => api.logout(), '已退出登录').then(() => { setActiveTab('board'); setBoardView('portal'); })}
+        onOpenInstructions={() => setIsInstructionsOpen(true)}
+        onToggleTheme={() => {
+          setIsDarkMode((prev) => !prev);
+          showToast('深色高对比度主题敬请期待', 'info');
+        }}
+        isDarkMode={isDarkMode}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-[1760px] w-full mx-auto px-4 sm:px-6 py-6">
-        {/* VIEW 1: Bulletin Board (查团) */}
-        {activeTab === 'board' && (
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            {/* Left Column: 使用说明 */}
-            <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-2 lg:order-1 lg:sticky lg:top-20">
-              <div className="bauhaus-card p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]">
-                <div className="flex items-center gap-2 border-b-2 border-[#121212] pb-3 mb-4">
+      {/* Main Container: max-w-[1440px] px-4 sm:px-6 保证与导航栏各线条绝对对齐 */}
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
+        {/* VIEW 1-A: Home Portal (主页：四个长矩形纵向排列) */}
+        {activeTab === 'board' && boardView === 'portal' && (
+          <div className="w-full">
+            <HomePortal
+              recruitingCount={enrichedCampaigns.filter((c) => !c.hasEnded && !c.isFull).length}
+              onSelectOnline={() => setBoardView('online')}
+              onSelectOffline={() => {
+                showAlert({
+                  title: '面团板块筹备中',
+                  message: '同城实体面团与组局功能正在全力建设中，敬请期待！',
+                  type: 'info',
+                });
+              }}
+              onSelectPromo={() => {
+                showAlert({
+                  title: '宣群板块筹备中',
+                  message: '跑团公会与同好社群宣发功能正在全力建设中，敬请期待！',
+                  type: 'info',
+                });
+              }}
+              onSelectManage={() => {
+                if (currentUser) {
+                  setActiveTab('manage');
+                } else {
+                  setIsLoginOpen(true);
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* VIEW 1-B: Online Sessions (点开“网团”后展示排布：卡片列表 + 右侧筛选框) */}
+        {activeTab === 'board' && boardView === 'online' && (
+          <div className="space-y-4 w-full">
+            {/* 网团页面内返回与标题栏 */}
+            <div className="flex items-center justify-between pb-3 border-b-2 border-[#121212]">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBoardView('portal')}
+                  className="bauhaus-btn bg-white hover:bg-[#121212] hover:text-white px-3 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer border-2 border-[#121212] shadow-[2px_2px_0px_#121212] active:translate-y-0.5"
+                  title="返回诸告板主入口"
+                >
+                  <span>← 返回主入口</span>
+                </button>
+                <div className="flex items-center gap-2">
                   <span className="w-3.5 h-3.5 bg-[#D62828] inline-block" />
-                  <h2 className="text-base font-black text-[#121212] tracking-wider">使用说明</h2>
-                </div>
-
-                <div className="space-y-3.5 text-xs text-[#222222]">
-                  <div className="p-3 bg-[#FAF9F5] border border-[#121212]">
-                    <div className="font-black text-[#121212] flex items-center gap-1.5 mb-1">
-                      <span className="w-2 h-2 bg-[#D62828]" />
-                      <span>查团</span>
-                    </div>
-                    <p className="text-[#555555] leading-relaxed">
-                      点击卡片查看简介、成员名单并报名；满员或开团日结束后自动从主页隐藏。
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-[#FAF9F5] border border-[#121212]">
-                    <div className="font-black text-[#121212] flex items-center gap-1.5 mb-1">
-                      <span className="w-2 h-2 bg-[#004E98]" />
-                      <span>发布新团</span>
-                    </div>
-                    <p className="text-[#555555] leading-relaxed">
-                      登录后可发布新团，所有访客都能在网页查阅。
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-[#FAF9F5] border border-[#121212]">
-                    <div className="font-black text-[#121212] flex items-center gap-1.5 mb-1">
-                      <span className="w-2 h-2 bg-[#F4A261]" />
-                      <span>团务管理</span>
-                    </div>
-                    <p className="text-[#555555] leading-relaxed">
-                      主持可编辑团、查看报名玩家并在开团日结束前移除玩家。
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-[#FAF9F5] border border-[#121212]">
-                    <div className="font-black text-[#121212] flex items-center gap-1.5 mb-1">
-                      <span className="w-2 h-2 bg-[#121212]" />
-                      <span>参团与点赞</span>
-                    </div>
-                    <p className="text-[#555555] leading-relaxed">
-                      报名玩家在开团日结束后获得「GM点赞」；每日签到领取「玩家点赞」，可在团详情赞赏成员。
-                    </p>
-                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-[#121212] tracking-wide">
+                    网团 · 线上战役列表
+                  </h2>
                 </div>
               </div>
-            </aside>
 
-            {/* Center Column: responsive four-column card layout */}
-            <section className="flex-1 min-w-0 w-full order-3 lg:order-2">
-              {loading ? (
-                <div className="bauhaus-card p-12 text-center bg-white">加载中…</div>
-              ) : filteredCampaigns.length === 0 ? (
-                <div className="bauhaus-card p-12 text-center bg-white border-2 border-[#121212]">
-                  <p className="text-base font-bold text-[#222222]">暂无符合条件的战役</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
-                  {filteredCampaigns.map((camp) => (
-                    <CampaignCard
-                      key={camp.id}
-                      campaign={camp}
-                      onClick={() => openCampaign(camp)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
+              <span className="bg-[#121212] text-white text-xs font-bold px-2.5 py-1">
+                共 {filteredCampaigns.length} 个招募中
+              </span>
+            </div>
 
-            {/* Right Column: 筛选检索 */}
-            <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:order-3 lg:sticky lg:top-20">
-              <div className="bauhaus-card p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] space-y-4">
-                <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 bg-[#004E98] inline-block" />
-                    <h2 className="text-base font-black text-[#121212] tracking-wider">筛选检索</h2>
+            {/* 卡片展示与右侧筛选栏 */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+              {/* Left Column: Responsive cards layout */}
+              <section className="flex-1 min-w-0 w-full order-2 lg:order-1">
+                {loading ? (
+                  <div className="bauhaus-card p-12 text-center bg-white border-2 border-[#121212]">
+                    加载中…
                   </div>
-                  <span className="bg-[#121212] text-white text-xs font-bold px-2 py-0.5">
-                    共 {filteredCampaigns.length} 个团
-                  </span>
-                </div>
-
-                {/* Search input */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-[#121212]">搜索</label>
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-[#888888] absolute left-3 top-2.5" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="搜索团名、主持、简介..."
-                      className="bauhaus-input w-full pl-9 pr-3 py-1.5 text-xs font-medium"
-                    />
-                  </div>
-                </div>
-
-                {/* Rule Filter */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-[#121212]">按规则筛选</label>
-                  <select
-                    value={ruleFilter}
-                    onChange={(e) => setRuleFilter(e.target.value)}
-                    className="bauhaus-input w-full px-3 py-1.5 text-xs font-bold cursor-pointer"
-                  >
-                    <option value="all">全部规则</option>
-                    {recruitingRules.map(({ rule, count }) => (
-                      <option key={rule} value={rule}>
-                        {rule} ({count})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Time Filter: 开团时段筛选 */}
-                <div className="space-y-1.5 pt-2 border-t border-[#E5E5E0]">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-[#121212] flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#004E98]" />
-                      <span>开团时段</span>
-                    </label>
-                    {periodFilter !== 'all' && (
-                      <span className="text-[10px] text-[#D62828] font-bold">已筛选</span>
+                ) : filteredCampaigns.length === 0 ? (
+                  <div className="bauhaus-card p-12 text-center bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]">
+                    <p className="text-base font-bold text-[#222222]">暂无符合条件的战役</p>
+                    {(searchQuery || ruleFilter !== 'all' || periodFilter !== 'all' || dateFilter) && (
+                      <button
+                        onClick={() => {
+                          setSearchQuery('');
+                          setRuleFilter('all');
+                          setPeriodFilter('all');
+                          setDateFilter(null);
+                        }}
+                        className="mt-3 bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-4 py-1.5 text-xs font-bold hover:bg-[#D62828] hover:text-white cursor-pointer"
+                      >
+                        清空所有筛选条件
+                      </button>
                     )}
                   </div>
-
-                  {/* Period Filter (全部 / 早 / 中 / 晚) */}
-                  <div className="grid grid-cols-4 gap-1 pt-0.5">
-                    {(['all', '早', '中', '晚'] as const).map((p) => {
-                      const active = periodFilter === p;
-                      return (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => setPeriodFilter(p)}
-                          className={`py-1.5 text-xs font-bold border transition-all cursor-pointer text-center ${
-                            active
-                              ? 'bg-[#004E98] text-white border-[#121212] shadow-[1px_1px_0px_#121212]'
-                              : 'bg-white text-[#121212] border-[#CCCCCC] hover:border-[#121212] hover:bg-[#FAF9F5]'
-                          }`}
-                        >
-                          {p === 'all' ? '全部' : p}
-                        </button>
-                      );
-                    })}
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+                    {filteredCampaigns.map((camp) => (
+                      <CampaignCard
+                        key={camp.id}
+                        campaign={camp}
+                        onClick={() => openCampaign(camp)}
+                      />
+                    ))}
                   </div>
-                </div>
-
-                {/* Reset button */}
-                {(searchQuery ||
-                  ruleFilter !== 'all' ||
-                  periodFilter !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setRuleFilter('all');
-                      setPeriodFilter('all');
-                    }}
-                    className="w-full mt-2 bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] py-2 text-xs font-bold hover:bg-[#D62828] hover:text-white transition-colors cursor-pointer"
-                  >
-                    清空筛选条件
-                  </button>
                 )}
-              </div>
-            </aside>
+              </section>
+
+              {/* Right Column: 筛选检索（收在网团内显示） */}
+              <aside className="w-full lg:w-72 xl:w-80 shrink-0 order-1 lg:order-2 lg:sticky lg:top-20">
+                <div className="bauhaus-card p-4 sm:p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] space-y-4">
+                  <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 bg-[#004E98] inline-block" />
+                      <h3 className="text-base font-black text-[#121212] tracking-wider">筛选检索</h3>
+                    </div>
+                    <span className="bg-[#121212] text-white text-[11px] font-bold px-2 py-0.5">
+                      {filteredCampaigns.length} 个结果
+                    </span>
+                  </div>
+
+                  {/* Search input */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#121212]">搜索战役</label>
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-[#888888] absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="搜索团名、主持、简介..."
+                        className="bauhaus-input w-full pl-9 pr-3 py-1.5 text-xs font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Rule Filter */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#121212]">按规则筛选</label>
+                    <select
+                      value={ruleFilter}
+                      onChange={(e) => setRuleFilter(e.target.value)}
+                      className="bauhaus-input w-full px-3 py-1.5 text-xs font-bold cursor-pointer"
+                    >
+                      <option value="all">全部规则</option>
+                      {recruitingRules.map(({ rule, count }) => (
+                        <option key={rule} value={rule}>
+                          {rule} ({count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Time Filter: 开团时段筛选 */}
+                  <div className="space-y-1.5 pt-2 border-t border-[#E5E5E0]">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#121212] flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#004E98]" />
+                        <span>开团时段</span>
+                      </label>
+                      {periodFilter !== 'all' && (
+                        <span className="text-[10px] text-[#D62828] font-bold">已筛选</span>
+                      )}
+                    </div>
+
+                    {/* Period Filter (全部 / 早 / 中 / 晚) */}
+                    <div className="grid grid-cols-4 gap-1 pt-0.5">
+                      {(['all', '早', '中', '晚'] as const).map((p) => {
+                        const active = periodFilter === p;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPeriodFilter(p)}
+                            className={`py-1.5 text-xs font-bold border transition-all cursor-pointer text-center ${
+                              active
+                                ? 'bg-[#004E98] text-white border-[#121212] shadow-[1px_1px_0px_#121212]'
+                                : 'bg-white text-[#121212] border-[#CCCCCC] hover:border-[#121212] hover:bg-[#FAF9F5]'
+                            }`}
+                          >
+                            {p === 'all' ? '全部' : p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Calendar: 开团时段下方增加一个日历，从当前日期往后一个月，可以按日期筛团 */}
+                  <CalendarFilter
+                    selectedDate={dateFilter}
+                    onSelectDate={setDateFilter}
+                    activeDatesWithCampaigns={activeDatesWithCampaigns}
+                  />
+
+                  {/* Reset button */}
+                  {(searchQuery ||
+                    ruleFilter !== 'all' ||
+                    periodFilter !== 'all' ||
+                    dateFilter) && (
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setRuleFilter('all');
+                        setPeriodFilter('all');
+                        setDateFilter(null);
+                      }}
+                      className="w-full mt-2 bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] py-2 text-xs font-bold hover:bg-[#D62828] hover:text-white transition-colors cursor-pointer"
+                    >
+                      清空全部筛选条件
+                    </button>
+                  )}
+                </div>
+              </aside>
+            </div>
           </div>
         )}
 
         {/* VIEW 2: Personal Profile */}
         {activeTab === 'profile' && currentUser && (
-          <div className="max-w-5xl mx-auto w-full">
+          <div className="w-full">
             <ProfileView
               currentUser={currentUser}
               myCampaigns={myCampaigns}
@@ -425,11 +495,11 @@ export function App() {
             />
           </div>
         )}
-        {activeTab === 'profile' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white"><p className="mb-4">登录后查看个人档案</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
+        {activeTab === 'profile' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]"><p className="mb-4 font-bold">登录后查看个人档案</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
 
         {/* VIEW 3: Campaign Management */}
         {activeTab === 'manage' && currentUser && (
-          <div className="max-w-5xl mx-auto w-full">
+          <div className="w-full">
             <ManageView
               hostedCampaigns={myCampaigns}
               joinedCampaigns={myJoinedCampaigns}
@@ -445,7 +515,7 @@ export function App() {
             />
           </div>
         )}
-        {activeTab === 'manage' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white"><p className="mb-4">登录后管理主持和报名的战役</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
+        {activeTab === 'manage' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]"><p className="mb-4 font-bold">登录后管理主持和报名的战役</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
       </main>
 
       {/* Campaign Detail Modal */}
@@ -472,6 +542,7 @@ export function App() {
         onPublish={handlePublish}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
+      <InstructionsModal isOpen={isInstructionsOpen} onClose={() => setIsInstructionsOpen(false)} />
 
       {/* Toast Notifications */}
       <aside aria-label="系统通知" className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-[calc(100vw-2.5rem)] sm:max-w-sm pointer-events-none">
@@ -505,11 +576,11 @@ export function App() {
       </aside>
 
       {/* Footer */}
-      <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4">
-        <div className="relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-end">
-          <span className="font-bold text-sm text-[#121212] tracking-widest md:absolute md:left-1/2 md:-translate-x-1/2">诸告板</span>
-          <span className="text-xs text-[#121212] md:text-right">
-            有问题请反馈至管理员：不冻港(3486636827)、EvilAxis(407457008)
+      <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4 sm:px-6">
+        <div className="max-w-[1440px] mx-auto w-full relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-between">
+          <span className="font-black text-sm text-[#121212] tracking-widest text-left">诸告板 · TRPG 招募平台</span>
+          <span className="text-xs text-[#666666] md:text-right font-medium">
+            有问题请反馈至管理员：不冻港 (3486636827)、EvilAxis (407457008)
           </span>
         </div>
       </footer>
