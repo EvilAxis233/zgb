@@ -254,6 +254,13 @@ export function App() {
     return enrichedCampaigns.filter((campaign) => campaign.isSignedUp);
   }, [enrichedCampaigns, currentUser]);
 
+  const isOnlineView = activeTab === 'board' && boardView === 'online';
+  const mainContainerMaxWidth = isOnlineView
+    ? 'max-w-[1760px]'
+    : (activeTab === 'profile' || activeTab === 'manage')
+    ? 'max-w-5xl'
+    : 'max-w-[864px]';
+
   return (
     <div className="min-h-screen bg-[#F6F5F0] text-[#121212] flex flex-col font-sans">
       {/* Top Navigation */}
@@ -275,8 +282,8 @@ export function App() {
         isDarkMode={isDarkMode}
       />
 
-      {/* Main Container: 整体缩短到原先的 60% (max-w-[864px])，保证导航栏与下方所有组件线条绝对对齐 */}
-      <main className="flex-1 max-w-[864px] w-full mx-auto px-4 sm:px-6 py-6">
+      {/* Main Container: 网团保持原先宽裕宽度(max-w-[1760px])，主页四个矩形大厅保持 60%(max-w-[864px]) */}
+      <main className={`flex-1 ${mainContainerMaxWidth} w-full mx-auto px-4 sm:px-6 py-6 transition-all duration-150`}>
         {/* VIEW 1-A: Home Portal (主页：四个长矩形纵向排列) */}
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
@@ -308,7 +315,7 @@ export function App() {
           </div>
         )}
 
-        {/* VIEW 1-B: Online Sessions (点开“网团”后展示排布：卡片列表 + 右侧筛选框) */}
+        {/* VIEW 1-B: Online Sessions (点开“网团”后展示排布：卡片列表 + 右侧筛选框，宽度与原来一样) */}
         {activeTab === 'board' && boardView === 'online' && (
           <div className="w-full">
             {/* 卡片展示与右侧筛选栏 (图2原返回栏已按要求彻底去除) */}
@@ -337,7 +344,7 @@ export function App() {
                     )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                     {filteredCampaigns.map((camp) => (
                       <CampaignCard
                         key={camp.id}
@@ -349,8 +356,8 @@ export function App() {
                 )}
               </section>
 
-              {/* Right Column: 筛选检索（收在网团内显示） */}
-              <aside className="w-full lg:w-64 xl:w-72 shrink-0 order-1 lg:order-2 lg:sticky lg:top-20">
+              {/* Right Column: 筛选检索（保持原先宽度与日历组件） */}
+              <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:order-2 lg:sticky lg:top-20">
                 <div className="bauhaus-card p-4 sm:p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] space-y-4">
                   <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2.5">
                     <div className="flex items-center gap-2">
@@ -553,7 +560,7 @@ export function App() {
 
       {/* Footer */}
       <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4 sm:px-6">
-        <div className="max-w-[864px] mx-auto w-full relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-between">
+        <div className={`${mainContainerMaxWidth} mx-auto w-full relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-between transition-all duration-150`}>
           <span className="font-black text-sm text-[#121212] tracking-widest text-left">诸告板 · TRPG 招募平台</span>
           <span className="text-xs text-[#666666] md:text-right font-medium">
             有问题请反馈至管理员：不冻港 (3486636827)、EvilAxis (407457008)

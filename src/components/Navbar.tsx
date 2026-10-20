@@ -69,14 +69,21 @@ export const Navbar: React.FC<NavbarProps> = ({
     setBoardView('portal');
   };
 
+  const isOnlineView = activeTab === 'board' && boardView === 'online';
+  const containerMaxWidth = isOnlineView
+    ? 'max-w-[1760px]'
+    : (activeTab === 'profile' || activeTab === 'manage')
+    ? 'max-w-5xl'
+    : 'max-w-[864px]';
+
   return (
     <header className="border-b-4 border-[#121212] bg-[#FFFFFF] sticky top-0 z-30 select-none">
       {/* 
         Swiss Grid Alignment:
-        Navbar 和四个矩形及主体内容统一缩短到原来的 60% (max-w-[864px])，
-        各线条与左侧 Logo 及右侧组件绝对对齐。
+        网团视图保持原先宽松宽度 (max-w-[1760px])，避免卡片拥挤；
+        主页四个矩形大厅保持 60% 宽度 (max-w-[864px])，保持对齐。
       */}
-      <div className="max-w-[864px] w-full mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+      <div className={`${containerMaxWidth} w-full mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 transition-all duration-150`}>
         {/* 左侧：诸告板 Logo + 二级页面同字体缩小无外框标识 */}
         <div
           className="flex items-center gap-3 cursor-pointer group"
