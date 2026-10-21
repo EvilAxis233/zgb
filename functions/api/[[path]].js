@@ -157,7 +157,7 @@ export async function onRequest(context) {
       return fail('接口不存在', 404);
     }
     if (path[0] === 'images' && method === 'GET' && path[1]) {
-      const object = await env.COVERS?.get(path[1]);
+      const object = await env.COVERS?.get(path.slice(1).join('/'));
       return object ? new Response(object.body, { headers: { 'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } }) : fail('图片不存在', 404);
     }
     if (path[0] === 'admin') {
@@ -183,6 +183,55 @@ export async function onRequest(context) {
         return json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
       }
       if (!await adminAuth(request, db, env.ADMIN_PASSWORD)) return fail('请先登录后台', 401);
+      if (path[1] === 'dashboard' && path.length === 2 && method === 'GET') {
+        const today = dateHK();
+        const sevenDaysAgo = new Date(`${today}T00:00:00+08:00`);
+        sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
+        const thirtyDaysAgo = new Date(`${today}T00:00:00+08:00`);
+        thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
+        const asDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns] = await db.batch([
+          db.prepare(`SELECT COUNT(*) total,
+            SUM(CASE WHEN substr(created_at,1,10)=? THEN 1 ELSE 0 END) today,
+            SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last7,
+            SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last30
+            FROM users`).bind(today, asDate(sevenDaysAgo), asDate(thirtyDaysAgo)),
+          db.prepare(`SELECT COUNT(*) total,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players THEN 1 ELSE 0 END) recruiting,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NOT NULL THEN 1 ELSE 0 END) finished,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END) closed,
+            SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) deleted,
+            COALESCE(SUM((SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)),0) members,
+            COALESCE(ROUND(AVG(CASE WHEN deleted_at IS NULL THEN 100.0*(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)/max_players END),1),0) avg_fill_rate
+            FROM campaigns`).bind(today),
+          db.prepare(`SELECT
+            (SELECT COUNT(*) FROM campaign_memberships) memberships,
+            (SELECT COUNT(*) FROM praises) praises,
+            (SELECT COUNT(*) FROM praises WHERE type='gm') gm_praises,
+            (SELECT COUNT(*) FROM praises WHERE type='player') player_praises,
+            (SELECT COUNT(*) FROM sessions WHERE expires_at>?) active_sessions`).bind(now()),
+          db.prepare(`SELECT COUNT(*) total,
+            SUM(CASE WHEN type='feedback' THEN 1 ELSE 0 END) feedback,
+            SUM(CASE WHEN type='report' THEN 1 ELSE 0 END) reports,
+            SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) pending,
+            SUM(CASE WHEN status='processing' THEN 1 ELSE 0 END) processing,
+            SUM(CASE WHEN status='resolved' THEN 1 ELSE 0 END) resolved,
+            SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END) rejected
+            FROM submissions`),
+          db.prepare(`SELECT kind,COUNT(*) total,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? THEN 1 ELSE 0 END) active,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NOT NULL THEN 1 ELSE 0 END) finished
+            FROM campaigns GROUP BY kind ORDER BY total DESC`).bind(today),
+          db.prepare(`SELECT rule,COUNT(*) total FROM campaigns WHERE deleted_at IS NULL GROUP BY rule ORDER BY total DESC,rule LIMIT 8`),
+          db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM users WHERE substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
+          db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo))
+        ]);
+        return json({
+          users: users.results[0], campaigns: campaigns.results[0], engagement: engagement.results[0], submissions: submissions.results[0],
+          campaignKinds: campaignKinds.results, topRules: topRules.results, dailyUsers: dailyUsers.results, dailyCampaigns: dailyCampaigns.results,
+          generatedAt: new Date().toISOString()
+        });
+      }
       if (path[1] === 'rules' && path.length === 2) {
         if (method === 'GET') {
           const rows = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
@@ -245,6 +294,30 @@ export async function onRequest(context) {
             `WHERE p.from_qq=? OR p.to_qq=? ORDER BY p.created_at DESC LIMIT 50 OFFSET ?`).bind(qq, qq, offset)
         ]);
         return json({ records: records.results, total: count.results[0].n });
+      }
+      if (path[1] === 'submissions' && path.length === 2 && method === 'GET') {
+        const type = ['feedback','report'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : '';
+        const status = ['pending','processing','resolved','rejected'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
+        const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        const where = `WHERE (?='' OR s.type=?) AND (?='' OR s.status=?)`;
+        const [count, rows] = await db.batch([
+          db.prepare(`SELECT COUNT(*) n FROM submissions s ${where}`).bind(type, type, status, status),
+          db.prepare(`SELECT s.*,u.name user_name FROM submissions s JOIN users u ON u.qq=s.user_qq ${where} ORDER BY CASE s.status WHEN 'pending' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END,s.created_at DESC LIMIT 30 OFFSET ?`).bind(type, type, status, status, offset)
+        ]);
+        const items = await Promise.all(rows.results.map(async (item) => {
+          const images = await db.prepare('SELECT image_key FROM submission_images WHERE submission_id=? ORDER BY sort_order,id').bind(item.id).all();
+          return { ...item, images: images.results.map((image) => assetUrl(image.image_key)) };
+        }));
+        return json({ submissions: items, total: count.results[0].n });
+      }
+      if (path[1] === 'submissions' && path[2] && path.length === 3 && method === 'PATCH') {
+        const b = await body(request);
+        const status = ['pending','processing','resolved','rejected'].includes(b.status) ? b.status : '';
+        const adminNote = clean(b.adminNote, 2000);
+        if (!status) return fail('受理状态无效');
+        const updatedAt = new Date().toISOString();
+        const result = await db.prepare(`UPDATE submissions SET status=?,admin_note=?,updated_at=?,resolved_at=CASE WHEN ? IN ('resolved','rejected') THEN ? ELSE NULL END WHERE id=?`).bind(status, adminNote, updatedAt, status, updatedAt, path[2]).run();
+        return result.meta.changes ? json({ ok: true }) : fail('记录不存在', 404);
       }
       return fail('接口不存在', 404);
     }
@@ -320,6 +393,36 @@ export async function onRequest(context) {
       return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
     if (!user) return fail('请先登录', 401);
+    if (path[0] === 'submissions' && path.length === 1 && method === 'POST') {
+      const form = await request.formData();
+      const type = form.get('type');
+      const content = clean(form.get('content'), 5000);
+      const files = form.getAll('images').filter((value) => value instanceof File && value.size > 0);
+      if (!['feedback','report'].includes(type)) return fail('提交类型无效');
+      if (!content) return fail(type === 'report' ? '请填写举报说明' : '请填写反馈内容');
+      if (files.length > 9) return fail('最多上传 9 张图片');
+      if (type === 'report' && files.length < 1) return fail('举报至少需要上传 1 张图片');
+      if (files.some((file) => !['image/png','image/jpeg','image/gif','image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) return fail('图片仅支持 PNG、JPG、GIF、WebP，且每张不超过 5MB');
+      if (files.length && !env.COVERS) return fail('图片存储未配置', 503);
+      const submissionId = id(), createdAt = new Date().toISOString(), uploaded = [];
+      try {
+        for (let index = 0; index < files.length; index++) {
+          const file = files[index];
+          const ext = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1];
+          const key = `submissions/${submissionId}/${index + 1}-${id()}.${ext}`;
+          await env.COVERS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+          uploaded.push(key);
+        }
+        await db.batch([
+          db.prepare('INSERT INTO submissions(id,user_qq,type,content,status,admin_note,created_at,updated_at) VALUES(?,?,?,?,\'pending\',\'\',?,?)').bind(submissionId, user.qq, type, content, createdAt, createdAt),
+          ...uploaded.map((key, index) => db.prepare('INSERT INTO submission_images(id,submission_id,image_key,sort_order,created_at) VALUES(?,?,?,?,?)').bind(id(), submissionId, key, index, createdAt))
+        ]);
+      } catch (error) {
+        await Promise.all(uploaded.map((key) => env.COVERS?.delete(key).catch(() => {})));
+        throw error;
+      }
+      return json({ id: submissionId }, 201);
+    }
     if (path[0] === 'bootstrap' && method === 'GET') {
       await settleRewards(db, user.qq);
       user = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();

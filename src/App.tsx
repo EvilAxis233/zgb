@@ -16,9 +16,10 @@ import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
 import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
+import { SubmissionModal } from './components/SubmissionModal';
 import { parseTimeSchedule, TimePeriod } from './utils/date';
 
-import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase, UserRound } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase, UserRound, MessageSquareText, Flag } from 'lucide-react';
 
 interface ToastState {
   id: number;
@@ -43,6 +44,7 @@ export function App() {
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [submissionType, setSubmissionType] = useState<'feedback' | 'report' | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingActions, setPendingActions] = useState(0);
   const [loadingCampaignId, setLoadingCampaignId] = useState<string | null>(null);
@@ -175,6 +177,20 @@ export function App() {
   const handleCancelSignup = (campaignId: string) => mutateCampaign(() => api.cancelSignup(campaignId), '已取消报名', campaignId);
   const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
   const handleUploadAvatar = (file: File) => run(() => api.uploadAvatar(file), '头像已更新');
+  const openSubmission = (type: 'feedback' | 'report') => currentUser ? setSubmissionType(type) : setIsLoginOpen(true);
+  const handleSubmit = async (type: 'feedback' | 'report', content: string, images: File[]) => {
+    setPendingActions((count) => count + 1);
+    try {
+      await api.submitFeedback(type, content, images);
+      showToast(type === 'report' ? '举报已提交，管理员会尽快受理' : '感谢反馈，我们已经收到', 'success');
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '提交失败', 'error');
+      return false;
+    } finally {
+      setPendingActions((count) => count - 1);
+    }
+  };
 
   // Extract recruiting rules ordered by recruiting campaign count descending
   const recruitingRules = useMemo(() => {
@@ -332,6 +348,10 @@ export function App() {
                   团务管理
                 </button>
                 <button type="button" onClick={() => currentUser ? setActiveTab('profile') : setIsLoginOpen(true)} className="bauhaus-btn w-full bg-white text-[#121212] px-4 py-3 text-sm font-black flex items-center justify-center gap-2 hover:bg-[#FAF9F5] cursor-pointer"><UserRound className="w-4 h-4" />个人档案</button>
+                <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 pt-1 lg:pt-3 lg:border-t-2 lg:border-[#121212]">
+                  <button type="button" onClick={() => openSubmission('feedback')} className="bauhaus-btn w-full bg-[#EAF3FB] text-[#004E98] px-3 py-3 text-sm font-black gap-2 hover:bg-[#D9EAF8]"><MessageSquareText className="w-4 h-4" />反馈</button>
+                  <button type="button" onClick={() => openSubmission('report')} className="bauhaus-btn w-full bg-[#FAF0F0] text-[#B51F1F] px-3 py-3 text-sm font-black gap-2 hover:bg-[#F7DDDD]"><Flag className="w-4 h-4" />举报</button>
+                </div>
               </aside>
 
               {/* Center Column: Responsive cards layout */}
@@ -543,6 +563,7 @@ export function App() {
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
       <InstructionsModal isOpen={isInstructionsOpen} onClose={() => setIsInstructionsOpen(false)} />
+      <SubmissionModal type={submissionType} onClose={() => setSubmissionType(null)} onSubmit={handleSubmit} />
 
       {/* Toast Notifications */}
       <aside aria-label="系统通知" className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-[calc(100vw-2.5rem)] sm:max-w-sm pointer-events-none">
