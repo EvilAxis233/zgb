@@ -14,13 +14,14 @@ interface Props {
   popularCustomTags?: string[];
   onDeleteCampaign: (id: string) => void;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
+  onFinishCampaign: (id: string) => void;
   onAddBatchSlot: (batchId: string, timeSchedule: string) => Promise<boolean>;
   onCancelSignup: (id: string) => void;
   onSelectCampaign: (campaign: Campaign) => void;
   onUpdateCampaign: (campaign: Campaign) => Promise<boolean>;
 }
 
-const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已到期' : campaign.isClosed ? '已封团' : campaign.isFull ? '已满员' : '招募中';
+const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已结团' : campaign.hasExpired ? '已到期锁车' : campaign.isClosed ? '已锁车' : campaign.isFull ? '已满员' : '招募中';
 
 export const ManageView: React.FC<Props> = ({
   hostedCampaigns,
@@ -30,6 +31,7 @@ export const ManageView: React.FC<Props> = ({
   popularCustomTags = [],
   onDeleteCampaign,
   onSetCampaignClosed,
+  onFinishCampaign,
   onAddBatchSlot,
   onCancelSignup,
   onSelectCampaign,
@@ -46,9 +48,9 @@ export const ManageView: React.FC<Props> = ({
 
   const handleDelete = async (campaign: Campaign) => {
     const ok = await showConfirm({
-      title: '删除战役',
-      message: `确定删除战役《${campaign.title}》吗？此操作无法撤销。`,
-      confirmText: '确定删除',
+      title: '弃团',
+      message: `确定弃团《${campaign.title}》吗？团、成员记录和相关点赞将被删除，此操作无法撤销。`,
+      confirmText: '确定弃团',
       type: 'danger',
     });
     if (ok) onDeleteCampaign(campaign.id);
@@ -65,8 +67,12 @@ export const ManageView: React.FC<Props> = ({
   };
   const handleClosure = async (campaign: Campaign) => {
     const closed = !campaign.isClosed;
-    const ok = await showConfirm({ title: closed ? '封团' : '重新开放报名', message: `确定${closed ? '关闭' : '重新开放'}「${campaign.title}」在 ${formatDisplayTime(campaign.timeSchedule)} 的报名吗？`, confirmText: closed ? '确定封团' : '重新开放', type: closed ? 'warning' : 'info' });
+    const ok = await showConfirm({ title: closed ? '锁车' : '重新开放报名', message: `确定${closed ? '锁车' : '重新开放'}「${campaign.title}」在 ${formatDisplayTime(campaign.timeSchedule)} 的报名吗？`, confirmText: closed ? '确定锁车' : '重新开放', type: closed ? 'warning' : 'info' });
     if (ok) onSetCampaignClosed(campaign.id, closed);
+  };
+  const handleFinish = async (campaign: Campaign) => {
+    const ok = await showConfirm({ title: '结团', message: `确定将《${campaign.title}》标记为结团吗？结团后进入所有成员的个人档案，可在成员名单点赞，且无法再修改或开放报名。`, confirmText: '确定结团', type: 'warning' });
+    if (ok) onFinishCampaign(campaign.id);
   };
 
   const addSlot = async (event: React.FormEvent) => {
@@ -114,10 +120,11 @@ export const ManageView: React.FC<Props> = ({
           <div className="mt-3 pt-3 border-t border-[#D8D5CC] flex flex-wrap gap-2">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
-              <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />{campaign.batchId ? '修改简介' : '修改'}</button>
-              {!campaign.hasEnded && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '封团'}</button>}
-              <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />删除</button>
-            </> : !campaign.hasEnded && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
+              {!campaign.hasEnded && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || '语音', platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
+              {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
+              {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}
+              <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />弃团</button>
+            </> : !campaign.hasExpired && !campaign.hasEnded && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
           </div>
         </article>
   );
@@ -127,7 +134,7 @@ export const ManageView: React.FC<Props> = ({
     const key = campaign.batchId || campaign.id;
     hostedGroups.set(key, [...(hostedGroups.get(key) || []), campaign]);
   });
-  const visibleHostedGroups = [...hostedGroups.entries()].filter(([, items]) => !items[0].batchId || items.some((item) => !item.isClosed));
+  const visibleHostedGroups = [...hostedGroups.entries()];
   const hostedList = visibleHostedGroups.length ? <div className="space-y-3">{visibleHostedGroups.map(([key, items]) => {
     if (!items[0].batchId) return campaignCard(items[0], true);
     const master = items[0].batchMaster || items.find((item) => item.id === key) || items[0];
@@ -158,7 +165,7 @@ export const ManageView: React.FC<Props> = ({
     {addingBatchId && <div className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center overflow-y-auto">
       <form onSubmit={addSlot} className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] p-6 space-y-4">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">添加团副本</h2><button type="button" onClick={() => setAddingBatchId(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
-        <p className="text-xs text-[#555]">选择一个尚未使用的时段。新团会复制主团发布时的信息，简介之后可单独修改。</p>
+        <p className="text-xs text-[#555]">选择一个尚未使用的时段。新团会复制主团发布时的信息，简介和标签之后可单独修改。</p>
         <CalendarPicker value={newTimeSchedule} onChange={setNewTimeSchedule} />
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setAddingBatchId(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button type="submit" disabled={!newTimeSchedule || addingSlot} className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs disabled:opacity-40">{addingSlot ? '添加中…' : '添加时间点'}</button></div>
       </form>
@@ -169,9 +176,14 @@ export const ManageView: React.FC<Props> = ({
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">修改战役</h2><button type="button" onClick={() => setEditingCampaign(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
         {editingCampaign.batchId ? <>
           <p className="text-xs font-bold">{editingCampaign.title} · {formatDisplayTime(editingCampaign.timeSchedule)}</p>
-          <p className="text-xs text-[#666]">主团信息已锁定，此时段仅可修改简介。</p>
+          <p className="text-xs text-[#666]">主团信息已锁定，此时段可修改简介和标签。</p>
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
-          <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存简介</button></div>
+          <label className="block text-xs font-bold">限选标签（最多 2 个）<select value="" onChange={(e) => { const value = e.target.value; if (value && !editingCampaign.presetTags?.includes(value)) setEditingCampaign({ ...editingCampaign, presetTags: [...(editingCampaign.presetTags || []), value] }); }} disabled={(editingCampaign.presetTags?.length || 0) >= 2} className="bauhaus-input mt-1 w-full p-2"><option value="">选择标签…</option>{presetTags.filter((tag) => !editingCampaign.presetTags?.includes(tag)).map((tag) => <option key={tag}>{tag}</option>)}</select></label>
+          <div className="flex flex-wrap gap-1">{editingCampaign.presetTags?.map((tag) => <button type="button" key={tag} onClick={() => setEditingCampaign({ ...editingCampaign, presetTags: editingCampaign.presetTags?.filter((item) => item !== tag) })} className="border px-2 py-1 text-xs">{tag} ×</button>)}</div>
+          <label className="block text-xs font-bold">自选标签（最多 2 个，限 6 字）<input maxLength={6} value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} className="bauhaus-input mt-1 w-full p-2" placeholder="输入标签后点击添加" /></label>
+          <button type="button" onClick={() => { const tag = customTagInput.trim(); if (tag && (editingCampaign.customTags?.length || 0) < 2 && !editingCampaign.customTags?.includes(tag)) { setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), tag] }); setCustomTagInput(''); } }} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
+          <div className="flex flex-wrap gap-1">{editingCampaign.customTags?.map((tag) => <button type="button" key={tag} onClick={() => setEditingCampaign({ ...editingCampaign, customTags: editingCampaign.customTags?.filter((item) => item !== tag) })} className="border px-2 py-1 text-xs">#{tag} ×</button>)}</div>
+          <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
         </> : <>
         <label className="block text-xs font-bold">团名<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.title} onChange={(e) => setEditingCampaign({ ...editingCampaign, title: e.target.value })} /></label>
         

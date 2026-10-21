@@ -27,6 +27,7 @@ export const api = {
   addBatchSlot: (batchId: string, timeSchedule: string) => post<{ id: string }>(`batches/${batchId}/slots`, { timeSchedule }),
   updateCampaign: (id: string, value: unknown) => patch(`campaigns/${id}`, value),
   setCampaignClosed: (id: string, closed: boolean) => patch(`campaigns/${id}/status`, { closed }),
+  finishCampaign: (id: string) => post(`campaigns/${id}/finish`),
   deleteCampaign: (id: string) => request(`campaigns/${id}`, { method: 'DELETE' }),
   uploadAvatar: async (file: File) => {
     const form = new FormData(); form.append('file', file);

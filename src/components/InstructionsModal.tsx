@@ -47,7 +47,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>查团与报名</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              在「网团」板块中浏览最新招募战役，点击卡片可查看团规、简介、排期时段与已报名的玩家名单。登录后点击「立即报名」即可加入战役；满员或开团日结束后将自动归档并从主页隐藏。
+              在「网团」板块中浏览最新招募战役，点击卡片可查看团规、简介、排期时段与已报名的玩家名单。登录后可报名；满员、锁车或结团后从主页隐藏，预定日期过后自动锁车。
             </p>
           </div>
 
@@ -69,7 +69,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>团务管理</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              主持可在主页「团务管理」中编辑已发布的战役、追加开团时段、封团或解封，并在开团日前移出不合适的报名玩家，方便排期与车队协调。
+              主持可在「团务管理」中修改战役、追加开团时段、锁车或重新开放报名，并在开团日前移出不合适的报名玩家。手动结团后，记录会进入成员档案并开放团内点赞。
             </p>
           </div>
 
@@ -80,7 +80,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>参团与点赞券</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              玩家报名并完成战役后可获得「GM点赞券」；每日登录点击右上角「签到」可领取「玩家点赞券」。在战役详情中可为心仪的GM或同伴送出点赞。个人点赞券数量在「个人档案」中实时查看。
+              玩家报名的团由主持结团后可获得「GM点赞券」；每日登录点击右上角「签到」可领取「玩家点赞券」。结团后可从个人档案进入团详情，为同团 GM 或玩家点赞。
             </p>
           </div>
         </div>

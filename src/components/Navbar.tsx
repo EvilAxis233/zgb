@@ -201,15 +201,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* 图像单独出来（最右侧独立头像块） */}
       <button
         type="button"
-        onClick={() => {
-          if (currentUser) {
-            setActiveTab('profile');
-          } else {
-            onOpenLogin();
-          }
-        }}
-        title={currentUser ? `${currentUser.name} 的个人头像（点击进入个人档案）` : '点击登录'}
-        className="w-8 h-8 bg-[#121212] text-white font-black text-xs flex items-center justify-center border-2 border-[#121212] shadow-[2px_2px_0px_#121212] hover:shadow-[3px_3px_0px_#121212] hover:-translate-y-0.5 transition-all overflow-hidden shrink-0 cursor-pointer"
+        onClick={() => { if (!currentUser) onOpenLogin(); }}
+        title={currentUser ? `${currentUser.name} 的个人头像` : '点击登录'}
+        className={`w-8 h-8 bg-[#121212] text-white font-black text-xs flex items-center justify-center border-2 border-[#121212] shadow-[2px_2px_0px_#121212] overflow-hidden shrink-0 ${currentUser ? '' : 'cursor-pointer'}`}
       >
         {currentUser?.avatar ? (
           <img

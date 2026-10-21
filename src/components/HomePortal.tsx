@@ -91,7 +91,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       seedColor: '#121212',
       secondaryColor: '#3A3A3A',
       accentColor: '#888888',
-      description: '管理由你主持的战役、修改团务简介、增减报名玩家、补充开团时段及结团归档。',
+      description: '管理由你主持的战役、修改简介与标签、增减报名玩家、补充开团时段及结团归档。',
       stats: '我的主持战役与参团名录',
       statusBadge: '控制台',
       statusType: 'manage',

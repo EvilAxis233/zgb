@@ -12,13 +12,13 @@
 
 初始 D1 为空，不自动导入演示账号或团。登录时输入 QQ 号，后端向 `<QQ号>@qq.com` 发送六位验证码，十分钟有效；单号 60 秒内不可重发，每小时最多五次，同一 IP 每小时最多二十次；一个验证码最多尝试五次。登录成功后建立 30 天的 HttpOnly 会话。该流程验证 QQ 邮箱收件能力，不是腾讯 QQ OAuth。
 
-主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`profile`、`profile/avatar`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回香港日期尚未结束且未满员的团；满员或到期的团仅对 GM 和已报名玩家保留。删除团采用软删除。
+主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`campaigns/:id/finish`、`profile`、`profile/avatar`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回未锁车、未结团且未满员的团；其余团仅对 GM 和已报名玩家保留。弃团会删除该团、成员记录和团内点赞。
 
-`migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。报名玩家在开团日期结束后的首次登录请求中幂等获得 1 枚 GM 点赞；每日签到按香港日期获得玩家点赞。团内点赞必须绑定团，且只能在到期后由该团成员发出。站点清空浏览器数据不影响这些服务器记录。
+`migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。只有主持手动结团后，该团才进入成员个人档案，报名玩家在首次登录请求中幂等获得 1 枚 GM 点赞；每日签到按香港日期获得玩家点赞。团内点赞必须绑定已结团的团，且只能由该团成员发出。预定日期过后自动锁车；修改单团时间到未来后，主持可手动重新开放。站点清空浏览器数据不影响这些服务器记录。
 
-批量发团时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供首页合并展示和详情切换。报名、成员、点赞、修改、封团与删除仍按单条团记录处理；一个批次只写入一条机器人广播事件。部署此功能前须应用 `0009_campaign_batches.sql` 和 `0010_campaign_closure.sql`。
+批量发团时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供首页合并展示和详情切换。报名、成员、点赞、修改、锁车、结团与弃团仍按单条团记录处理；一个批次只写入一条机器人广播事件。部署此功能前须应用 `0009_campaign_batches.sql`、`0010_campaign_closure.sql` 和 `0012_campaign_completion.sql`。
 
-团务管理将批量团折叠成一个主团；主团保存发布时的通用信息，新增时间点从该信息复制，副本只能单独修改简介、封团或删除。所有副本都已封团或删除时，主团从团务管理隐藏；个人档案仍逐团记录。已有批量团通过 `0011_campaign_batch_templates.sql` 补建主团信息，部署新版 Functions 前需先应用此迁移。
+团务管理将批量团折叠成一个主团；主团保存发布时的通用信息，新增时间点从该信息复制，副本可以单独修改简介和标签、锁车、结团或弃团。主团在团务管理中保持可见；个人档案仅逐团记录已结团的时段。已有批量团通过 `0011_campaign_batch_templates.sql` 补建主团信息，部署新版 Functions 前需先应用此迁移。
 
 ## 管理后台
 

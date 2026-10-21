@@ -314,7 +314,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {/* 红框处：GM点赞券数量 */}
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：报名团结束后获得，可在团详情给GM点赞"
+                title="GM点赞券：报名团结团后获得，可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
                 <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
@@ -326,7 +326,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {myCampaigns.length === 0 ? (
               <div className="py-8 text-center text-xs text-[#888888]">
-                暂无带团记录，点击右上角【发布新团】发起首个战役
+                暂无已结团的带团记录
               </div>
             ) : (
               <div className="space-y-3">
@@ -339,9 +339,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-[#121212]">{camp.title}</span>
-                        <span className="px-1.5 py-0.5 bg-[#121212] text-white text-xs font-bold">
-                          {camp.hasEnded ? '已到期' : camp.isFull ? '已满员' : '招募中'}
-                        </span>
                       </div>
                       <div className="text-xs text-[#666666] mt-1 flex items-center gap-2">
                         <span>{camp.rule}</span>
@@ -379,7 +376,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {myJoinedCampaigns.length === 0 ? (
               <div className="py-8 text-center text-xs text-[#888888]">
-                暂无参团记录。可在主页打开团详情后报名
+                暂无已结团的参团记录
               </div>
             ) : (
               <div className="space-y-3">

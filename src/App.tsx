@@ -18,7 +18,7 @@ import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
 import { parseTimeSchedule, TimePeriod } from './utils/date';
 
-import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase, UserRound } from 'lucide-react';
 
 interface ToastState {
   id: number;
@@ -118,12 +118,13 @@ export function App() {
   };
 
   // Delete Campaign
-  const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已删除');
-  const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), closed ? '本团已封团' : '本团已重新开放报名');
+  const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已弃团');
+  const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), closed ? '本团已锁车' : '本团已重新开放报名');
+  const handleFinishCampaign = (campaignId: string) => run(() => api.finishCampaign(campaignId), '本团已结团');
   const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
 
   // Update existing campaign
-  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, updated.batchId ? { description: updated.description } : await prepareCampaign(updated)); }, '战役信息已更新');
+  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, updated.batchId ? { description: updated.description, presetTags: updated.presetTags, customTags: updated.customTags } : await prepareCampaign(updated)); }, '战役信息已更新');
 
   // Update User Profile
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
@@ -174,7 +175,7 @@ export function App() {
     const countMap = new Map<string, number>();
     const seen = new Set<string>();
     campaigns.forEach((c) => {
-      if (!c.hasEnded && !c.isFull && c.rule?.trim()) {
+      if (!c.hasEnded && !c.isClosed && !c.isFull && c.rule?.trim()) {
         const key = `${c.batchId || c.id}:${c.rule.trim()}`;
         if (seen.has(key)) return;
         seen.add(key);
@@ -198,10 +199,10 @@ export function App() {
   const activeDatesWithCampaigns = useMemo(() => {
     const dates = new Set<string>();
     enrichedCampaigns.forEach((c) => {
-      if (!c.hasEnded && !c.isFull) {
+      if (!c.hasEnded && !c.isClosed && !c.isFull) {
         if (c.slots?.length) {
           c.slots.forEach((s) => {
-            if (!s.hasEnded && !s.isFull) {
+            if (!s.hasEnded && !s.isClosed && !s.isFull) {
               const parsed = parseTimeSchedule(s.timeSchedule);
               if (parsed.dateStr) dates.add(parsed.dateStr);
             }
@@ -226,10 +227,10 @@ export function App() {
         c.description.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
-      const matchPeriod = periodFilter === 'all' || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isFull && parseTimeSchedule(slot.timeSchedule).period === periodFilter) : parseTimeSchedule(c.timeSchedule).period === periodFilter);
-      const matchDate = !dateFilter || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isFull && parseTimeSchedule(slot.timeSchedule).dateStr === dateFilter) : parseTimeSchedule(c.timeSchedule).dateStr === dateFilter);
+      const matchPeriod = periodFilter === 'all' || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isClosed && !slot.isFull && parseTimeSchedule(slot.timeSchedule).period === periodFilter) : parseTimeSchedule(c.timeSchedule).period === periodFilter);
+      const matchDate = !dateFilter || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isClosed && !slot.isFull && parseTimeSchedule(slot.timeSchedule).dateStr === dateFilter) : parseTimeSchedule(c.timeSchedule).dateStr === dateFilter);
 
-      return !c.hasEnded && !c.isFull && matchQuery && matchRule && matchPeriod && matchDate;
+      return !c.hasEnded && !c.isClosed && !c.isFull && matchQuery && matchRule && matchPeriod && matchDate;
     });
     const seen = new Set<string>();
     return matching.filter((c) => {
@@ -282,7 +283,7 @@ export function App() {
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
             <HomePortal
-              recruitingCount={enrichedCampaigns.filter((c) => !c.hasEnded && !c.isFull).length}
+              recruitingCount={enrichedCampaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull).length}
               onSelectOnline={() => setBoardView('online')}
               onSelectOffline={() => setBoardView('offline')}
               onSelectPromo={() => setBoardView('promo')}
@@ -326,6 +327,7 @@ export function App() {
                   <Briefcase className="w-4 h-4" />
                   团务管理
                 </button>
+                <button type="button" onClick={() => currentUser ? setActiveTab('profile') : setIsLoginOpen(true)} className="bauhaus-btn w-full bg-white text-[#121212] px-4 py-3 text-sm font-black flex items-center justify-center gap-2 hover:bg-[#FAF9F5] cursor-pointer"><UserRound className="w-4 h-4" />个人档案</button>
               </aside>
 
               {/* Center Column: Responsive cards layout */}
@@ -478,8 +480,8 @@ export function App() {
           <div className="w-full">
             <ProfileView
               currentUser={currentUser}
-              myCampaigns={myCampaigns}
-              myJoinedCampaigns={myJoinedCampaigns}
+              myCampaigns={myCampaigns.filter((campaign) => campaign.hasEnded)}
+              myJoinedCampaigns={myJoinedCampaigns.filter((campaign) => campaign.hasEnded)}
               onUpdateProfile={handleUpdateProfile}
               onSelectCampaign={openCampaign}
               onUploadAvatar={handleUploadAvatar}
@@ -499,6 +501,7 @@ export function App() {
               popularCustomTags={popularCustomTags}
               onDeleteCampaign={handleDeleteCampaign}
               onSetCampaignClosed={handleSetCampaignClosed}
+              onFinishCampaign={handleFinishCampaign}
               onAddBatchSlot={handleAddBatchSlot}
               onCancelSignup={handleCancelSignup}
               onSelectCampaign={openCampaign}

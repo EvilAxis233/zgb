@@ -46,6 +46,7 @@ export interface Campaign {
   isFull: boolean;
   isClosed?: boolean;
   hasEnded: boolean;
+  hasExpired: boolean;
   isSignedUp: boolean;
   createdAt: string;
   imageKey?: string | null;
@@ -74,6 +75,7 @@ export interface CampaignSlot {
   isFull: boolean;
   isClosed?: boolean;
   hasEnded: boolean;
+  hasExpired: boolean;
   isSignedUp: boolean;
 }
 
