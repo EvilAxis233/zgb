@@ -17,7 +17,7 @@ interface CalendarPickerProps {
   multiple?: boolean;
   selectedSlots?: string[];
   onChangeSlots?: (slots: string[]) => void;
-  maxDaysAhead?: number; // 默认最晚31天后
+  maxDaysAhead?: number | null; // null 表示未来日期不设上限
   hideHeader?: boolean;
   borderless?: boolean;
 }
@@ -43,11 +43,11 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
   const maxDate = useMemo(() => {
     const d = new Date(today);
-    d.setDate(d.getDate() + maxDaysAhead);
+    if (maxDaysAhead !== null) d.setDate(d.getDate() + maxDaysAhead);
     return d;
   }, [today, maxDaysAhead]);
 
-  const maxDateStr = useMemo(() => toDateString(maxDate), [maxDate]);
+  const maxDateStr = useMemo(() => maxDaysAhead === null ? null : toDateString(maxDate), [maxDate, maxDaysAhead]);
 
   // 从传入的 value 解析已选中的日期与时段
   const parsedValue = useMemo(() => parseTimeSchedule(value), [value]);
@@ -124,7 +124,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   const canGoNextMonth = useMemo(() => {
     // 检查下个月第一天是否在最晚日期之前或当天
     const firstDayOfNextMonth = new Date(viewYear, viewMonth + 1, 1);
-    return toDateString(firstDayOfNextMonth) <= maxDateStr;
+    return maxDateStr === null || toDateString(firstDayOfNextMonth) <= maxDateStr;
   }, [viewYear, viewMonth, maxDateStr]);
 
   const handlePrevMonth = () => {
@@ -180,7 +180,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
     for (let d = 1; d <= totalDays; d++) {
       const dateObj = new Date(viewYear, viewMonth, d);
       const str = toDateString(dateObj);
-      const isSelectable = str >= todayStr && str <= maxDateStr;
+      const isSelectable = str >= todayStr && (maxDateStr === null || str <= maxDateStr);
       const isToday = str === todayStr;
       const isSelected = str === selectedDate;
 
@@ -212,7 +212,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
             <span>{multiple ? '选择多个开团日期与时段' : '选择开团日期与时段'}</span>
           </div>
           <span className="text-[11px] font-bold text-[#666666] bg-[#FFFFFF] px-2 py-0.5 border border-[#CCCCCC]">
-            可选今日起最晚 31 天内
+            {maxDaysAhead === null ? '可选任意未来日期' : `可选今日起最晚 ${maxDaysAhead} 天内`}
           </span>
         </div>
       )}

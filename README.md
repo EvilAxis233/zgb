@@ -16,7 +16,7 @@
 
 `migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。只有主持手动结团后，该团才进入成员个人档案，报名玩家在首次登录请求中幂等获得 1 枚 GM 点赞；每日签到按香港日期获得玩家点赞。团内点赞必须绑定已结团的团，且只能由该团成员发出。预定日期过后自动锁车；修改单团时间到未来后，主持可手动重新开放。站点清空浏览器数据不影响这些服务器记录。
 
-批量发团时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供首页合并展示和详情切换。报名、成员、点赞、修改、锁车、结团与弃团仍按单条团记录处理；一个批次只写入一条机器人广播事件。部署此功能前须应用 `0009_campaign_batches.sql`、`0010_campaign_closure.sql` 和 `0012_campaign_completion.sql`。
+批量发布时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供板块列表合并展示和详情切换。`kind` 区分网团、面团和宣群；旧记录默认网团。三个板块分别展示，均进入同一机器人广播队列，事件包含 `kind`。面团使用自填城市与地址；宣群使用自填平台及预设或自填方式。宣群无结团操作，锁车后从板块隐藏。网团发布日历仍限 31 天，面团和宣群可选择任意未来日期。报名、成员、点赞、修改、锁车、结团与弃团按单条记录处理；一个批次只写入一条广播事件。部署前须应用 `0009_campaign_batches.sql`、`0010_campaign_closure.sql`、`0012_campaign_completion.sql` 和 `0013_campaign_sections.sql`。
 
 团务管理将批量团折叠成一个主团；主团保存发布时的通用信息，新增时间点从该信息复制，副本可以单独修改简介和标签、锁车、结团或弃团。主团在团务管理中保持可见；个人档案仅逐团记录已结团的时段。已有批量团通过 `0011_campaign_batch_templates.sql` 补建主团信息，部署新版 Functions 前需先应用此迁移。
 
@@ -28,7 +28,7 @@
 
 ## QQ 新团广播桥接
 
-`POST /api/campaigns` 将团与 `campaign.created` 事件在同一个 D1 事务写入。测试机器人凭独立 Secret `BOT_BRIDGE_TOKEN` 每 15 秒从 `GET /api/internal/bot/events` 领取一个事件，完成原有群发后提交 `POST /api/internal/bot/events/{eventId}/ack`，正文为 `{ "claimId": "..." }`。事件只携带 `eventId`、`campaignId`、`rule`、`claimId`；广播不含链接。租约为 120 秒，过期事件可重新领取。测试站点须使用与生产不同的 D1、R2 和 Secret，且仅由双测试群机器人消费。网站发布接口不依赖机器人在线；迁移 `0003_bot_outbox.sql` 必须先于新代码应用。
+`POST /api/campaigns` 将团与 `campaign.created` 事件在同一个 D1 事务写入。测试机器人凭独立 Secret `BOT_BRIDGE_TOKEN` 每 15 秒从 `GET /api/internal/bot/events` 领取一个事件，完成原有群发后提交 `POST /api/internal/bot/events/{eventId}/ack`，正文为 `{ "claimId": "..." }`。事件携带 `eventId`、`campaignId`、`kind`、`rule`、`claimId`；`kind` 为 `online`、`offline` 或 `promo`，供机器人区分播报板块，旧机器人可忽略新增字段。广播不含链接。租约为 120 秒，过期事件可重新领取。测试站点须使用与生产不同的 D1、R2 和 Secret，且仅由双测试群机器人消费。网站发布接口不依赖机器人在线；迁移 `0003_bot_outbox.sql` 必须先于新代码应用。
 
 测试环境使用单独 Pages 项目 `zgb-trpg-staging`、`wrangler.staging.jsonc` 中指定的独立 D1 和 R2，均已创建。运行 `npx wrangler d1 migrations apply zgb-trpg-staging --remote --config wrangler.staging.jsonc`，在**测试 Pages 项目**分别设置独立 `ADMIN_PASSWORD`、`BOT_BRIDGE_TOKEN`、`OTP_SECRET`、`RESEND_API_KEY` Secret，再运行 `pwsh -File scripts/deploy-staging.ps1`。脚本先检查测试绑定，再将构建产物、Functions 和测试配置复制到被 Git 忽略的独立目录部署；Wrangler Pages 不接受 `--config` 自定义配置路径。测试机器人只使用这个站点的 URL 和令牌；不得改用正式 D1 做联调。`0004_memberships.sql` 必须先于新报名代码部署；确认新流程可用后再部署删除凭证代码并应用 `0005_remove_vouchers.sql`。
 

@@ -97,7 +97,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-3xl bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] my-8 flex flex-col max-h-[90vh]">
         <header className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between">
-          <span className="text-sm font-bold tracking-wider flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />模组档案</span>
+          <span className="text-sm font-bold tracking-wider flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />{campaign.kind === 'promo' ? '宣群详情' : '模组档案'}</span>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828] border border-[#444]" aria-label="关闭详情"><X className="w-5 h-5" /></button>
         </header>
         <div className="overflow-y-auto p-5 sm:p-6">
@@ -108,7 +108,8 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <div className="md:col-span-7">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="px-2.5 py-0.5 bg-[#004E98] text-white text-xs font-bold border border-[#121212]">{campaign.rule}</span>
-                <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212] flex items-center gap-1">
+                {campaign.kind === 'offline' ? <><span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{campaign.city}</span><span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{campaign.address}</span></> : <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212] flex items-center gap-1">
+                  {campaign.kind === 'promo' ? null : <>
                   {campaign.sessionType === '文字' ? (
                     <MessageSquare className="w-3.5 h-3.5" />
                   ) : campaign.sessionType === '其他游戏形式' ? (
@@ -116,9 +117,10 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   ) : (
                     <Mic className="w-3.5 h-3.5" />
                   )}
+                  </>}
                   <span>{campaign.sessionType || '语音'}</span>
-                </span>
-                {campaign.platforms?.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>)}
+                </span>}
+                {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>)}
                 {campaign.presetTags?.map((tag) => (
                   <span key={`dt-preset-${tag}`} className="px-2 py-0.5 bg-[#FAF9F5] border border-[#121212] text-xs font-bold text-[#121212]">
                     {tag}

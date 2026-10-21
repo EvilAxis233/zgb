@@ -56,8 +56,9 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <span>{campaign.rule}</span>
           </div>
 
-          {/* Session Type Tag */}
-          <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+          {/* Section-specific metadata beside the rule. */}
+          {campaign.kind === 'offline' ? <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">{campaign.city || '城市待定'}</div> : <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+            {campaign.kind === 'promo' ? null : <>
             {campaign.sessionType === '文字' ? (
               <MessageSquare className="w-[15px] h-[15px]" />
             ) : campaign.sessionType === '其他游戏形式' ? (
@@ -65,10 +66,12 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             ) : (
               <Mic className="w-[15px] h-[15px]" />
             )}
+            </>}
             <span>{campaign.sessionType || '语音'}</span>
-          </div>
+          </div>}
 
-          {campaign.platforms?.map((platform) => (
+          {campaign.kind === 'offline' && campaign.address && <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] min-w-0 truncate" title={campaign.address}>{campaign.address}</div>}
+          {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => (
             <div key={platform} className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">
               {platform}
             </div>
@@ -82,7 +85,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
             <User className="h-5 w-5 shrink-0 text-[#D62828]" />
-            <span className="truncate">主持: {campaign.gmName}</span>
+            <span className="truncate">{campaign.kind === 'promo' ? '发布者' : '主持'}: {campaign.gmName}</span>
           </div>
             <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
               <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}

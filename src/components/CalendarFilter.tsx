@@ -10,7 +10,7 @@ interface CalendarFilterProps {
   selectedDate: string | null;
   onSelectDate: (dateStr: string | null) => void;
   activeDatesWithCampaigns?: Set<string>;
-  maxDaysAhead?: number; // 默认往后 30 天
+  maxDaysAhead?: number | null; // null 表示未来日期不限月数
 }
 
 const WEEKDAY_HEADERS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -33,11 +33,11 @@ export const CalendarFilter: React.FC<CalendarFilterProps> = ({
   // 最晚可选日期（往后一个月）
   const maxDate = useMemo(() => {
     const d = new Date(today);
-    d.setDate(d.getDate() + maxDaysAhead);
+    if (maxDaysAhead !== null) d.setDate(d.getDate() + maxDaysAhead);
     return d;
   }, [today, maxDaysAhead]);
 
-  const maxDateStr = useMemo(() => toDateString(maxDate), [maxDate]);
+  const maxDateStr = useMemo(() => maxDaysAhead === null ? null : toDateString(maxDate), [maxDate, maxDaysAhead]);
 
   // 当前展示的年月
   const [viewYear, setViewYear] = useState<number>(() => today.getFullYear());
@@ -49,8 +49,8 @@ export const CalendarFilter: React.FC<CalendarFilterProps> = ({
   }, [viewYear, viewMonth, today]);
 
   const canGoNext = useMemo(() => {
-    return viewYear < maxDate.getFullYear() || (viewYear === maxDate.getFullYear() && viewMonth < maxDate.getMonth());
-  }, [viewYear, viewMonth, maxDate]);
+    return maxDaysAhead === null || viewYear < maxDate.getFullYear() || (viewYear === maxDate.getFullYear() && viewMonth < maxDate.getMonth());
+  }, [viewYear, viewMonth, maxDate, maxDaysAhead]);
 
   const handlePrevMonth = () => {
     if (!canGoPrev) return;
@@ -117,7 +117,7 @@ export const CalendarFilter: React.FC<CalendarFilterProps> = ({
       const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
 
       const isToday = dateStr === todayStr;
-      const isInRange = dateStr >= todayStr && dateStr <= maxDateStr;
+      const isInRange = dateStr >= todayStr && (maxDateStr === null || dateStr <= maxDateStr);
       const hasCampaigns = activeDatesWithCampaigns.has(dateStr);
       const isSelected = selectedDate === dateStr;
 

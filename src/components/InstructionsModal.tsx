@@ -47,7 +47,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>查团与报名</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              在「网团」板块中浏览最新招募战役，点击卡片可查看团规、简介、排期时段与已报名的玩家名单。登录后可报名；满员、锁车或结团后从主页隐藏，预定日期过后自动锁车。
+              网团、面团和宣群分别在对应板块展示。点击卡片可查看规则、简介、时间与成员。登录后可报名；满员或锁车后从板块隐藏，预定日期过后自动锁车。
             </p>
           </div>
 
@@ -58,7 +58,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>发布新团</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              右上角点击「发布新团」，主持（GM/KP）可自定义封面、开团时段、招募人数、跑团平台（KOOK、FVTT等）以及标签。发布后所有访客均可在网页中直接查阅。
+              在对应板块点击发布按钮，可填写封面、日期时段、人数与标签。面团填写城市和详细地址；宣群填写宣群方式与平台。面团和宣群可选择任意未来日期。
             </p>
           </div>
 
@@ -69,7 +69,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>团务管理</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              主持可在「团务管理」中修改战役、追加开团时段、锁车或重新开放报名，并在开团日前移出不合适的报名玩家。手动结团后，记录会进入成员档案并开放团内点赞。
+              在「团务管理」中分别管理网团、面团和宣群，可修改、追加时段、锁车或重新开放。网团和面团可手动结团，记录会进入成员档案并开放点赞；宣群只需锁车。
             </p>
           </div>
 

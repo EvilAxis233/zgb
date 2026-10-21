@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Campaign, UserProfile, SessionType, GAME_PLATFORMS, GamePlatform } from '../types';
+import { Campaign, CampaignKind, UserProfile, GAME_PLATFORMS } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { MarkdownView } from './MarkdownView';
 import { CalendarPicker } from './CalendarPicker';
@@ -9,6 +9,7 @@ import { ImageCropper } from './ImageCropper';
 
 interface PublishModalProps {
   isOpen: boolean;
+  kind: CampaignKind;
   onClose: () => void;
   currentUser: UserProfile | null;
   rules: string[];
@@ -34,6 +35,7 @@ export const MARKDOWN_SUPPORT_HINT = `支持如下markdown语法：
 
 export const PublishModal: React.FC<PublishModalProps> = ({
   isOpen,
+  kind,
   onClose,
   currentUser,
   rules,
@@ -44,8 +46,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const { showAlert } = useDialog();
   const [title, setTitle] = useState('');
   const [rule, setRule] = useState('');
-  const [sessionType, setSessionType] = useState<SessionType>('语音');
-  const [platforms, setPlatforms] = useState<GamePlatform[]>([]);
+  const [sessionType, setSessionType] = useState('语音');
+  const [platforms, setPlatforms] = useState<string[]>([]);
+  const [city, setCity] = useState('');
+  const [address, setAddress] = useState('');
   const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
   const [selectedPresetTags, setSelectedPresetTags] = useState<string[]>([]);
   const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
@@ -71,6 +75,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       setContact(currentUser.qq);
     }
   }, [isOpen, currentUser?.qq]);
+  useEffect(() => {
+    if (!isOpen) return;
+    setSessionType(kind === 'promo' ? '群扩招' : '语音');
+    setPlatforms([]);
+    setCity('');
+    setAddress('');
+    setTimeSlots([]);
+    setTimeSchedule('');
+  }, [isOpen, kind]);
 
   const processFile = (file: File) => {
     if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
@@ -115,7 +128,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
-      showAlert({ title: '提示', message: '游客无法发布战役，请先登录', type: 'warning' });
+      showAlert({ title: '提示', message: '请先登录后发布', type: 'warning' });
       return;
     }
     if (!title.trim() || !contact.trim()) {
@@ -131,8 +144,19 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       showAlert({ title: '提示', message: '请填写或选择规则系统', type: 'warning' });
       return;
     }
+    if (kind === 'offline' && (!city.trim() || !address.trim())) {
+      showAlert({ title: '提示', message: '请填写城市和详细地址', type: 'warning' });
+      return;
+    }
+    if (kind === 'promo' && (!sessionType.trim() || !platforms[0]?.trim())) {
+      showAlert({ title: '提示', message: '请填写宣群方式和平台', type: 'warning' });
+      return;
+    }
 
     const success = await onPublish({
+      kind,
+      city: kind === 'offline' ? city.trim() : '',
+      address: kind === 'offline' ? address.trim() : '',
       title: title.trim(),
       rule: rule.trim(),
       sessionType,
@@ -163,6 +187,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const previewRule = rule.trim() || '规则待定';
   const previewCampaign: Campaign = {
     id: 'preview',
+    kind,
+    city,
+    address,
     title: title.trim() || '战役标题预览',
     rule: previewRule,
     sessionType,
@@ -202,7 +229,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               <h3 className="text-sm font-black tracking-wider">开团时间</h3>
             </div>
             <span className="text-[10px] text-[#E0E0E0] bg-[#222] px-2 py-0.5 font-bold border border-[#444]">
-              今日起 31 天内
+              {kind === 'online' ? '今日起 31 天内' : '未来日期不限月数'}
             </span>
           </div>
 
@@ -212,6 +239,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               value={timeSchedule}
               onChange={(val) => setTimeSchedule(val)}
               multiple
+              maxDaysAhead={kind === 'online' ? 31 : null}
               selectedSlots={timeSlots}
               onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
               hideHeader={true}
@@ -227,7 +255,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 bg-[#D62828] inline-block" />
               <h2 className="text-sm font-black tracking-wider">
-                发布新团
+                {kind === 'online' ? '发布新团' : kind === 'offline' ? '发布面团' : '发布宣群'}
               </h2>
             </div>
             <button
@@ -249,20 +277,20 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 {/* Title */}
                 <div>
                   <label className="block font-bold text-[#121212] mb-1">
-                    团名 <span className="text-[#D62828]">*</span>
+                    {kind === 'promo' ? '宣群标题' : '团名'} <span className="text-[#D62828]">*</span>
                   </label>
                   <input
                     type="text"
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="例如：狂乱极光：纳斯卡之眼"
+                    placeholder={kind === 'promo' ? '例如：跑团交流群招募' : '例如：狂乱极光：纳斯卡之眼'}
                     className="bauhaus-input w-full px-3 py-2 text-sm"
                   />
                 </div>
 
                 {/* Rule, player count, game type, and platforms */}
-                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
                   {/* Rule with dynamic input and popup */}
                   <div className="relative">
                     <label className="block font-bold text-[#121212] mb-1">
@@ -339,40 +367,31 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     />
                   </div>
 
-                  {/* Session Type */}
-                  <div>
-                    <label className="block font-bold text-[#121212] mb-1">
-                      游戏类型
-                    </label>
-                    <select
-                      value={sessionType}
-                      onChange={(e) => setSessionType(e.target.value as SessionType)}
-                      className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"
-                    >
-                      <option value="语音">语音</option>
-                      <option value="文字">文字</option>
-                      <option value="其他游戏形式">其他游戏形式</option>
-                    </select>
-                  </div>
-                  <div className="relative">
-                    <label className="block font-bold text-[#121212] mb-1">游戏平台</label>
-                    <button type="button" onClick={() => setShowPlatformDropdown(!showPlatformDropdown)} aria-expanded={showPlatformDropdown} className="bauhaus-input w-full px-2 py-2 text-sm text-left truncate cursor-pointer">
-                      {platforms.length ? `已选 ${platforms.length} 个平台` : '选择平台 ▾'}
-                    </button>
-                    {showPlatformDropdown && (
-                      <div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">
-                        {GAME_PLATFORMS.map((platform) => (
-                          <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold cursor-pointer hover:bg-white">
-                            <input type="checkbox" checked={platforms.includes(platform)} onChange={() => setPlatforms((current) => current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform])} className="accent-[#004E98]" />
-                            {platform}
-                          </label>
-                        ))}
-                        <button type="button" onClick={() => setShowPlatformDropdown(false)} className="w-full text-xs font-bold border border-[#121212] bg-white py-1 hover:bg-[#004E98] hover:text-white">完成</button>
-                      </div>
-                    )}
-                  </div>
+                  {kind === 'offline' ? <>
+                    <label className="block font-bold text-[#121212]">地点标签（城市）<input required maxLength={40} value={city} onChange={(e) => setCity(e.target.value)} placeholder="自填城市名" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
+                    <label className="block font-bold text-[#121212]">详细地址<input required maxLength={200} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="自填活动地址" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
+                  </> : <>
+                    <div>
+                      <label className="block font-bold text-[#121212] mb-1">{kind === 'promo' ? '宣群方式' : '游戏类型'}</label>
+                      {kind === 'promo' ? <>
+                        <select value={['群扩招', '展会', '激励活动', '西征'].includes(sessionType) ? sessionType : '自填'} onChange={(e) => setSessionType(e.target.value === '自填' ? '' : e.target.value)} className="bauhaus-input w-full px-2 py-2 text-sm cursor-pointer">
+                          <option value="群扩招">群扩招</option><option value="展会">展会</option><option value="激励活动">激励活动</option><option value="西征">西征</option><option value="自填">自填</option>
+                        </select>
+                        {!['群扩招', '展会', '激励活动', '西征'].includes(sessionType) && <input required maxLength={40} value={sessionType} onChange={(e) => setSessionType(e.target.value)} placeholder="自填方式" className="bauhaus-input mt-1 w-full px-2 py-2 text-sm" />}
+                      </> : <select value={sessionType} onChange={(e) => setSessionType(e.target.value)} className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer"><option value="语音">语音</option><option value="文字">文字</option><option value="其他游戏形式">其他游戏形式</option></select>}
+                    </div>
+                    <div className="relative">
+                      <label className="block font-bold text-[#121212] mb-1">{kind === 'promo' ? '平台' : '游戏平台'}</label>
+                      {kind === 'promo' ? <input required maxLength={80} value={platforms[0] || ''} onChange={(e) => setPlatforms(e.target.value ? [e.target.value] : [])} placeholder="自填平台" className="bauhaus-input w-full px-3 py-2 text-sm" /> : <>
+                        <button type="button" onClick={() => setShowPlatformDropdown(!showPlatformDropdown)} aria-expanded={showPlatformDropdown} className="bauhaus-input w-full px-2 py-2 text-sm text-left cursor-pointer flex items-center justify-between gap-1">
+                          <span className="truncate">{platforms.length ? `已选 ${platforms.length} 个平台` : '选择平台'}</span><span aria-hidden="true" className="shrink-0 text-xs">▾</span>
+                        </button>
+                        {showPlatformDropdown && <div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">{GAME_PLATFORMS.map((platform) => <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold cursor-pointer hover:bg-white"><input type="checkbox" checked={platforms.includes(platform)} onChange={() => setPlatforms((current) => current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform])} className="accent-[#004E98]" />{platform}</label>)}<button type="button" onClick={() => setShowPlatformDropdown(false)} className="w-full text-xs font-bold border border-[#121212] bg-white py-1">完成</button></div>}
+                      </>}
+                    </div>
+                  </>}
                 </div>
-                {platforms.length > 0 && <div className="flex flex-wrap gap-1.5">{platforms.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border border-[#004E98] text-[#004E98] text-xs font-bold">{platform}</span>)}</div>}
+                {kind === 'online' && platforms.length > 0 && <div className="flex flex-wrap gap-1.5">{platforms.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border border-[#004E98] text-[#004E98] text-xs font-bold">{platform}</span>)}</div>}
 
                 {/* Row 2: Tag System (Left: Preset Tags dropdown, Right: Custom Tags input with popover) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -599,6 +618,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           value={timeSchedule}
                           onChange={(val) => setTimeSchedule(val)}
                           multiple
+                          maxDaysAhead={kind === 'online' ? 31 : null}
                           selectedSlots={timeSlots}
                           onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
                         />

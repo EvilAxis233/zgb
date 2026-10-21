@@ -16,19 +16,23 @@ export interface UserProfile {
 }
 
 export type SessionType = '语音' | '文字' | '其他游戏形式';
+export type CampaignKind = 'online' | 'offline' | 'promo';
 export const GAME_PLATFORMS = ['Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'] as const;
 export type GamePlatform = typeof GAME_PLATFORMS[number];
 
 export interface Campaign {
   id: string;
+  kind: CampaignKind;
+  city?: string;
+  address?: string;
   batchId?: string | null;
   batchMaster?: CampaignBatchMaster;
   slots?: CampaignSlot[];
   timeSlots?: string[];
   title: string;
   rule: string;
-  sessionType?: SessionType;
-  platforms?: GamePlatform[];
+  sessionType?: string;
+  platforms?: string[];
   presetTags?: string[];
   customTags?: string[];
   gmId: string;
@@ -54,10 +58,13 @@ export interface Campaign {
 
 export interface CampaignBatchMaster {
   id: string;
+  kind: CampaignKind;
+  city?: string;
+  address?: string;
   title: string;
   rule: string;
-  sessionType: SessionType;
-  platforms: GamePlatform[];
+  sessionType: string;
+  platforms: string[];
   presetTags: string[];
   customTags: string[];
   maxPlayers: number;

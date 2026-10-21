@@ -53,6 +53,12 @@ export function App() {
   const [ruleFilter, setRuleFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<'all' | TimePeriod>('all');
   const [dateFilter, setDateFilter] = useState<string | null>(null);
+  useEffect(() => {
+    setSearchQuery('');
+    setRuleFilter('all');
+    setPeriodFilter('all');
+    setDateFilter(null);
+  }, [boardView]);
 
   const refresh = async () => {
     const { user } = await api.me();
@@ -114,7 +120,7 @@ export function App() {
     return { ...data, imageKey };
   };
   const handlePublish = async (data: Omit<Campaign, 'id' | 'createdAt'>) => {
-    return run(async () => { await api.createCampaign(await prepareCampaign(data)); }, `战役《${data.title}》发布成功`);
+    return run(async () => { await api.createCampaign(await prepareCampaign(data)); }, `${data.kind === 'online' ? '网团' : data.kind === 'offline' ? '面团' : '宣群'}《${data.title}》发布成功`);
   };
 
   // Delete Campaign
@@ -175,7 +181,7 @@ export function App() {
     const countMap = new Map<string, number>();
     const seen = new Set<string>();
     campaigns.forEach((c) => {
-      if (!c.hasEnded && !c.isClosed && !c.isFull && c.rule?.trim()) {
+      if (c.kind === boardView && !c.hasEnded && !c.isClosed && !c.isFull && c.rule?.trim()) {
         const key = `${c.batchId || c.id}:${c.rule.trim()}`;
         if (seen.has(key)) return;
         seen.add(key);
@@ -186,7 +192,7 @@ export function App() {
     return Array.from(countMap.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([rule, count]) => ({ rule, count }));
-  }, [campaigns]);
+  }, [campaigns, boardView]);
 
   const enrichedCampaigns = useMemo(() => {
     return campaigns.map((c) => ({
@@ -199,7 +205,7 @@ export function App() {
   const activeDatesWithCampaigns = useMemo(() => {
     const dates = new Set<string>();
     enrichedCampaigns.forEach((c) => {
-      if (!c.hasEnded && !c.isClosed && !c.isFull) {
+      if (c.kind === boardView && !c.hasEnded && !c.isClosed && !c.isFull) {
         if (c.slots?.length) {
           c.slots.forEach((s) => {
             if (!s.hasEnded && !s.isClosed && !s.isFull) {
@@ -214,7 +220,7 @@ export function App() {
       }
     });
     return dates;
-  }, [enrichedCampaigns]);
+  }, [enrichedCampaigns, boardView]);
 
   // Filter campaigns
   const filteredCampaigns = useMemo(() => {
@@ -224,13 +230,17 @@ export function App() {
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.gmName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.rule.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.description.toLowerCase().includes(searchQuery.toLowerCase());
+        c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.city || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.address || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.sessionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.platforms || []).some((platform) => platform.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
       const matchPeriod = periodFilter === 'all' || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isClosed && !slot.isFull && parseTimeSchedule(slot.timeSchedule).period === periodFilter) : parseTimeSchedule(c.timeSchedule).period === periodFilter);
       const matchDate = !dateFilter || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isClosed && !slot.isFull && parseTimeSchedule(slot.timeSchedule).dateStr === dateFilter) : parseTimeSchedule(c.timeSchedule).dateStr === dateFilter);
 
-      return !c.hasEnded && !c.isClosed && !c.isFull && matchQuery && matchRule && matchPeriod && matchDate;
+      return c.kind === boardView && !c.hasEnded && !c.isClosed && !c.isFull && matchQuery && matchRule && matchPeriod && matchDate;
     });
     const seen = new Set<string>();
     return matching.filter((c) => {
@@ -239,7 +249,7 @@ export function App() {
       seen.add(key);
       return true;
     });
-  }, [enrichedCampaigns, searchQuery, ruleFilter, periodFilter, dateFilter]);
+  }, [enrichedCampaigns, boardView, searchQuery, ruleFilter, periodFilter, dateFilter]);
 
   // Derived user campaign records
   const myCampaigns = useMemo(() => {
@@ -252,8 +262,8 @@ export function App() {
     return enrichedCampaigns.filter((campaign) => campaign.isSignedUp);
   }, [enrichedCampaigns, currentUser]);
 
-  const isOnlineView = activeTab === 'board' && boardView === 'online';
-  const mainContainerMaxWidth = isOnlineView
+  const isSectionView = activeTab === 'board' && boardView !== 'portal';
+  const mainContainerMaxWidth = isSectionView
     ? 'max-w-[1760px]'
     : 'max-w-5xl';
 
@@ -283,7 +293,7 @@ export function App() {
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
             <HomePortal
-              recruitingCount={enrichedCampaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull).length}
+              recruitingCount={enrichedCampaigns.filter((c) => c.kind === 'online' && !c.hasEnded && !c.isClosed && !c.isFull).length}
               onSelectOnline={() => setBoardView('online')}
               onSelectOffline={() => setBoardView('offline')}
               onSelectPromo={() => setBoardView('promo')}
@@ -298,15 +308,8 @@ export function App() {
           </div>
         )}
 
-        {activeTab === 'board' && (boardView === 'offline' || boardView === 'promo') && (
-          <div className="bauhaus-card bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-8 sm:p-12 text-center">
-            <h2 className="text-2xl font-black mb-3">{boardView === 'offline' ? '面团' : '宣群'}</h2>
-            <p className="text-sm font-bold text-[#666666]">{boardView === 'offline' ? '同城实体面团与组局功能筹备中' : '跑团公会与同好社群宣发功能筹备中'}</p>
-          </div>
-        )}
-
         {/* VIEW 1-B: Online Sessions (点开“网团”后展示排布：卡片列表 + 右侧筛选框，宽度与原来一样) */}
-        {activeTab === 'board' && boardView === 'online' && (
+        {activeTab === 'board' && boardView !== 'portal' && (
           <div className="w-full">
             {/* 卡片展示与右侧筛选栏 (图2原返回栏已按要求彻底去除) */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -317,7 +320,7 @@ export function App() {
                   className="bauhaus-btn w-full bg-[#D62828] text-white px-4 py-3 text-sm font-black flex items-center justify-center gap-2 hover:bg-[#b52020] cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
-                  发布新团
+                  {boardView === 'online' ? '发布新团' : boardView === 'offline' ? '发布面团' : '发布宣群'}
                 </button>
                 <button
                   type="button"
@@ -338,7 +341,7 @@ export function App() {
                   </div>
                 ) : filteredCampaigns.length === 0 ? (
                   <div className="bauhaus-card p-12 text-center bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]">
-                    <p className="text-base font-bold text-[#222222]">暂无符合条件的战役</p>
+                    <p className="text-base font-bold text-[#222222]">暂无符合条件的{boardView === 'online' ? '网团' : boardView === 'offline' ? '面团' : '宣群'}</p>
                     {(searchQuery || ruleFilter !== 'all' || periodFilter !== 'all' || dateFilter) && (
                       <button
                         onClick={() => {
@@ -447,6 +450,7 @@ export function App() {
 
                   {/* Calendar: 开团时段下方增加一个日历，从当前日期往后一个月，可以按日期筛团 */}
                   <CalendarFilter
+                    maxDaysAhead={boardView === 'online' ? 30 : null}
                     selectedDate={dateFilter}
                     onSelectDate={setDateFilter}
                     activeDatesWithCampaigns={activeDatesWithCampaigns}
@@ -528,6 +532,7 @@ export function App() {
       {/* Publish Modal */}
       <PublishModal
         isOpen={isPublishOpen}
+        kind={boardView === 'portal' ? 'online' : boardView}
         onClose={() => setIsPublishOpen(false)}
         currentUser={currentUser}
         rules={rules}
