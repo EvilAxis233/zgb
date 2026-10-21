@@ -471,11 +471,17 @@ export async function onRequest(context) {
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request);
         if (c.batch_id) {
-          if (c.finished_at) return fail('已结团，不能修改', 409);
-          const allowed = c.kind === 'offline' ? ['description','presetTags','customTags','province','city'] : ['description','presetTags','customTags'];
-          if (!b || typeof b.description !== 'string' || !Array.isArray(b.presetTags) || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !allowed.includes(key))) return fail('批量团只允许修改简介、标签和地点');
-          const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, c.kind === 'offline');
-          await db.prepare('UPDATE campaigns SET description=?,preset_tags=?,custom_tags=?,province=?,city=? WHERE id=?').bind(tags.description, JSON.stringify(tags.presetTags), JSON.stringify(tags.customTags), tags.province, tags.city, cid).run();
+          if (!b || typeof b.description !== 'string' || !Array.isArray(b.presetTags) || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags'].includes(key))) return fail('批量团只允许修改简介和标签');
+          const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, false);
+          const presetTags = JSON.stringify(tags.presetTags), customTags = JSON.stringify(tags.customTags);
+          await db.batch([
+            db.prepare('UPDATE campaign_batches SET description=?,preset_tags=?,custom_tags=? WHERE id=? AND gm_qq=?').bind(tags.description, presetTags, customTags, c.batch_id, user.qq),
+            db.prepare('UPDATE campaigns SET description=?,preset_tags=?,custom_tags=? WHERE batch_id=? AND gm_qq=? AND deleted_at IS NULL').bind(tags.description, presetTags, customTags, c.batch_id, user.qq)
+          ]);
+          const nowIso = new Date().toISOString();
+          for (const tag of tags.customTags) {
+            await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, nowIso, nowIso).run();
+          }
           return json({ ok: true });
         }
         if (c.finished_at) return fail('已结团，不能修改', 409);
