@@ -5,6 +5,7 @@ import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 import { useDialog } from './BauhausDialog';
+import { locationLabel } from '../utils/location';
 
 interface Props {
   hostedCampaigns: Campaign[];
@@ -97,7 +98,7 @@ export const ManageView: React.FC<Props> = ({
                   {stateLabel(campaign)}
                 </span>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 border border-[#121212] bg-[#F0F5FA] text-[#004E98]">
-                  {campaign.kind === 'offline' ? `${campaign.province || '省份待定'} · ${campaign.city || '城市待定'}` : campaign.sessionType || '语音'}
+                  {campaign.kind === 'offline' ? locationLabel(campaign) : campaign.sessionType || '语音'}
                 </span>
               </div>
               <p className="mt-1 text-xs text-[#666]">{campaign.rule} · {formatDisplayTime(campaign.timeSchedule)}</p>
@@ -220,14 +221,12 @@ export const ManageView: React.FC<Props> = ({
             <input type="number" min={1} max={12} required className="bauhaus-input w-full px-1 py-2 text-xs" value={editingCampaign.maxPlayers} onChange={(e) => setEditingCampaign({ ...editingCampaign, maxPlayers: Number(e.target.value) })} />
           </div>
 
-          {editingCampaign.kind === 'offline' ? <>
-            <label className="block text-xs font-bold">省份<input required maxLength={4} className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.province || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, province: Array.from(e.target.value).slice(0, 4).join('') })} /></label>
-            <label className="block text-xs font-bold">城市<input required maxLength={4} className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.city || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, city: Array.from(e.target.value).slice(0, 4).join('') })} /></label>
-          </> : <>
+          {editingCampaign.kind === 'offline' ? <label className="block text-xs font-bold sm:col-span-2">省份 / 城市<input required maxLength={8} className="bauhaus-input mt-1 w-full p-2" value={`${editingCampaign.province || ''}${editingCampaign.city || ''}`} onChange={(e) => setEditingCampaign({ ...editingCampaign, province: '', city: Array.from(e.target.value).slice(0, 8).join('') })} placeholder="最多八字" /></label> : <>
             <div><label className="block text-xs font-bold mb-1">{editingCampaign.kind === 'promo' ? '宣群方式' : '游戏类型'}</label>{editingCampaign.kind === 'promo' ? <><select className="bauhaus-input w-full p-2 text-xs" value={['群扩招', '展会', '激励活动', '西征'].includes(editingCampaign.sessionType || '') ? editingCampaign.sessionType : '自填'} onChange={(e) => setEditingCampaign({ ...editingCampaign, sessionType: e.target.value === '自填' ? '' : e.target.value })}><option>群扩招</option><option>展会</option><option>激励活动</option><option>西征</option><option>自填</option></select>{!['群扩招', '展会', '激励活动', '西征'].includes(editingCampaign.sessionType || '') && <input required maxLength={40} className="bauhaus-input mt-1 w-full p-2 text-xs" value={editingCampaign.sessionType || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, sessionType: e.target.value })} placeholder="自填方式" />}</> : <select className="bauhaus-input w-full p-2 text-xs" value={editingCampaign.sessionType || '语音'} onChange={(e) => setEditingCampaign({ ...editingCampaign, sessionType: e.target.value })}><option>语音</option><option>文字</option><option>其他游戏形式</option></select>}</div>
             <div><label className="block text-xs font-bold mb-1">{editingCampaign.kind === 'promo' ? '平台' : '游戏平台'}</label>{editingCampaign.kind === 'promo' ? <input required maxLength={80} className="bauhaus-input w-full p-2 text-xs" value={editingCampaign.platforms?.[0] || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, platforms: e.target.value ? [e.target.value] : [] })} /> : <details className="relative group"><summary className="bauhaus-input w-full p-2 text-xs cursor-pointer">{editingCampaign.platforms?.length ? `已选 ${editingCampaign.platforms.length} 个` : '选择平台'}</summary><div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">{GAME_PLATFORMS.map((platform) => <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold"><input type="checkbox" checked={editingCampaign.platforms?.includes(platform) || false} onChange={() => { const current = editingCampaign.platforms || []; setEditingCampaign({ ...editingCampaign, platforms: current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform] }); }} />{platform}</label>)}</div></details>}</div>
           </>}
         </div>
+        {editingCampaign.kind === 'offline' && <label className="block text-xs font-bold">完整地址<input maxLength={200} className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.address || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, address: e.target.value })} placeholder="填写活动的详细地址" /></label>}
 
         {/* Tags row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

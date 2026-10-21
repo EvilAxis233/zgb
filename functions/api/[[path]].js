@@ -79,7 +79,7 @@ function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const province = kind === 'offline' ? clean(b.province, 40) : '';
   const city = kind === 'offline' ? clean(b.city, 40) : '';
   const address = kind === 'offline' ? clean(b.address, 200) : '';
-  if (kind === 'offline' && requireLocation && (!province || !city || Array.from(province).length > 4 || Array.from(city).length > 4)) throw new Error('请填写省份和城市，各限四个字');
+  if (kind === 'offline' && requireLocation && (!(province || city) || Array.from(province + city).length > 8)) throw new Error('请填写省份和城市，合计最多八个字');
   if (kind === 'promo' && (!sessionType || !platforms.length)) throw new Error('请填写宣群方式和平台');
   const cleanTags = (list, maxCount, maxLen) => {
     if (!Array.isArray(list)) return [];

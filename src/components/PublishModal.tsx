@@ -48,8 +48,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [rule, setRule] = useState('');
   const [sessionType, setSessionType] = useState('语音');
   const [platforms, setPlatforms] = useState<string[]>([]);
-  const [province, setProvince] = useState('');
-  const [city, setCity] = useState('');
+  const [location, setLocation] = useState('');
+  const [address, setAddress] = useState('');
   const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
   const [selectedPresetTags, setSelectedPresetTags] = useState<string[]>([]);
   const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
@@ -79,8 +79,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     if (!isOpen) return;
     setSessionType(kind === 'promo' ? '群扩招' : '语音');
     setPlatforms([]);
-    setProvince('');
-    setCity('');
+    setLocation('');
+    setAddress('');
     setTimeSlots([]);
     setTimeSchedule('');
   }, [isOpen, kind]);
@@ -144,8 +144,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       showAlert({ title: '提示', message: '请填写或选择规则系统', type: 'warning' });
       return;
     }
-    if (kind === 'offline' && (!province.trim() || !city.trim() || Array.from(province.trim()).length > 4 || Array.from(city.trim()).length > 4)) {
-      showAlert({ title: '提示', message: '请填写省份和城市，各限四个字', type: 'warning' });
+    if (kind === 'offline' && (!location.trim() || Array.from(location.trim()).length > 8)) {
+      showAlert({ title: '提示', message: '请填写省份和城市，合计最多八个字', type: 'warning' });
       return;
     }
     if (kind === 'promo' && (!sessionType.trim() || !platforms[0]?.trim())) {
@@ -155,8 +155,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
     const success = await onPublish({
       kind,
-      province: kind === 'offline' ? province.trim() : '',
-      city: kind === 'offline' ? city.trim() : '',
+      province: '',
+      city: kind === 'offline' ? location.trim() : '',
+      address: kind === 'offline' ? address.trim() : '',
       title: title.trim(),
       rule: rule.trim(),
       sessionType,
@@ -188,8 +189,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const previewCampaign: Campaign = {
     id: 'preview',
     kind,
-    province,
-    city,
+    province: '',
+    city: location,
+    address,
     title: title.trim() || '战役标题预览',
     rule: previewRule,
     sessionType,
@@ -367,10 +369,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     />
                   </div>
 
-                  {kind === 'offline' ? <>
-                    <label className="block font-bold text-[#121212]">省份<input required maxLength={4} value={province} onChange={(e) => setProvince(Array.from(e.target.value).slice(0, 4).join(''))} placeholder="最多四字" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
-                    <label className="block font-bold text-[#121212]">城市<input required maxLength={4} value={city} onChange={(e) => setCity(Array.from(e.target.value).slice(0, 4).join(''))} placeholder="最多四字" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
-                  </> : <>
+                  {kind === 'offline' ? <label className="block font-bold text-[#121212] sm:col-span-2">省份 / 城市<input required maxLength={8} value={location} onChange={(e) => setLocation(Array.from(e.target.value).slice(0, 8).join(''))} placeholder="例如：广东省深圳市（最多八字）" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label> : <>
                     <div>
                       <label className="block font-bold text-[#121212] mb-1">{kind === 'promo' ? '宣群方式' : '游戏类型'}</label>
                       {kind === 'promo' ? <>
@@ -391,6 +390,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     </div>
                   </>}
                 </div>
+                {kind === 'offline' && <label className="block font-bold text-[#121212]">完整地址<input maxLength={200} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="填写活动的详细地址" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>}
                 {kind === 'online' && platforms.length > 0 && <div className="flex flex-wrap gap-1.5">{platforms.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border border-[#004E98] text-[#004E98] text-xs font-bold">{platform}</span>)}</div>}
 
                 {/* Row 2: Tag System (Left: Preset Tags dropdown, Right: Custom Tags input with popover) */}
