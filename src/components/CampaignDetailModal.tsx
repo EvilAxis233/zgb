@@ -108,7 +108,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <div className="md:col-span-7">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="px-2.5 py-0.5 bg-[#004E98] text-white text-xs font-bold border border-[#121212]">{campaign.rule}</span>
-                {campaign.kind === 'offline' ? <><span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{campaign.city}</span><span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{campaign.address}</span></> : <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212] flex items-center gap-1">
+                {campaign.kind === 'offline' ? <><span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{campaign.province || '省份待定'}</span><span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{campaign.city || '城市待定'}</span></> : <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212] flex items-center gap-1">
                   {campaign.kind === 'promo' ? null : <>
                   {campaign.sessionType === '文字' ? (
                     <MessageSquare className="w-3.5 h-3.5" />

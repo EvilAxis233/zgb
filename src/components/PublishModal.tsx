@@ -48,8 +48,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [rule, setRule] = useState('');
   const [sessionType, setSessionType] = useState('语音');
   const [platforms, setPlatforms] = useState<string[]>([]);
+  const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
-  const [address, setAddress] = useState('');
   const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
   const [selectedPresetTags, setSelectedPresetTags] = useState<string[]>([]);
   const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
@@ -79,8 +79,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     if (!isOpen) return;
     setSessionType(kind === 'promo' ? '群扩招' : '语音');
     setPlatforms([]);
+    setProvince('');
     setCity('');
-    setAddress('');
     setTimeSlots([]);
     setTimeSchedule('');
   }, [isOpen, kind]);
@@ -144,8 +144,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       showAlert({ title: '提示', message: '请填写或选择规则系统', type: 'warning' });
       return;
     }
-    if (kind === 'offline' && (!city.trim() || !address.trim())) {
-      showAlert({ title: '提示', message: '请填写城市和详细地址', type: 'warning' });
+    if (kind === 'offline' && (!province.trim() || !city.trim() || Array.from(province.trim()).length > 4 || Array.from(city.trim()).length > 4)) {
+      showAlert({ title: '提示', message: '请填写省份和城市，各限四个字', type: 'warning' });
       return;
     }
     if (kind === 'promo' && (!sessionType.trim() || !platforms[0]?.trim())) {
@@ -155,8 +155,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
     const success = await onPublish({
       kind,
+      province: kind === 'offline' ? province.trim() : '',
       city: kind === 'offline' ? city.trim() : '',
-      address: kind === 'offline' ? address.trim() : '',
       title: title.trim(),
       rule: rule.trim(),
       sessionType,
@@ -188,8 +188,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const previewCampaign: Campaign = {
     id: 'preview',
     kind,
+    province,
     city,
-    address,
     title: title.trim() || '战役标题预览',
     rule: previewRule,
     sessionType,
@@ -368,8 +368,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </div>
 
                   {kind === 'offline' ? <>
-                    <label className="block font-bold text-[#121212]">地点标签（城市）<input required maxLength={40} value={city} onChange={(e) => setCity(e.target.value)} placeholder="自填城市名" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
-                    <label className="block font-bold text-[#121212]">详细地址<input required maxLength={200} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="自填活动地址" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
+                    <label className="block font-bold text-[#121212]">省份<input required maxLength={4} value={province} onChange={(e) => setProvince(Array.from(e.target.value).slice(0, 4).join(''))} placeholder="最多四字" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
+                    <label className="block font-bold text-[#121212]">城市<input required maxLength={4} value={city} onChange={(e) => setCity(Array.from(e.target.value).slice(0, 4).join(''))} placeholder="最多四字" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>
                   </> : <>
                     <div>
                       <label className="block font-bold text-[#121212] mb-1">{kind === 'promo' ? '宣群方式' : '游戏类型'}</label>

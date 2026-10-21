@@ -23,6 +23,7 @@ export type GamePlatform = typeof GAME_PLATFORMS[number];
 export interface Campaign {
   id: string;
   kind: CampaignKind;
+  province?: string;
   city?: string;
   address?: string;
   batchId?: string | null;
@@ -59,6 +60,7 @@ export interface Campaign {
 export interface CampaignBatchMaster {
   id: string;
   kind: CampaignKind;
+  province?: string;
   city?: string;
   address?: string;
   title: string;

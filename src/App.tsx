@@ -130,7 +130,7 @@ export function App() {
   const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
 
   // Update existing campaign
-  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, updated.batchId ? { description: updated.description, presetTags: updated.presetTags, customTags: updated.customTags } : await prepareCampaign(updated)); }, '战役信息已更新');
+  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, updated.batchId ? { description: updated.description, presetTags: updated.presetTags, customTags: updated.customTags, ...(updated.kind === 'offline' ? { province: updated.province, city: updated.city } : {}) } : await prepareCampaign(updated)); }, '战役信息已更新');
 
   // Update User Profile
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
@@ -231,6 +231,7 @@ export function App() {
         c.gmName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.rule.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.province || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.city || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.address || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.sessionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||

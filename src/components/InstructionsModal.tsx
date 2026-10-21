@@ -58,7 +58,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>发布新团</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              在对应板块点击发布按钮，可填写封面、日期时段、人数与标签。面团填写城市和详细地址；宣群填写宣群方式与平台。面团和宣群可选择任意未来日期。
+              在对应板块点击发布按钮，可填写封面、日期时段、人数与标签。面团填写省份和城市，各限四个字；宣群填写宣群方式与平台。面团和宣群可选择任意未来日期。
             </p>
           </div>
 

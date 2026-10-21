@@ -36,10 +36,10 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
-const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: parseTags(b.preset_tags), customTags: parseTags(b.custom_tags), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
+const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: parseTags(b.preset_tags), customTags: parseTags(b.custom_tags), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
 function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = new Map()) {
   const groups = new Map();
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
@@ -68,7 +68,7 @@ async function sendCode(env, qq, code) {
   const error = await response.json().catch(() => ({}));
   return { ok: false, status: response.status, reason: typeof error.name === 'string' ? error.name.slice(0, 80) : 'unknown' };
 }
-function validateCampaign(b, fixedKind = null) {
+function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const kind = fixedKind || (['online', 'offline', 'promo'].includes(b.kind) ? b.kind : 'online');
   const title = clean(b.title, 100), rule = clean(b.rule, 100), summary = clean(b.summary, 300) || '', time = clean(b.timeSchedule, 200), contact = clean(b.contact, 200);
   const players = Number(b.maxPlayers);
@@ -76,9 +76,10 @@ function validateCampaign(b, fixedKind = null) {
   if (!title || !rule || !matched || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、日期时段和 1–12 人的预计人数');
   const sessionType = kind === 'promo' ? clean(b.sessionType, 40) : kind === 'offline' ? '' : ['语音', '文字', '其他游戏形式'].includes(b.sessionType) ? b.sessionType : '语音';
   const platforms = kind === 'promo' ? (Array.isArray(b.platforms) ? b.platforms.map((item) => clean(item, 80)).filter(Boolean).slice(0, 1) : []) : kind === 'offline' ? [] : Array.isArray(b.platforms) ? [...new Set(b.platforms.filter((item) => ['Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'].includes(item)))].slice(0, 7) : [];
+  const province = kind === 'offline' ? clean(b.province, 40) : '';
   const city = kind === 'offline' ? clean(b.city, 40) : '';
   const address = kind === 'offline' ? clean(b.address, 200) : '';
-  if (kind === 'offline' && (!city || !address)) throw new Error('请填写城市和详细地址');
+  if (kind === 'offline' && requireLocation && (!province || !city || Array.from(province).length > 4 || Array.from(city).length > 4)) throw new Error('请填写省份和城市，各限四个字');
   if (kind === 'promo' && (!sessionType || !platforms.length)) throw new Error('请填写宣群方式和平台');
   const cleanTags = (list, maxCount, maxLen) => {
     if (!Array.isArray(list)) return [];
@@ -92,7 +93,7 @@ function validateCampaign(b, fixedKind = null) {
   };
   const presetTags = cleanTags(b.presetTags, 2, 20);
   const customTags = cleanTags(b.customTags, 2, 6);
-  return { kind, title, rule, sessionType, platforms, city, address, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
+  return { kind, title, rule, sessionType, platforms, province, city, address, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
 }
 function validateNewSlot(raw, unrestricted = false) {
   const time = clean(raw, 100);
@@ -403,9 +404,9 @@ export async function onRequest(context) {
       const latestDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(latest);
       if (new Set(slotKeys).size !== slots.length || slots.some((slot) => slot.scheduledDate < today || (c.kind === 'online' && slot.scheduledDate > latestDate)) || (rawSlots.length > 1 && !slotKeys.includes(`${c.scheduledDate}:${c.period}`))) return fail('所选时段无效或重复');
       const batchId = slots.length > 1 ? cid : null;
-      const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId, c.kind, c.city, c.address));
+      const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId, c.kind, c.province, c.city, c.address));
       await db.batch([
-        ...(batchId ? [db.prepare('INSERT INTO campaign_batches(id,gm_qq,title,rule,summary,description,image_key,banner_color,max_players,contact,session_type,platforms,preset_tags,custom_tags,created_at,kind,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, imageKey, c.color, c.players, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), createdAt, c.kind, c.city, c.address)] : []),
+        ...(batchId ? [db.prepare('INSERT INTO campaign_batches(id,gm_qq,title,rule,summary,description,image_key,banner_color,max_players,contact,session_type,platforms,preset_tags,custom_tags,created_at,kind,province,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, imageKey, c.color, c.players, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), createdAt, c.kind, c.province, c.city, c.address)] : []),
         ...statements,
         db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(c.rule, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
@@ -420,8 +421,8 @@ export async function onRequest(context) {
       if (!template) return fail('主团不存在', 404);
       const slot = validateNewSlot((await body(request)).timeSchedule, template.kind !== 'online');
       const cid = id(), createdAt = new Date().toISOString();
-      const result = await db.prepare(`INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,city,address)
-        SELECT ?,b.gm_qq,b.title,b.rule,b.summary,b.description,?,?,?,b.image_key,b.banner_color,b.max_players,?,b.contact,b.session_type,b.platforms,b.preset_tags,b.custom_tags,b.id,b.kind,b.city,b.address
+      const result = await db.prepare(`INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address)
+        SELECT ?,b.gm_qq,b.title,b.rule,b.summary,b.description,?,?,?,b.image_key,b.banner_color,b.max_players,?,b.contact,b.session_type,b.platforms,b.preset_tags,b.custom_tags,b.id,b.kind,b.province,b.city,b.address
         FROM campaign_batches b WHERE b.id=? AND b.gm_qq=?
         AND (SELECT COUNT(*) FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL)<96
         AND EXISTS(SELECT 1 FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL AND finished_at IS NULL)
@@ -471,9 +472,10 @@ export async function onRequest(context) {
         const b = await body(request);
         if (c.batch_id) {
           if (c.finished_at) return fail('已结团，不能修改', 409);
-          if (!b || typeof b.description !== 'string' || !Array.isArray(b.presetTags) || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags'].includes(key))) return fail('批量团只允许修改简介和标签');
-          const tags = validateCampaign({ ...campDto(c), ...b }, c.kind);
-          await db.prepare('UPDATE campaigns SET description=?,preset_tags=?,custom_tags=? WHERE id=?').bind(tags.description, JSON.stringify(tags.presetTags), JSON.stringify(tags.customTags), cid).run();
+          const allowed = c.kind === 'offline' ? ['description','presetTags','customTags','province','city'] : ['description','presetTags','customTags'];
+          if (!b || typeof b.description !== 'string' || !Array.isArray(b.presetTags) || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !allowed.includes(key))) return fail('批量团只允许修改简介、标签和地点');
+          const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, c.kind === 'offline');
+          await db.prepare('UPDATE campaigns SET description=?,preset_tags=?,custom_tags=?,province=?,city=? WHERE id=?').bind(tags.description, JSON.stringify(tags.presetTags), JSON.stringify(tags.customTags), tags.province, tags.city, cid).run();
           return json({ ok: true });
         }
         if (c.finished_at) return fail('已结团，不能修改', 409);
@@ -483,7 +485,7 @@ export async function onRequest(context) {
         const contact = data.contact || c.contact || user.qq;
         const nowIso = new Date().toISOString();
         await db.batch([
-          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,city=?,address=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.city, data.address, cid),
+          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, cid),
           db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(data.rule, nowIso)
         ]);
         for (const tag of data.customTags) {

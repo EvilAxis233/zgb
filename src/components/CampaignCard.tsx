@@ -57,7 +57,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           </div>
 
           {/* Section-specific metadata beside the rule. */}
-          {campaign.kind === 'offline' ? <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">{campaign.city || '城市待定'}</div> : <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+          {campaign.kind === 'offline' ? <><div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">{campaign.province || '省份待定'}</div><div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">{campaign.city || '城市待定'}</div></> : <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             {campaign.kind === 'promo' ? null : <>
             {campaign.sessionType === '文字' ? (
               <MessageSquare className="w-[15px] h-[15px]" />
@@ -70,7 +70,6 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             <span>{campaign.sessionType || '语音'}</span>
           </div>}
 
-          {campaign.kind === 'offline' && campaign.address && <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] min-w-0 truncate" title={campaign.address}>{campaign.address}</div>}
           {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => (
             <div key={platform} className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">
               {platform}

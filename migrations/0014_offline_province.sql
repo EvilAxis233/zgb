@@ -1,0 +1,2 @@
+ALTER TABLE campaigns ADD COLUMN province TEXT NOT NULL DEFAULT '';
+ALTER TABLE campaign_batches ADD COLUMN province TEXT NOT NULL DEFAULT '';
