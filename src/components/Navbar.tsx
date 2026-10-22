@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
+import { NameplateBadge } from './NameplateBadge';
 import {
   CalendarCheck,
   ChevronDown,
@@ -108,6 +109,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
         <span>{alreadyCheckedIn ? '已签' : '签到'}</span>
       </button>
+
+      {/* 会员自定义铭牌：点赞与名字中间 */}
+      {currentUser?.nameplate && (
+        <NameplateBadge nameplate={currentUser.nameplate} />
+      )}
 
       {/* 下拉框做到名字那里 */}
       <div className="relative" ref={dropdownRef}>

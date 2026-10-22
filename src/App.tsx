@@ -3,6 +3,7 @@ import {
   Campaign,
   CampaignDetail,
   UserProfile,
+  UserNameplate,
 } from './types';
 import { api } from './services/api';
 
@@ -177,6 +178,29 @@ export function App() {
     const { membershipExpiresAt } = await api.redeemMembership(key);
     setUsers((previous) => previous.map((item) => item.id === currentUserId ? { ...item, membershipExpiresAt } : item));
     showToast('会员兑换成功，已增加 30 天', 'success');
+  };
+
+  const handleUpdateNameplate = async (nameplate: UserNameplate | null) => {
+    setPendingActions((count) => count + 1);
+    try {
+      const { user } = await api.updateNameplate(nameplate);
+      setUsers((previous) => previous.map((item) => item.id === user.id ? user : item));
+      setCampaigns((previous) => previous.map((campaign) => campaign.gmId === user.id
+        ? { ...campaign, gmNameplate: user.nameplate }
+        : campaign));
+      setSelectedCampaign((previous) => previous ? {
+        ...previous,
+        gmNameplate: previous.gmId === user.id ? user.nameplate : previous.gmNameplate,
+        members: previous.members.map((member) => member.id === user.id ? { ...member, nameplate: user.nameplate } : member),
+      } : null);
+      showToast(nameplate ? '铭牌已佩戴' : '铭牌已卸下', 'success');
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '操作失败', 'error');
+      return false;
+    } finally {
+      setPendingActions((count) => count - 1);
+    }
   };
 
   // Send Praise
@@ -535,6 +559,7 @@ export function App() {
               onFeedback={() => openSubmission('feedback')}
               onReport={() => openSubmission('report')}
               onRedeemMembership={handleRedeemMembership}
+              onUpdateNameplate={handleUpdateNameplate}
             />
           </div>
         )}

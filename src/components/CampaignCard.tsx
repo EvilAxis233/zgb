@@ -1,6 +1,7 @@
 import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
+import { NameplateBadge } from './NameplateBadge';
 import { BookOpen, Mic, MessageSquare, ClipboardList, ThumbsUp, MapPin } from 'lucide-react';
 import { locationLabel } from '../utils/location';
 
@@ -92,9 +93,14 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             </span>
         </div>
 
-        {/* Two equal lower rows: row one is reserved for future badges/stickers. */}
+        {/* Two equal lower rows: row one is reserved for badges/stickers. */}
         <div className="grid flex-1 grid-rows-2">
-          <div aria-hidden="true" />
+          <div className="flex items-center gap-1.5 flex-wrap content-center min-h-[28px]">
+            {campaign.gmNameplate && (
+              <NameplateBadge nameplate={campaign.gmNameplate} />
+            )}
+            {/* 铭牌后面跟贴纸 (贴纸后续跟进) */}
+          </div>
           <div className="border-t border-dashed border-[#D8D5CC] pt-2">
             <div className="flex flex-wrap content-start items-start gap-2">
               {campaign.presetTags?.map((tag) => (

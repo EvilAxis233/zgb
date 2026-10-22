@@ -1,3 +1,8 @@
+export interface UserNameplate {
+  styleId: string;
+  text: string;
+}
+
 export interface UserProfile {
   id: string;
   qq: string;
@@ -14,6 +19,7 @@ export interface UserProfile {
   };
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD
   membershipExpiresAt: number | null; // Unix seconds
+  nameplate?: UserNameplate | null;
 }
 
 export type SessionType = '语音' | '文字' | '其他游戏形式';
@@ -42,6 +48,7 @@ export interface Campaign {
   gmAvatar?: string;
   gmQq?: string;
   gmPraises?: number;
+  gmNameplate?: UserNameplate | null;
   contact?: string;
   summary?: string;
   description: string;
@@ -96,6 +103,7 @@ export interface CampaignMember {
   avatar?: string;
   role: 'gm' | 'player';
   receivedPraises: number;
+  nameplate?: UserNameplate | null;
   bio?: string;
   preferences?: string[];
   taboos?: string[];

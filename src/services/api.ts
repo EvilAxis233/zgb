@@ -1,4 +1,4 @@
-import type { Campaign, CampaignDetail, UserProfile } from '../types';
+import type { Campaign, CampaignDetail, UserProfile, UserNameplate } from '../types';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/${path}`, { credentials: 'same-origin', ...options });
@@ -17,6 +17,7 @@ export const api = {
   verify: (qq: string, code: string) => post<{ user: UserProfile }>('auth/verify', { qq, code }),
   logout: () => post('auth/logout'),
   profile: (value: Partial<UserProfile>) => patch<{ user: UserProfile }>('profile', value),
+  updateNameplate: (nameplate: UserNameplate | null) => patch<{ user: UserProfile }>('profile/nameplate', { nameplate }),
   redeemMembership: (key: string) => post<{ membershipExpiresAt: number }>('membership/redeem', { key }),
   checkin: () => post<{ ok: boolean; streak: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),

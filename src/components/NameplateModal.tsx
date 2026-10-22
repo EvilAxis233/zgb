@@ -1,0 +1,326 @@
+import React, { useState, useEffect, useId } from 'react';
+import { X, Check, Sparkles } from 'lucide-react';
+import { UserNameplate } from '../types';
+import { NameplateBadge } from './NameplateBadge';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  currentNameplate?: UserNameplate | null;
+  onSave: (nameplate: UserNameplate | null) => Promise<boolean>;
+}
+
+export const NAMEPLATE_STYLES = [
+  // 静态 8 款
+  { id: 'nb-s01', code: 'S01', name: '包豪斯原典', type: 'static' as const, desc: '粗黑框与红黄撞色，新野兽派' },
+  { id: 'nb-s02', code: 'S02', name: '典雅黑金', type: 'static' as const, desc: '黑曜石哑光与双线暖金' },
+  { id: 'nb-s03', code: 'S03', name: '像素街机', type: 'static' as const, desc: '8-Bit 像素切角与复古街机' },
+  { id: 'nb-s06', code: 'S06', name: '赛博警示装甲', type: 'static' as const, desc: '工程警戒黄与机能斜切' },
+  { id: 'nb-s10', code: 'S10', name: '漫画波普', type: 'static' as const, desc: '倾斜波普黄与卡通美漫' },
+  { id: 'nb-s12', code: 'S12', name: '蒸汽波落日', type: 'static' as const, desc: '香芋紫至落日青蓝渐变' },
+  { id: 'nb-s16', code: 'S16', name: '霓虹双轨', type: 'static' as const, desc: '暗夜黑底与电光紫青双轨' },
+  { id: 'nb-s18', code: 'S18', name: '打孔票根', type: 'static' as const, desc: '复古剧场电影打孔票' },
+
+  // 动态 6 款
+  { id: 'nb-d01', code: 'D01', name: '彩虹流光', type: 'dynamic' as const, desc: 'RGB 全彩光谱无限流动边框' },
+  { id: 'nb-d02', code: 'D02', name: '赛博脉冲', type: 'dynamic' as const, desc: '电光青蓝呼吸与霓虹脉冲' },
+  { id: 'nb-d04', code: 'D04', name: '烈焰熔岩', type: 'dynamic' as const, desc: '赤红熔岩余烬呼吸发散' },
+  { id: 'nb-d09', code: 'D09', name: '雷霆电弧', type: 'dynamic' as const, desc: '等离子高压电弧闪烁震颤' },
+  { id: 'nb-d12', code: 'D12', name: '雷达扫描', type: 'dynamic' as const, desc: '战术屏幕垂直扫描光束' },
+  { id: 'nb-d16', code: 'D16', name: '潮汐涌浪', type: 'dynamic' as const, desc: '深海大洋波涛光影平移' },
+];
+
+export const validateNameplateText = (text: string) => {
+  let zh = 0;
+  let en = 0;
+  for (const ch of text) {
+    if (/[\u4e00-\u9fa5]/.test(ch)) zh++;
+    else en++;
+  }
+  const total = zh * 2 + en;
+  const isValid = total > 0 && total <= 8 && zh <= 4;
+  let label = '';
+  if (zh > 0 && en === 0) label = `${zh}/4 字`;
+  else if (zh === 0) label = `${en}/8 字母`;
+  else label = `${zh}字+${en}英`;
+
+  return { isValid, label, zh, en, total };
+};
+
+export const NameplateModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  currentNameplate,
+  onSave,
+}) => {
+  const [selectedStyle, setSelectedStyle] = useState<string>('nb-s01');
+  const [inputText, setInputText] = useState<string>('跑团狂魔');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const inputId = useId();
+
+  useEffect(() => {
+    if (isOpen) {
+      if (currentNameplate?.styleId) {
+        setSelectedStyle(currentNameplate.styleId);
+      } else {
+        setSelectedStyle('nb-s01');
+      }
+      if (currentNameplate?.text) {
+        setInputText(currentNameplate.text);
+      } else {
+        setInputText('跑团狂魔');
+      }
+      setError('');
+    }
+  }, [isOpen, currentNameplate]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleEscape);
+      return () => window.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, busy, onClose]);
+
+  if (!isOpen) return null;
+
+  const { isValid, label } = validateNameplateText(inputText.trim());
+
+  const handleEquip = async () => {
+    const cleanText = inputText.trim();
+    if (!cleanText) {
+      setError('请输入铭牌文字');
+      return;
+    }
+    if (!isValid) {
+      setError('铭牌文字上限为四个汉字或8个英文字符');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const ok = await onSave({ styleId: selectedStyle, text: cleanText });
+      if (ok) onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存失败，请稍后重试');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUnequip = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const ok = await onSave(null);
+      if (ok) onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '卸下失败，请稍后重试');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const previewNameplate: UserNameplate = {
+    styleId: selectedStyle,
+    text: inputText.trim() || '预览文字',
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nameplate-modal-title"
+        className="w-full max-w-2xl border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212] flex flex-col max-h-[90vh]"
+      >
+        {/* 弹窗头部 */}
+        <header className="flex items-center justify-between bg-[#121212] px-5 py-3.5 text-white shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-3.5 h-3.5 bg-[#F4A261] border border-white" />
+            <h2 id="nameplate-modal-title" className="font-black text-base tracking-tight">
+              会员专属 · 自定义铭牌样式库
+            </h2>
+          </div>
+          <button
+            type="button"
+            aria-label="关闭弹窗"
+            disabled={busy}
+            onClick={onClose}
+            className="cursor-pointer text-white/80 hover:text-white disabled:opacity-50 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </header>
+
+        {/* 弹窗主体 */}
+        <div className="p-5 overflow-y-auto space-y-5 bauhaus-scrollbar flex-1">
+          {/* 输入框与预设区 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label htmlFor={inputId} className="text-xs font-black text-[#121212]">
+                铭牌文字内容（限制四个汉字 / 8 个英文）
+              </label>
+              <span
+                className={`text-[11px] font-mono font-bold px-1.5 py-0.5 border border-[#121212] ${
+                  isValid ? 'bg-[#E8F5E9] text-[#2E7D32]' : 'bg-[#FFEBEE] text-[#C62828]'
+                }`}
+              >
+                {label || '0/4 字'}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                id={inputId}
+                type="text"
+                autoFocus
+                maxLength={16}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="例如：跑团狂魔"
+                className="bauhaus-input flex-1 px-3 py-2 text-sm font-black shadow-[2px_2px_0px_#121212]"
+              />
+            </div>
+
+            {/* 快速预设词 */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] font-bold text-[#777]">推荐范例：</span>
+              {['跑团狂魔', '传奇探员', 'KP守密人', '终焉魔女', '神话生物', 'ARCHON', 'VIP ★', '骰娘本娘'].map((word) => (
+                <button
+                  key={word}
+                  type="button"
+                  onClick={() => setInputText(word)}
+                  className="px-2 py-0.5 text-xs font-bold bg-[#FAF9F5] border border-[#121212] hover:bg-[#F4A261] transition-colors cursor-pointer"
+                >
+                  {word}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 实时效果预览展示板 */}
+          <div className="border-2 border-[#121212] bg-[#FAF9F5] p-3.5 shadow-[3px_3px_0px_#121212]">
+            <div className="text-[11px] font-black text-[#666] mb-2 flex items-center gap-1.5">
+              <Sparkles size={13} className="text-[#D62828]" />
+              当前选定效果实时预览（日间卡片底 vs 夜间黑底）：
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-[#121212] bg-white p-3 flex flex-col items-center justify-center gap-1.5 min-h-[64px]">
+                <span className="text-[10px] font-bold text-[#888]">日间底色</span>
+                <NameplateBadge nameplate={previewNameplate} />
+              </div>
+              <div className="border border-[#121212] bg-[#121316] p-3 flex flex-col items-center justify-center gap-1.5 min-h-[64px]">
+                <span className="text-[10px] font-bold text-[#555]">夜间底色</span>
+                <NameplateBadge nameplate={previewNameplate} />
+              </div>
+            </div>
+          </div>
+
+          {/* 14 款样式库选择区 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5">
+              <span className="text-xs font-black text-[#121212]">
+                选择铭牌款式（共 14 款精选 · 点击挑选）
+              </span>
+              <span className="text-[11px] font-bold text-[#777]">静态 8 款 · 动态 6 款</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {NAMEPLATE_STYLES.map((style) => {
+                const isSelected = selectedStyle === style.id;
+                return (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => setSelectedStyle(style.id)}
+                    className={`flex items-center justify-between p-2.5 border-2 transition-all cursor-pointer text-left ${
+                      isSelected
+                        ? 'border-[#D62828] bg-[#FFF4DA] shadow-[3px_3px_0px_#D62828] translate-x-0.5'
+                        : 'border-[#121212] bg-white hover:bg-[#FAF9F5] shadow-[2px_2px_0px_#121212]'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="font-mono text-[10px] font-bold px-1 bg-[#121212] text-white">
+                          {style.code}
+                        </span>
+                        <strong className="text-xs font-black text-[#121212]">{style.name}</strong>
+                        <span
+                          className={`text-[9px] font-bold px-1 ${
+                            style.type === 'static'
+                              ? 'bg-[#E3F2FD] text-[#0D47A1]'
+                              : 'bg-[#FCE4EC] text-[#880E4F]'
+                          }`}
+                        >
+                          {style.type === 'static' ? '静态' : '动态'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#666] truncate">{style.desc}</p>
+                    </div>
+
+                    <div className="shrink-0 flex items-center gap-2">
+                      <NameplateBadge nameplate={{ styleId: style.id, text: inputText.trim() || '样标' }} />
+                      {isSelected && (
+                        <div className="w-4 h-4 bg-[#D62828] text-white flex items-center justify-center shrink-0">
+                          <Check size={12} strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {error && (
+            <p role="alert" className="text-xs font-bold text-[#D62828] bg-[#FFF0F0] p-2 border border-[#D62828]">
+              {error}
+            </p>
+          )}
+        </div>
+
+        {/* 弹窗底部操作栏 */}
+        <footer className="p-4 bg-[#FAF9F5] border-t-2 border-[#121212] flex items-center justify-between gap-3 shrink-0">
+          <div>
+            {currentNameplate && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleUnequip}
+                className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-2 text-xs font-black hover:bg-[#FFF0F0]"
+              >
+                卸下铭牌
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+              className="bauhaus-btn bg-white px-4 py-2 text-xs font-black hover:bg-[#F0EFEA]"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={busy || !isValid}
+              onClick={handleEquip}
+              className="bauhaus-btn bg-[#D62828] text-white px-5 py-2 text-xs font-black shadow-[3px_3px_0px_#121212] hover:bg-[#b81d1d] disabled:opacity-50"
+            >
+              {busy ? '保存中…' : '保存并佩戴'}
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+};
