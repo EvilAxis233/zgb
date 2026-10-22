@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Activity, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileSliders, Flag, LayoutDashboard, LogOut, MessageSquareText, Plus, Shield, Tag, Trash2, UsersRound } from 'lucide-react';
-import { adminApi, type AdminDashboard, type AdminSubmission, type AdminUser, type GiftRecord } from '../services/api';
+import { adminApi, type AdminDashboard, type AdminSubmission, type AdminUser, type GiftRecord, type MembershipRedemption } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
 import { useDialog } from './BauhausDialog';
 
@@ -50,6 +50,7 @@ export function AdminPage() {
   const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState(''), [presetTags, setPresetTags] = useState<string[]>([]), [newPresetTag, setNewPresetTag] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]), [userTotal, setUserTotal] = useState(0), [searchInput, setSearchInput] = useState(''), [search, setSearch] = useState(''), [userOffset, setUserOffset] = useState(0);
   const [selected, setSelected] = useState<AdminUser | null>(null), [gifts, setGifts] = useState<GiftRecord[]>([]), [giftTotal, setGiftTotal] = useState(0), [giftOffset, setGiftOffset] = useState(0);
+  const [redemptions, setRedemptions] = useState<MembershipRedemption[]>([]), [redemptionTotal, setRedemptionTotal] = useState(0), [redemptionOffset, setRedemptionOffset] = useState(0);
   const [submissions, setSubmissions] = useState<AdminSubmission[]>([]), [submissionTotal, setSubmissionTotal] = useState(0), [submissionOffset, setSubmissionOffset] = useState(0), [submissionStatus, setSubmissionStatus] = useState(''), [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const submissionType = activeSection === 'report' ? 'report' : 'feedback';
@@ -64,6 +65,7 @@ export function AdminPage() {
   useEffect(() => { if (authenticated && activeSection === 'content') Promise.all([loadRules(), loadPresetTags()]).catch(message); }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset).then((data) => { setUsers(data.users); setUserTotal(data.total); }).catch(message); }, [authenticated, activeSection, search, userOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.gifts(selected.qq, giftOffset).then((data) => { setGifts(data.records); setGiftTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, giftOffset]);
+  useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.membershipRedemptions(selected.qq, redemptionOffset).then((data) => { setRedemptions(data.records); setRedemptionTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, redemptionOffset]);
   useEffect(() => { if (authenticated && (activeSection === 'feedback' || activeSection === 'report')) loadSubmissions().catch(message); }, [authenticated, activeSection, submissionStatus, submissionOffset]);
 
   const login = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setNotice(''); try { await adminApi.login(password); setPassword(''); setAuthenticated(true); setActiveSection('dashboard'); } catch (error) { message(error); } finally { setBusy(false); } };
@@ -83,7 +85,7 @@ export function AdminPage() {
     {authenticated && <><nav aria-label="后台功能" className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-6">{sections.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}</button>; })}</nav><div className="mb-5 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" /><h2 className="text-2xl font-black">{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <Dashboard data={dashboard} loading={dashboardLoading} />}
       {activeSection === 'content' && <ContentSection rules={rules} presetTags={presetTags} newRule={newRule} newPresetTag={newPresetTag} busy={busy} setNewRule={setNewRule} setNewPresetTag={setNewPresetTag} addRule={addRule} addPresetTag={addPresetTag} deleteRule={deleteRule} deletePresetTag={deletePresetTag} />}
-      {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} selected={selected} busy={busy} gifts={gifts} giftTotal={giftTotal} searchInput={searchInput} userOffset={userOffset} giftOffset={giftOffset} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGiftOffset(0); }} setUserOffset={setUserOffset} setGiftOffset={setGiftOffset} onBlacklistChange={changeBlacklist} />}
+      {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} selected={selected} busy={busy} gifts={gifts} giftTotal={giftTotal} redemptions={redemptions} redemptionTotal={redemptionTotal} redemptionOffset={redemptionOffset} searchInput={searchInput} userOffset={userOffset} giftOffset={giftOffset} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGiftOffset(0); setRedemptionOffset(0); }} setUserOffset={setUserOffset} setGiftOffset={setGiftOffset} setRedemptionOffset={setRedemptionOffset} onBlacklistChange={changeBlacklist} />}
       {(activeSection === 'feedback' || activeSection === 'report') && <SubmissionsSection kind={submissionType} submissions={submissions} total={submissionTotal} offset={submissionOffset} status={submissionStatus} busy={busy} notes={draftNotes} setStatus={(value) => { setSubmissionStatus(value); setSubmissionOffset(0); }} setOffset={setSubmissionOffset} setNote={(id, value) => setDraftNotes((current) => ({ ...current, [id]: value }))} update={updateSubmission} />}
     </>}
   </main></div>;

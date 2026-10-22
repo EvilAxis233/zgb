@@ -43,3 +43,26 @@ Pages 生产环境还需设置独立的加密 Secret `ADMIN_PASSWORD`，替换�
 发布包含游戏平台字段的版本前，先运行 `npm run db:migrate:remote` 应用 `0008_game_platforms.sql`；Pages 的 Git 自动部署不会自动执行 D1 迁移。
 
 此前用于释放 D1 配额的旧 `ssjz` 数据库已备份至本机 `backups/ssjz-2026-10-15.sql`；该目录被 Git 忽略。旧 `ssjz` Pages 项目仍存在，但原 D1 绑定已失效。
+
+## 会员密钥
+
+每个会员密钥可兑换 30 × 24 小时；从当前到期时间与兑换时间较晚者开始叠加。密钥只能全站兑换一次。会员目前只显示身份和到期时间，其他权益功能尚未接入。前台 `POST /api/membership/redeem` 接受 `{ "key": "VIP1.…" }`，后台“账号”可查看完整密钥及兑换历史。
+
+密钥格式为 `VIP1.<nonce>.<signature>`。`nonce` 是 16 字节安全随机数的无填充 Base64URL 编码；`signature` 是 Ed25519 私钥对 UTF-8 字符串 `ZGB-MEMBER|VIP1|30D|<nonce>` 的签名，以无填充 Base64URL 编码。服务器只用公钥验签，不需要预先登记生成的密钥。把此段规则交给 AI 可让其编写兼容生成程序，但生成有效密钥仍须在本机使用私钥；不要向 AI、代码仓库或他人提供私钥。
+
+首次在 **仓库之外** 建立测试与正式环境各自的密钥对（以下以正式环境为例，PowerShell）：
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\membership-keys" | Out-Null
+node scripts/membership-keys.mjs init --private "$env:USERPROFILE\membership-keys\production.pem" --public "$env:USERPROFILE\membership-keys\production-public.txt"
+```
+
+把 `production-public.txt` 的单行内容配置为 **正式 Pages 环境**的 `MEMBER_VERIFY_PUBLIC_KEY` 环境变量；测试环境另建 `staging.pem`/`staging-public.txt` 并配置测试公钥。本机首次部署已在 `wrangler.jsonc` 和 `wrangler.staging.jsonc` 分别填写公钥，私钥位于 `C:\Users\Dql\membership-keys`。公钥可公开，私钥文件仅在本机保管并做好安全备份；若私钥丢失，将无法继续生成与已配置公钥匹配的新密钥。修改公钥后重新部署 Pages。
+
+按需生成密钥，每次指定一个新的输出文件名；脚本不会覆盖文件，也不会把密钥打印到终端：
+
+```powershell
+node scripts/membership-keys.mjs generate --private "$env:USERPROFILE\membership-keys\production.pem" --out "$env:USERPROFILE\membership-keys\membership-keys-001.txt" --count 20
+```
+
+`--count` 每次支持 1–10000 个，可重复运行。未兑换的密钥没有失效日期。部署时先应用 `0018_membership_keys.sql`（测试环境使用 `wrangler.staging.jsonc`，正式环境使用 `wrangler.jsonc`），再部署新 Functions；测试与正式密钥不可互用。

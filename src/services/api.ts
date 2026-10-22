@@ -17,6 +17,7 @@ export const api = {
   verify: (qq: string, code: string) => post<{ user: UserProfile }>('auth/verify', { qq, code }),
   logout: () => post('auth/logout'),
   profile: (value: Partial<UserProfile>) => patch<{ user: UserProfile }>('profile', value),
+  redeemMembership: (key: string) => post<{ membershipExpiresAt: number }>('membership/redeem', { key }),
   checkin: () => post<{ ok: boolean; streak: number; daysUntilGmReward: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),
@@ -61,6 +62,13 @@ export interface AdminUser {
   blacklisted: number;
   blacklist_expires_at: number | null;
   blacklist_banned_at: string | null;
+  membership_expires_at: number | null;
+}
+
+export interface MembershipRedemption {
+  key_code: string;
+  redeemed_at: number;
+  expires_at: number;
 }
 
 export interface GiftRecord {
@@ -114,6 +122,7 @@ export const adminApi = {
   deletePresetTag: (name: string) => request('admin/preset-tags', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
   users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
   gifts: (qq: string, offset: number) => request<{ records: GiftRecord[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/gifts?offset=${offset}`),
+  membershipRedemptions: (qq: string, offset: number) => request<{ records: MembershipRedemption[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/membership-redemptions?offset=${offset}`),
   blacklist: (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent') => post<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { duration }),
   unblacklist: (qq: string) => request<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { method: 'DELETE' }),
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),

@@ -13,6 +13,7 @@ export interface UserProfile {
     playerHearts: number; // 玩家点赞道具 (每日签到获得)
   };
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD
+  membershipExpiresAt: number | null; // Unix seconds
 }
 
 export type SessionType = '语音' | '文字' | '其他游戏形式';

@@ -31,8 +31,8 @@ const clean = (v, max) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const nicknameLength = (value) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
 const parseTags = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 const assetUrl = (key) => key ? `/api/images/${key}` : '';
-const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '' });
-const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '' });
+const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', membershipExpiresAt: u.membership_expires_at ?? null });
+const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null });
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
@@ -107,6 +107,23 @@ function validateNewSlot(raw, unrestricted = false) {
   const latestDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(latest);
   if (actualDate !== date || date < dateHK() || (!unrestricted && date > latestDate)) throw new Error('请填写有效的开团日期和时段');
   return { time, date, period: matched[2] };
+}
+function decodeBase64Url(value) {
+  return Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4)), (character) => character.charCodeAt(0));
+}
+async function verifyMembershipKey(code, publicKeyBase64) {
+  const match = /^VIP1\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{86})$/.exec(code);
+  if (!match) return false;
+  try {
+    const nonce = decodeBase64Url(match[1]);
+    const signature = decodeBase64Url(match[2]);
+    if (nonce.length !== 16 || signature.length !== 64) return false;
+    const canonical = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    if (canonical(nonce) !== match[1] || canonical(signature) !== match[2]) return false;
+    const publicKey = Uint8Array.from(atob(publicKeyBase64), (character) => character.charCodeAt(0));
+    const key = await crypto.subtle.importKey('spki', publicKey, { name: 'Ed25519' }, false, ['verify']);
+    return crypto.subtle.verify('Ed25519', key, signature, new TextEncoder().encode(`ZGB-MEMBER|VIP1|30D|${match[1]}`));
+  } catch { return false; }
 }
 const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
 
@@ -265,7 +282,7 @@ export async function onRequest(context) {
         const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";
         const [count, users] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).bind(pattern, pattern),
-          db.prepare(`SELECT u.qq,u.name,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,` +
+          db.prepare(`SELECT u.qq,u.name,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,u.membership_expires_at,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count,` +
             `(SELECT COUNT(*) FROM submissions s WHERE s.type='report' AND s.reported_qq=u.qq) report_count,` +
@@ -306,6 +323,15 @@ export async function onRequest(context) {
           db.prepare(`SELECT p.id,p.from_qq,p.to_qq,p.type,p.created_at,fu.name from_name,tu.name to_name ` +
             `FROM praises p JOIN users fu ON fu.qq=p.from_qq JOIN users tu ON tu.qq=p.to_qq ` +
             `WHERE p.from_qq=? OR p.to_qq=? ORDER BY p.created_at DESC LIMIT 50 OFFSET ?`).bind(qq, qq, offset)
+        ]);
+        return json({ records: records.results, total: count.results[0].n });
+      }
+      if (path[1] === 'users' && path[2] && path[3] === 'membership-redemptions' && path.length === 4 && method === 'GET') {
+        const qq = path[2], offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        const [count, records] = await db.batch([
+          db.prepare('SELECT COUNT(*) n FROM membership_redemptions WHERE user_qq=?').bind(qq),
+          db.prepare('SELECT key_code,redeemed_at,expires_at FROM membership_redemptions WHERE user_qq=? ORDER BY redeemed_at DESC,key_hash DESC LIMIT 50 OFFSET ?').bind(qq, offset)
         ]);
         return json({ records: records.results, total: count.results[0].n });
       }
@@ -407,6 +433,26 @@ export async function onRequest(context) {
       return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
     if (!user) return fail('请先登录', 401);
+    if (path[0] === 'membership' && path[1] === 'redeem' && path.length === 2 && method === 'POST') {
+      if (!env.MEMBER_VERIFY_PUBLIC_KEY) return fail('会员兑换暂不可用', 503);
+      const submitted = (await body(request)).key;
+      const code = typeof submitted === 'string' ? submitted.trim() : '';
+      if (!await verifyMembershipKey(code, env.MEMBER_VERIFY_PUBLIC_KEY)) return fail('密钥无效', 400);
+      const keyHash = await sha256(code), redeemedAt = now();
+      try {
+        await db.batch([
+          db.prepare(`INSERT INTO membership_redemptions(key_hash,key_code,user_qq,redeemed_at,expires_at)
+            VALUES(?,?,?,?,MAX(COALESCE((SELECT membership_expires_at FROM users WHERE qq=?),?),?)+2592000)`)
+            .bind(keyHash, code, user.qq, redeemedAt, user.qq, redeemedAt, redeemedAt),
+          db.prepare('UPDATE users SET membership_expires_at=(SELECT expires_at FROM membership_redemptions WHERE key_hash=?) WHERE qq=?').bind(keyHash, user.qq)
+        ]);
+      } catch (error) {
+        if (await db.prepare('SELECT 1 FROM membership_redemptions WHERE key_hash=?').bind(keyHash).first()) return fail('该密钥已被使用', 409);
+        throw error;
+      }
+      const updated = await db.prepare('SELECT membership_expires_at FROM users WHERE qq=?').bind(user.qq).first();
+      return json({ membershipExpiresAt: updated.membership_expires_at });
+    }
     if (path[0] === 'submissions' && path.length === 1 && method === 'POST') {
       const form = await request.formData();
       const type = form.get('type');

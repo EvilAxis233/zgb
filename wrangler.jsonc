@@ -15,6 +15,7 @@
     { "binding": "COVERS", "bucket_name": "zgb-trpg-covers" }
   ],
   "vars": {
-    "RESEND_FROM": "诸告板 <login@mail.dhvault.top>"
+    "RESEND_FROM": "诸告板 <login@mail.dhvault.top>",
+    "MEMBER_VERIFY_PUBLIC_KEY": "MCowBQYDK2VwAyEADBkikobSbTp52yInh1vE08mL3YqotcuRymS5OXQpvBA="
   }
 }

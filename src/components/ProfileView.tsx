@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { UserProfile, Campaign } from '../types';
-import { Flame, Star, Edit3, Check, Upload } from 'lucide-react';
+import { Flame, Star, Edit3, Check, Upload, Crown } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
 import { AccountSideActions } from './AccountSideActions';
+import { MembershipModal } from './MembershipModal';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -15,6 +16,7 @@ interface ProfileViewProps {
   onOpenManage: () => void;
   onFeedback: () => void;
   onReport: () => void;
+  onRedeemMembership: (key: string) => Promise<void>;
 }
 
 const nicknameLength = (value: string) => Array.from(value).reduce(
@@ -32,11 +34,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenManage,
   onFeedback,
   onReport,
+  onRedeemMembership,
 }) => {
   const { showAlert } = useDialog();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [avatarToCrop, setAvatarToCrop] = useState<File | null>(null);
+  const [membershipOpen, setMembershipOpen] = useState(false);
+  const [membershipNow, setMembershipNow] = useState(() => Date.now());
+  const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setMembershipNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [name, setName] = useState(currentUser.name);
   const [bio, setBio] = useState(currentUser.bio);
   const [preferences, setPreferences] = useState<string[]>(currentUser.preferences || []);
@@ -107,7 +117,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
-      <AccountSideActions destination="manage" onNavigate={onOpenManage} onFeedback={onFeedback} onReport={onReport} />
+      <div className="w-full lg:w-60 xl:w-64 shrink-0 lg:sticky lg:top-20 space-y-3">
+        <AccountSideActions destination="manage" onNavigate={onOpenManage} onFeedback={onFeedback} onReport={onReport} />
+        <button type="button" onClick={() => setMembershipOpen(true)} className="bauhaus-btn w-full bg-[#FFF4DA] px-4 py-3 text-sm font-black gap-2"><Crown size={17} />{membershipActive ? '续费会员' : '升级会员'}</button>
+        {membershipActive && <p className="text-xs font-bold text-[#5C4300]">到期：{new Date(currentUser.membershipExpiresAt! * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}</p>}
+      </div>
       <div className="space-y-6 min-w-0 w-full">
       {/* Top Profile Header Card */}
       <div className="bauhaus-card p-6 bg-white">
@@ -416,6 +430,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
+      {membershipOpen && <MembershipModal active={membershipActive} onClose={() => setMembershipOpen(false)} onRedeem={onRedeemMembership} />}
       </div>
     </div>
   );

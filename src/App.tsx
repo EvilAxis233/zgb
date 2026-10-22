@@ -169,6 +169,11 @@ export function App() {
       setPendingActions((count) => count - 1);
     }
   };
+  const handleRedeemMembership = async (key: string) => {
+    const { membershipExpiresAt } = await api.redeemMembership(key);
+    setUsers((previous) => previous.map((item) => item.id === currentUserId ? { ...item, membershipExpiresAt } : item));
+    showToast('会员兑换成功，已增加 30 天', 'success');
+  };
 
   // Send Praise
   const openCampaign = async (campaign: Pick<Campaign, 'id'>) => {
@@ -525,6 +530,7 @@ export function App() {
               onOpenManage={() => setActiveTab('manage')}
               onFeedback={() => openSubmission('feedback')}
               onReport={() => openSubmission('report')}
+              onRedeemMembership={handleRedeemMembership}
             />
           </div>
         )}
