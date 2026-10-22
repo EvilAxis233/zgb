@@ -43,7 +43,7 @@ export function InstructionsModal({ isOpen, onClose }: InstructionsModalProps) {
         <button type="button" aria-current={section === 'guide' ? 'page' : undefined} onClick={() => setSection('guide')} className={`py-3 text-sm font-black flex items-center justify-center gap-2 cursor-pointer ${section === 'guide' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212]'}`}><BookOpen size={16} />普通说明</button>
         <button type="button" aria-current={section === 'member' ? 'page' : undefined} onClick={() => setSection('member')} className={`py-3 text-sm font-black flex items-center justify-center gap-2 cursor-pointer ${section === 'member' ? 'bg-[#D62828] text-white' : 'bg-white text-[#121212]'}`}><Crown size={16} />会员权益</button>
       </nav>
-      <div className="p-5 overflow-y-auto space-y-3.5 text-xs text-[#222]">
+      <div className="instructions-scrollbar p-5 overflow-y-auto space-y-3.5 text-xs text-[#222]">
         {(section === 'guide' ? guide : memberBenefits).map(([title, description]) => <section key={title} className="p-3.5 bg-[#FAF9F5] border-2 border-[#121212] shadow-[2px_2px_0px_#121212]">
           <h3 className="font-black text-sm text-[#121212] mb-1.5">{title}</h3>
           <p className="text-[#444] leading-relaxed">{description}</p>

@@ -1,4 +1,4 @@
-import { Clock, Flame, Star, UserPlus, UserRoundX, Users, X, Mic, MessageSquare, ClipboardList } from 'lucide-react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Mic, MessageSquare, ClipboardList } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -74,14 +74,20 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     const hasNextRow = playerGrid && Math.floor(index / 3) * 3 + 3 < total;
     return (
     <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasColumnDivider ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
-      <div className={`flex items-center gap-3 ${playerGrid ? '' : 'px-4 py-3'}`}>
+      <div className={`flex items-center gap-3 ${playerGrid ? '' : 'px-4 py-3 justify-center'}`}>
         <Avatar member={member} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <strong className={playerGrid ? 'text-sm break-all' : 'truncate text-sm'}>{member.name}</strong>
-            <span className={`px-1.5 py-0.5 text-[10px] font-black border border-[#121212] ${member.role === 'gm' ? 'bg-[#D62828]' : 'bg-[#004E98]'} text-white`}>{member.role === 'gm' ? 'GM' : '玩家'}</span>
+        <div className={`min-w-0 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
+          <div className={`flex items-center gap-2 ${playerGrid ? 'flex-wrap' : 'min-w-0 flex-nowrap'}`}>
+            <strong className={playerGrid ? 'text-sm break-all' : 'min-w-0 flex-1 truncate text-sm'}>{member.name}</strong>
+            <span
+              className={`inline-flex shrink-0 items-center gap-1 border border-[#121212] bg-white px-1.5 py-0.5 text-[10px] font-black ${member.role === 'gm' ? 'text-[#D62828]' : 'text-[#004E98]'}`}
+              title={`${member.role === 'gm' ? 'GM' : '玩家'}获赞 ${member.receivedPraises}`}
+              aria-label={`${member.role === 'gm' ? 'GM' : '玩家'}获赞 ${member.receivedPraises}`}
+            >
+              <ThumbsUp className="h-3 w-3 fill-current" aria-hidden="true" />
+              {member.receivedPraises}
+            </span>
           </div>
-          <span className="text-xs text-[#666]">获{member.role === 'gm' ? ' GM' : '玩家'}点赞：<strong className={member.role === 'gm' ? 'text-[#D62828]' : 'text-[#004E98]'}>{member.receivedPraises}</strong></span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {praiseButton(member)}

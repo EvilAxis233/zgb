@@ -107,3 +107,28 @@ html {
 .bauhaus-scrollbar::-webkit-scrollbar-thumb {
   background: #004E98;
 }
+
+/* Chunky Bauhaus scrollbar for the instructions dialog. */
+.instructions-scrollbar {
+  scrollbar-color: #D62828 #EAE8E0;
+  scrollbar-width: auto;
+}
+
+.instructions-scrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
+.instructions-scrollbar::-webkit-scrollbar-track {
+  background: #EAE8E0;
+  border-left: 2px solid #121212;
+}
+
+.instructions-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 42px;
+  background: #D62828;
+  border: 2px solid #121212;
+}
+
+.instructions-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #004E98;
+}
