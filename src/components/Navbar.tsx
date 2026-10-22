@@ -79,8 +79,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       onClick={handleGoHome}
       title="点击返回诸告板主入口"
     >
-      {/* 包豪斯纯粹红块 */}
-      <div className="w-8 h-8 bg-[#D62828] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] group-hover:shadow-[3px_3px_0px_#121212] transition-all shrink-0" />
+      <img
+        src="/zgb-logo.png"
+        alt=""
+        aria-hidden="true"
+        className="h-9 w-9 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
+      />
       <h1 className="text-2xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
         诸告板
       </h1>
