@@ -3,6 +3,7 @@ import { UserProfile, Campaign } from '../types';
 import { Flame, Star, Edit3, Check, Upload } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
+import { AccountSideActions } from './AccountSideActions';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -11,6 +12,9 @@ interface ProfileViewProps {
   onUpdateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   onSelectCampaign: (campaign: Campaign) => void;
   onUploadAvatar: (file: File) => void;
+  onOpenManage: () => void;
+  onFeedback: () => void;
+  onReport: () => void;
 }
 
 const nicknameLength = (value: string) => Array.from(value).reduce(
@@ -25,6 +29,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onUpdateProfile,
   onSelectCampaign,
   onUploadAvatar,
+  onOpenManage,
+  onFeedback,
+  onReport,
 }) => {
   const { showAlert } = useDialog();
   const [isEditing, setIsEditing] = useState(false);
@@ -99,7 +106,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <AccountSideActions destination="manage" onNavigate={onOpenManage} onFeedback={onFeedback} onReport={onReport} />
+      <div className="space-y-6 min-w-0 w-full">
       {/* Top Profile Header Card */}
       <div className="bauhaus-card p-6 bg-white">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-[#121212] pb-6">
@@ -314,7 +323,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {/* 红框处：GM点赞券数量 */}
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：报名团结团后获得，可在团详情给GM点赞"
+                title="GM点赞券：连续签到每满七天获得一枚，可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
                 <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
@@ -407,6 +416,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
+      </div>
     </div>
   );
 };

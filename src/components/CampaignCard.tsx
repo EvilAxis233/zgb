@@ -1,7 +1,7 @@
 import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
-import { User, BookOpen, Mic, MessageSquare, ClipboardList, ThumbsUp, MapPin } from 'lucide-react';
+import { BookOpen, Mic, MessageSquare, ClipboardList, ThumbsUp, MapPin } from 'lucide-react';
 import { locationLabel } from '../utils/location';
 
 interface CampaignCardProps {
@@ -84,8 +84,8 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       <div className="p-3.5 pt-8 flex-1 flex flex-col">
         <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
-            <User className="h-5 w-5 shrink-0 text-[#D62828]" />
-            <span className="truncate">{campaign.kind === 'promo' ? '发布者' : '主持'}: {campaign.gmName}</span>
+            <span className="h-7 w-7 shrink-0 overflow-hidden border-2 border-[#121212] bg-[#D62828] text-white flex items-center justify-center text-sm" aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="w-full h-full object-cover" /> : campaign.gmName.charAt(0)}</span>
+            <span className="truncate">GM: {campaign.gmName}</span>
           </div>
             <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
               <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}

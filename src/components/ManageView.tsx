@@ -6,6 +6,7 @@ import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
+import { AccountSideActions } from './AccountSideActions';
 
 interface Props {
   hostedCampaigns: Campaign[];
@@ -20,6 +21,9 @@ interface Props {
   onCancelSignup: (id: string) => void;
   onSelectCampaign: (campaign: Campaign) => void;
   onUpdateCampaign: (campaign: Campaign) => Promise<boolean>;
+  onOpenProfile: () => void;
+  onFeedback: () => void;
+  onReport: () => void;
 }
 
 const stateLabel = (campaign: Campaign) => campaign.hasEnded ? '已结团' : campaign.hasExpired ? '已到期锁车' : campaign.isClosed ? '已锁车' : campaign.isFull ? '已满员' : '招募中';
@@ -37,6 +41,9 @@ export const ManageView: React.FC<Props> = ({
   onCancelSignup,
   onSelectCampaign,
   onUpdateCampaign,
+  onOpenProfile,
+  onFeedback,
+  onReport,
 }) => {
   const { showConfirm } = useDialog();
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
@@ -165,7 +172,9 @@ export const ManageView: React.FC<Props> = ({
     if (await onUpdateCampaign(editingCampaign)) setEditingCampaign(null);
   };
 
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+  return <div className="flex flex-col lg:flex-row gap-6 items-start">
+    <AccountSideActions destination="profile" onNavigate={onOpenProfile} onFeedback={onFeedback} onReport={onReport} />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start min-w-0 w-full">
     <section className="bauhaus-card bg-[#FAF0F0] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />我发布的内容 ({visibleHostedGroups.length})</h2>{hostedList}</section>
     <section className="bauhaus-card bg-[#F0F5FA] p-5"><h2 className="text-lg font-black border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-3 h-3 bg-[#004E98]" />我报名的团 ({joinedCampaigns.length})</h2>{joinedList}</section>
 
@@ -300,5 +309,6 @@ export const ManageView: React.FC<Props> = ({
         </>}
       </form>
     </div>}
+    </div>
   </div>;
 };

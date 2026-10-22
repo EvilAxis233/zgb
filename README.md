@@ -14,9 +14,9 @@
 
 主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`campaigns/:id/finish`、`profile`、`profile/avatar`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回未锁车、未结团且未满员的团；其余团仅对 GM 和已报名玩家保留。弃团会删除该团、成员记录和团内点赞。
 
-`migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。只有主持手动结团后，该团才进入成员个人档案，报名玩家在首次登录请求中幂等获得 1 枚 GM 点赞；每日签到按香港日期获得玩家点赞。团内点赞必须绑定已结团的团，且只能由该团成员发出。预定日期过后自动锁车；修改单团时间到未来后，主持可手动重新开放。站点清空浏览器数据不影响这些服务器记录。
+`migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。只有主持手动结团后，该团才进入成员个人档案；每日签到按香港日期获得玩家点赞券，连续签到每满七天获得 1 枚 GM 点赞券。团内点赞必须绑定已结团的团，且只能由该团成员发出。举报须指定站内昵称或 QQ 号，后台按被举报账号统计次数；黑名单支持限时或永久生效，生效期间禁止报名，手动移出后再次加入会重新计时。预定日期过后自动锁车；修改单团时间到未来后，主持可手动重新开放。站点清空浏览器数据不影响这些服务器记录。
 
-批量发布时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供板块列表合并展示和详情切换。`kind` 区分网团、面团和宣群；旧记录默认网团。三个板块分别展示，均进入同一机器人广播队列，事件包含 `kind`。面团使用一个输入框填写省份和城市，合计最多八个字；完整地址另填，并在卡片标签下方展示。旧面团分开保存的省份和城市仍会合并展示。宣群使用自填平台及预设或自填方式。宣群无结团操作，锁车后从板块隐藏。网团发布日历仍限 31 天，面团和宣群可选择任意未来日期。报名、成员、点赞、锁车、结团与弃团按单条记录处理；批量团的简介和标签统一修改，一个批次只写入一条广播事件。部署前须应用 `0009_campaign_batches.sql`、`0010_campaign_closure.sql`、`0012_campaign_completion.sql`、`0013_campaign_sections.sql`、`0014_offline_province.sql` 和 `0015_feedback_reports.sql`。
+批量发布时，每个日期与时段分别创建独立的 `campaigns` 记录，使用 `batch_id` 供板块列表合并展示和详情切换。`kind` 区分网团、面团和宣群；旧记录默认网团。三个板块分别展示，均进入同一机器人广播队列，事件包含 `kind`。面团使用一个输入框填写省份和城市，合计最多八个字；完整地址另填，并在卡片标签下方展示。旧面团分开保存的省份和城市仍会合并展示。宣群使用自填平台及预设或自填方式。宣群无结团操作，锁车后从板块隐藏。网团发布日历仍限 31 天，面团和宣群可选择任意未来日期。报名、成员、点赞、锁车、结团与弃团按单条记录处理；批量团的简介和标签统一修改，一个批次只写入一条广播事件。部署前须应用 `0009_campaign_batches.sql`、`0010_campaign_closure.sql`、`0012_campaign_completion.sql`、`0013_campaign_sections.sql`、`0014_offline_province.sql`、`0015_feedback_reports.sql`、`0016_checkin_streak.sql` 和 `0017_reports_blacklist.sql`。
 
 团务管理将批量团折叠成一个主团；主团保存通用信息，新增时间点从该信息复制。主团的“修改”可同步所有时段的简介和标签，并更新之后新增时段的模板；各时段仍可单独锁车、结团或弃团。主团在团务管理中保持可见；个人档案仅逐团记录已结团的时段。已有批量团通过 `0011_campaign_batch_templates.sql` 补建主团信息，部署新版 Functions 前需先应用此迁移。
 

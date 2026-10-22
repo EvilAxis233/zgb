@@ -100,7 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         title={
           alreadyCheckedIn
             ? '今日已完成签到'
-            : '点击签到获取 1 枚玩家点赞券'
+            : '点击签到获取 1 枚玩家点赞券，连续签到七天可获得 1 枚 GM 点赞券'
         }
       >
         <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />

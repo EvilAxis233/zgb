@@ -1,7 +1,7 @@
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 const fail = (message, status = 400) => json({ error: message }, status);
 const now = () => Math.floor(Date.now() / 1000);
-const dateHK = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const dateHK = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 const id = () => crypto.randomUUID();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function sha256(value) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))); }
@@ -36,7 +36,7 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
 const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: parseTags(b.preset_tags), customTags: parseTags(b.custom_tags), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
@@ -109,18 +109,6 @@ function validateNewSlot(raw, unrestricted = false) {
   return { time, date, period: matched[2] };
 }
 const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
-
-async function settleRewards(db, qq) {
-  const eligible = await db.prepare(`SELECT m.campaign_id FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=? AND m.gm_rewarded_at IS NULL AND c.deleted_at IS NULL AND c.kind!='promo' AND c.finished_at IS NOT NULL`).bind(qq).all();
-  if (!eligible.results.length) return;
-  const grantedAt = new Date().toISOString();
-  const statements = [];
-  for (const row of eligible.results) {
-    statements.push(db.prepare('UPDATE campaign_memberships SET gm_rewarded_at=? WHERE campaign_id=? AND user_qq=? AND gm_rewarded_at IS NULL').bind(grantedAt, row.campaign_id, qq));
-    statements.push(db.prepare('UPDATE users SET gm_hearts=gm_hearts+1 WHERE qq=? AND changes()=1').bind(qq));
-  }
-  await db.batch(statements);
-}
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -274,15 +262,41 @@ export async function onRequest(context) {
         const search = clean(url.searchParams.get('search'), 40);
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
         const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
-        const where = "WHERE qq LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\'";
+        const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";
         const [count, users] = await db.batch([
-          db.prepare(`SELECT COUNT(*) n FROM users ${where}`).bind(pattern, pattern),
-          db.prepare(`SELECT qq,name,created_at,gm_hearts,player_hearts,received_gm,received_player,` +
+          db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).bind(pattern, pattern),
+          db.prepare(`SELECT u.qq,u.name,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
-            `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count ` +
-            `FROM users u ${where} ORDER BY created_at DESC LIMIT 50 OFFSET ?`).bind(pattern, pattern, offset)
+            `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count,` +
+            `(SELECT COUNT(*) FROM submissions s WHERE s.type='report' AND s.reported_qq=u.qq) report_count,` +
+            `b.expires_at blacklist_expires_at,b.banned_at blacklist_banned_at,` +
+            `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
+            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY u.created_at DESC LIMIT 50 OFFSET ?`).bind(now(), pattern, pattern, offset)
         ]);
         return json({ users: users.results, total: count.results[0].n });
+      }
+      if (path[1] === 'users' && path[2] && path[3] === 'blacklist' && path.length === 4) {
+        const qq = path[2];
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        if (method === 'POST') {
+          const duration = (await body(request)).duration;
+          if (!['7d', '30d', '6m', '1y', 'permanent'].includes(duration)) return fail('黑名单期限无效');
+          const target = await db.prepare('SELECT 1 FROM users WHERE qq=?').bind(qq).first();
+          if (!target) return fail('账号不存在', 404);
+          const until = new Date();
+          if (duration === '7d') until.setUTCDate(until.getUTCDate() + 7);
+          if (duration === '30d') until.setUTCDate(until.getUTCDate() + 30);
+          if (duration === '6m') until.setUTCMonth(until.getUTCMonth() + 6);
+          if (duration === '1y') until.setUTCFullYear(until.getUTCFullYear() + 1);
+          await db.prepare(`INSERT INTO user_blacklist(qq,banned_at,expires_at,lifted_at) VALUES(?,?,?,NULL)
+            ON CONFLICT(qq) DO UPDATE SET banned_at=excluded.banned_at,expires_at=excluded.expires_at,lifted_at=NULL`)
+            .bind(qq, new Date().toISOString(), duration === 'permanent' ? null : Math.floor(until.getTime() / 1000)).run();
+          return json({ ok: true });
+        }
+        if (method === 'DELETE') {
+          const result = await db.prepare('UPDATE user_blacklist SET lifted_at=? WHERE qq=? AND lifted_at IS NULL').bind(new Date().toISOString(), qq).run();
+          return result.meta.changes ? json({ ok: true }) : fail('该账号不在黑名单中', 409);
+        }
       }
       if (path[1] === 'users' && path[2] && path[3] === 'gifts' && method === 'GET') {
         const qq = path[2], offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
@@ -302,7 +316,7 @@ export async function onRequest(context) {
         const where = `WHERE (?='' OR s.type=?) AND (?='' OR s.status=?)`;
         const [count, rows] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM submissions s ${where}`).bind(type, type, status, status),
-          db.prepare(`SELECT s.*,u.name user_name FROM submissions s JOIN users u ON u.qq=s.user_qq ${where} ORDER BY CASE s.status WHEN 'pending' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END,s.created_at DESC LIMIT 30 OFFSET ?`).bind(type, type, status, status, offset)
+          db.prepare(`SELECT s.*,u.name user_name,r.name reported_name FROM submissions s JOIN users u ON u.qq=s.user_qq LEFT JOIN users r ON r.qq=s.reported_qq ${where} ORDER BY CASE s.status WHEN 'pending' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END,s.created_at DESC LIMIT 30 OFFSET ?`).bind(type, type, status, status, offset)
         ]);
         const items = await Promise.all(rows.results.map(async (item) => {
           const images = await db.prepare('SELECT image_key FROM submission_images WHERE submission_id=? ORDER BY sort_order,id').bind(item.id).all();
@@ -397,11 +411,16 @@ export async function onRequest(context) {
       const form = await request.formData();
       const type = form.get('type');
       const content = clean(form.get('content'), 5000);
+      const reportedInput = clean(form.get('reportedUser'), 40);
       const files = form.getAll('images').filter((value) => value instanceof File && value.size > 0);
       if (!['feedback','report'].includes(type)) return fail('提交类型无效');
       if (!content) return fail(type === 'report' ? '请填写举报说明' : '请填写反馈内容');
       if (files.length > 9) return fail('最多上传 9 张图片');
       if (type === 'report' && files.length < 1) return fail('举报至少需要上传 1 张图片');
+      if (type === 'report' && !reportedInput) return fail('请填写被举报人的昵称或 QQ 号');
+      const reported = type === 'report' ? await db.prepare('SELECT qq FROM users WHERE qq=? OR name=? COLLATE NOCASE ORDER BY CASE WHEN qq=? THEN 0 ELSE 1 END LIMIT 1').bind(reportedInput, reportedInput, reportedInput).first() : null;
+      if (type === 'report' && !reported) return fail('被举报账号不存在，请核对昵称或 QQ 号');
+      if (reported?.qq === user.qq) return fail('不能举报自己');
       if (files.some((file) => !['image/png','image/jpeg','image/gif','image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) return fail('图片仅支持 PNG、JPG、GIF、WebP，且每张不超过 5MB');
       if (files.length && !env.COVERS) return fail('图片存储未配置', 503);
       const submissionId = id(), createdAt = new Date().toISOString(), uploaded = [];
@@ -414,7 +433,7 @@ export async function onRequest(context) {
           uploaded.push(key);
         }
         await db.batch([
-          db.prepare('INSERT INTO submissions(id,user_qq,type,content,status,admin_note,created_at,updated_at) VALUES(?,?,?,?,\'pending\',\'\',?,?)').bind(submissionId, user.qq, type, content, createdAt, createdAt),
+          db.prepare('INSERT INTO submissions(id,user_qq,reported_qq,type,content,status,admin_note,created_at,updated_at) VALUES(?,?,?,?,?,\'pending\',\'\',?,?)').bind(submissionId, user.qq, reported?.qq || null, type, content, createdAt, createdAt),
           ...uploaded.map((key, index) => db.prepare('INSERT INTO submission_images(id,submission_id,image_key,sort_order,created_at) VALUES(?,?,?,?,?)').bind(id(), submissionId, key, index, createdAt))
         ]);
       } catch (error) {
@@ -424,8 +443,6 @@ export async function onRequest(context) {
       return json({ id: submissionId }, 201);
     }
     if (path[0] === 'bootstrap' && method === 'GET') {
-      await settleRewards(db, user.qq);
-      user = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       const [cs, memberships, hosts, rules, presetTags, popularCustomTags] = await db.batch([
         db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`),
         db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=?').bind(user.qq),
@@ -463,11 +480,19 @@ export async function onRequest(context) {
     }
     if (path[0] === 'checkin' && method === 'POST') {
       const today = dateHK();
-      const result = await db.prepare('UPDATE users SET last_checkin=?,player_hearts=player_hearts+1 WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)').bind(today, user.qq, today).run();
-      return result.meta.changes ? json({ ok: true }) : fail('今日已签到');
+      const yesterday = dateHK(new Date(Date.now() - 86400000));
+      const result = await db.prepare(`UPDATE users SET
+        gm_hearts=gm_hearts+CASE WHEN last_checkin=? AND (checkin_streak+1)%7=0 THEN 1 ELSE 0 END,
+        checkin_streak=CASE WHEN last_checkin=? THEN checkin_streak+1 ELSE 1 END,
+        last_checkin=?,player_hearts=player_hearts+1
+        WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)
+        RETURNING checkin_streak`).bind(yesterday, yesterday, today, user.qq, today).first();
+      if (!result) return fail('今日已签到');
+      const streak = result.checkin_streak;
+      const gmAwarded = streak % 7 === 0;
+      return json({ ok: true, streak, daysUntilGmReward: gmAwarded ? 0 : 7 - streak % 7, gmAwarded });
     }
     if (path[0] === 'praise' && method === 'POST') {
-      await settleRewards(db, user.qq);
       const b = await body(request), target = String(b.toUserId || ''), type = b.type, campaignId = String(b.campaignId || '');
       if (!['gm','player'].includes(type) || !qqValid(target) || target === user.qq || !/^[0-9a-f-]{36}$/.test(campaignId)) return fail('点赞对象无效');
       const c = await db.prepare('SELECT * FROM campaigns WHERE id=? AND deleted_at IS NULL').bind(campaignId).first();
@@ -538,10 +563,13 @@ export async function onRequest(context) {
       if (!c) return fail('团不存在', 404);
       if (path[2] === 'signup' && path.length === 3 && method === 'POST') {
         if (c.gm_qq === user.qq) return fail('主持人不能报名自己的团');
+        const blacklisted = await db.prepare('SELECT 1 FROM user_blacklist WHERE qq=? AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at>?)').bind(user.qq, now()).first();
+        if (blacklisted) return fail('当前账号在黑名单中，暂时无法报名', 403);
         if (c.finished_at || c.closed_at || campaignExpired(c)) return fail('该团报名已经结束');
         const result = await db.prepare(`INSERT INTO campaign_memberships(campaign_id,user_qq,joined_at)
           SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?)
-          AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players, cid, dateHK()).run();
+          AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)
+          AND NOT EXISTS(SELECT 1 FROM user_blacklist WHERE qq=? AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at>?))`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players, cid, dateHK(), user.qq, now()).run();
         return result.meta.changes ? json({ ok: true }, 201) : fail('你已经报名或该团已满员', 409);
       }
       if (path[2] === 'signup' && path.length === 3 && method === 'DELETE') {

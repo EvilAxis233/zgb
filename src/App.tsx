@@ -109,7 +109,19 @@ export function App() {
     catch (error) { showToast(error instanceof Error ? error.message : '操作失败', 'error'); return false; }
     finally { setPendingActions((count) => count - 1); }
   };
-  const handleDailyCheckIn = () => currentUser ? run(() => api.checkin(), '签到成功，获得 1 枚玩家点赞') : setIsLoginOpen(true);
+  const handleDailyCheckIn = async () => {
+    if (!currentUser) { setIsLoginOpen(true); return; }
+    setPendingActions((count) => count + 1);
+    try {
+      const result = await api.checkin();
+      await refresh();
+      showToast(`当前已连续签到${result.streak}天，距离获取GM点赞券还有${result.daysUntilGmReward}天。${result.gmAwarded ? '已获得1枚GM点赞券！' : ''}`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '签到失败', 'error');
+    } finally {
+      setPendingActions((count) => count - 1);
+    }
+  };
 
   // Publish New Campaign
   const prepareCampaign = async (data: Campaign | Omit<Campaign, 'id' | 'createdAt'>) => {
@@ -178,10 +190,10 @@ export function App() {
   const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
   const handleUploadAvatar = (file: File) => run(() => api.uploadAvatar(file), '头像已更新');
   const openSubmission = (type: 'feedback' | 'report') => currentUser ? setSubmissionType(type) : setIsLoginOpen(true);
-  const handleSubmit = async (type: 'feedback' | 'report', content: string, images: File[]) => {
+  const handleSubmit = async (type: 'feedback' | 'report', content: string, images: File[], reportedUser: string) => {
     setPendingActions((count) => count + 1);
     try {
-      await api.submitFeedback(type, content, images);
+      await api.submitFeedback(type, content, images, reportedUser);
       showToast(type === 'report' ? '举报已提交，管理员会尽快受理' : '感谢反馈，我们已经收到', 'success');
       return true;
     } catch (error) {
@@ -510,6 +522,9 @@ export function App() {
               onUpdateProfile={handleUpdateProfile}
               onSelectCampaign={openCampaign}
               onUploadAvatar={handleUploadAvatar}
+              onOpenManage={() => setActiveTab('manage')}
+              onFeedback={() => openSubmission('feedback')}
+              onReport={() => openSubmission('report')}
             />
           </div>
         )}
@@ -531,6 +546,9 @@ export function App() {
               onCancelSignup={handleCancelSignup}
               onSelectCampaign={openCampaign}
               onUpdateCampaign={handleUpdateCampaign}
+              onOpenProfile={() => setActiveTab('profile')}
+              onFeedback={() => openSubmission('feedback')}
+              onReport={() => openSubmission('report')}
             />
           </div>
         )}

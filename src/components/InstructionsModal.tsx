@@ -80,7 +80,7 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({
               <span>参团与点赞券</span>
             </div>
             <p className="text-[#444444] leading-relaxed">
-              玩家报名的团由主持结团后可获得「GM点赞券」；每日登录点击右上角「签到」可领取「玩家点赞券」。结团后可从个人档案进入团详情，为同团 GM 或玩家点赞。
+              每日登录点击右上角「签到」可领取「玩家点赞券」，连续签到每满七天可获得一枚「GM点赞券」。结团后可从个人档案进入团详情，为同团 GM 或玩家点赞。
             </p>
           </div>
         </div>

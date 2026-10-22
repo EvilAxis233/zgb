@@ -17,7 +17,7 @@ export const api = {
   verify: (qq: string, code: string) => post<{ user: UserProfile }>('auth/verify', { qq, code }),
   logout: () => post('auth/logout'),
   profile: (value: Partial<UserProfile>) => patch<{ user: UserProfile }>('profile', value),
-  checkin: () => post('checkin'),
+  checkin: () => post<{ ok: boolean; streak: number; daysUntilGmReward: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),
   signup: (id: string) => post(`campaigns/${id}/signup`),
@@ -37,10 +37,11 @@ export const api = {
     const form = new FormData(); form.append('file', file);
     return request<{ imageKey: string; imageUrl: string }>('upload', { method: 'POST', body: form });
   },
-  submitFeedback: async (type: 'feedback' | 'report', content: string, images: File[]) => {
+  submitFeedback: async (type: 'feedback' | 'report', content: string, images: File[], reportedUser = '') => {
     const form = new FormData();
     form.append('type', type);
     form.append('content', content);
+    if (type === 'report') form.append('reportedUser', reportedUser);
     images.forEach((file) => form.append('images', file));
     return request<{ id: string }>('submissions', { method: 'POST', body: form });
   },
@@ -56,6 +57,10 @@ export interface AdminUser {
   received_player: number;
   sent_count: number;
   received_count: number;
+  report_count: number;
+  blacklisted: number;
+  blacklist_expires_at: number | null;
+  blacklist_banned_at: string | null;
 }
 
 export interface GiftRecord {
@@ -84,6 +89,8 @@ export interface AdminSubmission {
   id: string;
   user_qq: string;
   user_name: string;
+  reported_qq: string | null;
+  reported_name: string | null;
   type: 'feedback' | 'report';
   content: string;
   status: 'pending' | 'processing' | 'resolved' | 'rejected';
@@ -107,6 +114,8 @@ export const adminApi = {
   deletePresetTag: (name: string) => request('admin/preset-tags', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
   users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
   gifts: (qq: string, offset: number) => request<{ records: GiftRecord[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/gifts?offset=${offset}`),
+  blacklist: (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent') => post<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { duration }),
+  unblacklist: (qq: string) => request<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { method: 'DELETE' }),
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),
   updateSubmission: (id: string, status: AdminSubmission['status'], adminNote: string) => patch(`admin/submissions/${id}`, { status, adminNote }),
 };
