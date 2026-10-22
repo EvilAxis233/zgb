@@ -86,20 +86,24 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
             <span className="h-7 w-7 shrink-0 overflow-hidden border-2 border-[#121212] bg-[#D62828] text-white flex items-center justify-center text-sm" aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="w-full h-full object-cover" /> : campaign.gmName.charAt(0)}</span>
-            <span className="truncate">GM: {campaign.gmName}</span>
+            {campaign.gmNameplate ? (
+              <NameplateBadge nameplate={campaign.gmNameplate} />
+            ) : (
+              <span className="truncate">GM: {campaign.gmName}</span>
+            )}
           </div>
             <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
               <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
             </span>
         </div>
 
-        {/* Two equal lower rows: row one is reserved for badges/stickers. */}
+        {/* Two equal lower rows: row one is reserved for the GM label or future stickers. */}
         <div className="grid flex-1 grid-rows-2">
-          <div className="flex items-center gap-1.5 flex-wrap content-center min-h-[28px]">
+          <div className="flex min-h-[28px] min-w-0 items-center gap-1.5">
             {campaign.gmNameplate && (
-              <NameplateBadge nameplate={campaign.gmNameplate} />
+              <span className="truncate text-base font-black text-[#121212]">GM: {campaign.gmName}</span>
             )}
-            {/* 铭牌后面跟贴纸 (贴纸后续跟进) */}
+            {/* GM 名称后面跟贴纸 (贴纸后续跟进) */}
           </div>
           <div className="border-t border-dashed border-[#D8D5CC] pt-2">
             <div className="flex flex-wrap content-start items-start gap-2">
