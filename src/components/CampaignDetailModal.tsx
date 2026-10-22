@@ -80,7 +80,6 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         <div className={`min-w-0 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
           <div className={`flex items-center gap-2 ${playerGrid ? 'flex-wrap' : 'min-w-0 flex-nowrap'}`}>
             <strong className={playerGrid ? 'text-sm break-all' : 'min-w-0 flex-1 truncate text-sm'}>{member.name}</strong>
-            {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
             <span
               className={`inline-flex shrink-0 items-center gap-1 border border-[#121212] bg-white px-1.5 py-0.5 text-[10px] font-black ${member.role === 'gm' ? 'text-[#D62828]' : 'text-[#004E98]'}`}
               title={`${member.role === 'gm' ? 'GM' : '玩家'}获赞 ${member.receivedPraises}`}
@@ -90,6 +89,11 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               {member.receivedPraises}
             </span>
           </div>
+          {member.nameplate && (
+            <div className="mt-1.5 flex">
+              <NameplateBadge nameplate={member.nameplate} />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {praiseButton(member)}
