@@ -527,16 +527,24 @@ export async function onRequest(context) {
     if (path[0] === 'checkin' && method === 'POST') {
       const today = dateHK();
       const yesterday = dateHK(new Date(Date.now() - 86400000));
+      const checkedAt = now();
       const result = await db.prepare(`UPDATE users SET
-        gm_hearts=gm_hearts+CASE WHEN last_checkin=? AND (checkin_streak+1)%7=0 THEN 1 ELSE 0 END,
+        gm_hearts=gm_hearts+CASE
+          WHEN membership_expires_at>? THEN CASE WHEN (member_checkin_count+1)%7=0 THEN 2 ELSE 0 END
+          WHEN last_checkin=? AND (checkin_streak+1)%7=0 THEN 1 ELSE 0 END,
+        member_checkin_count=member_checkin_count+CASE WHEN membership_expires_at>? THEN 1 ELSE 0 END,
         checkin_streak=CASE WHEN last_checkin=? THEN checkin_streak+1 ELSE 1 END,
         last_checkin=?,player_hearts=player_hearts+1
         WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)
-        RETURNING checkin_streak`).bind(yesterday, yesterday, today, user.qq, today).first();
+        RETURNING checkin_streak,member_checkin_count,membership_expires_at`).bind(checkedAt, yesterday, checkedAt, yesterday, today, user.qq, today).first();
       if (!result) return fail('今日已签到');
       const streak = result.checkin_streak;
-      const gmAwarded = streak % 7 === 0;
-      return json({ ok: true, streak, daysUntilGmReward: gmAwarded ? 0 : 7 - streak % 7, gmAwarded });
+      const isMember = result.membership_expires_at > checkedAt;
+      const progress = isMember ? result.member_checkin_count : streak;
+      const gmHeartsAwarded = progress % 7 === 0 ? (isMember ? 2 : 1) : 0;
+      return json({ ok: true, streak, memberCheckinCount: result.member_checkin_count, isMember,
+        daysUntilGmReward: gmHeartsAwarded ? 0 : 7 - progress % 7,
+        gmHeartsAwarded, gmAwarded: gmHeartsAwarded > 0 });
     }
     if (path[0] === 'praise' && method === 'POST') {
       const b = await body(request), target = String(b.toUserId || ''), type = b.type, campaignId = String(b.campaignId || '');

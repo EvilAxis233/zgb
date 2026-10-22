@@ -337,7 +337,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {/* 红框处：GM点赞券数量 */}
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：连续签到每满七天获得一枚，可在团详情给GM点赞"
+                title="GM点赞券：普通用户连续签到每满七天得1张；会员累计签到每满七次得2张，可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
                 <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>

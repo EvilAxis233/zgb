@@ -41,9 +41,9 @@ export function MembershipModal({ active, onClose, onRedeem }: Props) {
         <div className="border-2 border-[#004E98] bg-[#EAF3FB] p-4 text-sm">
           <h3 className="mb-2 font-black text-[#004E98]">会员权益</h3>
           <ul className="list-disc space-y-1 pl-5 text-[#333]">
-            <li>开通会员身份，有效期 30 天。</li>
-            <li>使用不同密钥可续费，时长自动叠加。</li>
-            <li>更多会员功能将陆续开放。</li>
+            <li>累计签到每满 7 次得 2 张 GM 点赞券，中断不清零；每天仍得 1 张玩家点赞券。</li>
+            <li>自定义展示铭牌、新团公告贴纸即将推出。</li>
+            <li>每个密钥增加 30 天；可用不同密钥叠加续费。</li>
           </ul>
         </div>
         <form onSubmit={submit} className="space-y-3">

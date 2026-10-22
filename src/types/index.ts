@@ -9,7 +9,7 @@ export interface UserProfile {
   receivedGmPraises: number;     // 收到GM赞 (来自参团者)
   receivedPlayerPraises: number; // 收到玩家赞 (来自日常伙伴)
   inventory: {
-    gmHearts: number;     // GM点赞道具 (连续签到每满七天获得)
+    gmHearts: number;     // GM点赞道具（普通用户连续七天；会员累计七次）
     playerHearts: number; // 玩家点赞道具 (每日签到获得)
   };
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD

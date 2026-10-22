@@ -115,7 +115,11 @@ export function App() {
     try {
       const result = await api.checkin();
       await refresh();
-      showToast(`当前已连续签到${result.streak}天，距离获取GM点赞券还有${result.daysUntilGmReward}天。${result.gmAwarded ? '已获得1枚GM点赞券！' : ''}`, 'success');
+      const progress = result.isMember ? `会员累计签到${result.memberCheckinCount}次` : `连续签到${result.streak}天`;
+      const reward = result.gmHeartsAwarded
+        ? `已获得${result.gmHeartsAwarded}张GM点赞券！`
+        : `距离下次领取GM点赞券还需签到${result.daysUntilGmReward}次。`;
+      showToast(`${progress}，获得1张玩家点赞券。${reward}`, 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '签到失败', 'error');
     } finally {
