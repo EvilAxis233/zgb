@@ -644,9 +644,9 @@ export function App() {
 
       {/* Footer */}
       <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4 sm:px-6">
-        <div className={`${mainContainerMaxWidth} mx-auto w-full flex flex-col items-stretch gap-2 transition-all duration-150`}>
-          <span className="self-end text-xs text-[#666666] text-right font-medium">测试群（858124339）</span>
-          <span className="self-center font-black text-sm text-[#121212] tracking-widest text-center">诸告板</span>
+        <div className="max-w-[1760px] mx-auto w-full min-h-12 flex flex-col items-center justify-center gap-2 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center transition-all duration-150">
+          <span className="font-black text-xl sm:text-2xl text-[#121212] tracking-widest text-center sm:col-start-2 sm:row-start-1">诸告板</span>
+          <span className="self-end text-sm text-[#666666] text-right font-medium sm:col-start-3 sm:row-start-1 sm:justify-self-end sm:self-center">测试群（858124339）</span>
         </div>
       </footer>
     </div>
