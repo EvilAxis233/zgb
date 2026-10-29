@@ -15,20 +15,25 @@ export const HomePortal: React.FC<HomePortalProps> = ({ onSelectOnline, onSelect
     { id: 'manage', title: '团务管理', seedColor: '#121212', secondaryColor: '#3A3A3A', accentColor: '#888888', action: onSelectManage },
   ];
 
-  return <div className="w-full flex flex-col gap-4 sm:gap-6">
+  return <div className="w-full flex flex-col gap-4 sm:gap-6 min-h-[calc(100dvh-270px)]">
     {items.map((item) => <button
       key={item.id}
       type="button"
       onClick={item.action}
-      className="group w-full relative overflow-hidden min-h-[130px] sm:min-h-[140px] bg-[#F2F0E8] border-2 sm:border-3 border-[#121212] shadow-[4px_4px_0px_#121212] hover:shadow-[7px_7px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center select-none"
+      className="group w-full flex-1 relative overflow-hidden min-h-[170px] sm:min-h-[180px] bg-[#F2F0E8] border-2 sm:border-3 border-[#121212] shadow-[4px_4px_0px_#121212] hover:shadow-[7px_7px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center select-none"
     >
       <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 pointer-events-none opacity-20" aria-hidden="true">
         {Array.from({ length: 6 }, (_, index) => <div key={index} className="border-r border-b border-[#121212]" />)}
       </div>
-      <div className="absolute right-[8%] -bottom-24 w-64 h-64 rounded-full border-2 border-[#121212] transition-transform duration-300 group-hover:scale-105" style={{ backgroundColor: item.seedColor }} aria-hidden="true" />
-      <div className="absolute top-4 left-[8%] w-20 h-20 border-2 border-[#121212] transition-transform duration-300 group-hover:rotate-6" style={{ backgroundColor: item.secondaryColor }} aria-hidden="true" />
-      <div className="absolute bottom-5 left-[32%] w-12 h-12 rounded-full border-2 border-[#121212]" style={{ backgroundColor: item.accentColor }} aria-hidden="true" />
-      <div className="absolute w-80 h-1 bg-[#121212] -rotate-45 top-0 left-0 opacity-70" aria-hidden="true" />
+      <div className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full border-2 border-[#121212] transition-transform duration-300 group-hover:scale-105" style={{ backgroundColor: item.seedColor }} aria-hidden="true" />
+      <div className="absolute top-3 left-4 w-12 h-12 border-2 border-[#121212] transition-transform duration-300 group-hover:rotate-6" style={{ backgroundColor: item.secondaryColor }} aria-hidden="true" />
+      <div className="absolute bottom-4 left-1/4 w-8 h-8 rounded-full border-2 border-[#121212]" style={{ backgroundColor: item.accentColor }} aria-hidden="true" />
+      <div className="absolute w-48 h-1 bg-[#121212] -rotate-45 origin-top-left -top-4 -left-4 opacity-70" aria-hidden="true" />
+      <div className="absolute top-2 right-2 flex items-center gap-1" aria-hidden="true">
+        <span className="w-2.5 h-2.5 rounded-full bg-[#121212]" />
+        <span className="w-2.5 h-2.5 bg-[#D62828]" />
+        <span className="w-2.5 h-2.5 bg-[#004E98]" />
+      </div>
       <span className="relative z-10 text-4xl sm:text-5xl font-black tracking-wide text-white [-webkit-text-stroke:1px_#121212] [text-shadow:3px_3px_0_#121212,0_0_12px_#121212]">{item.title}</span>
     </button>)}
   </div>;
