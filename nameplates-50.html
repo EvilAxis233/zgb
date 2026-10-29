@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>诸告板 · 50 款铭牌候选</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #f3f2ee; background: #11151d; font-family: "Microsoft YaHei", "Segoe UI", sans-serif; }
+    header { padding: 36px max(24px, calc((100vw - 1440px)/2)); background: radial-gradient(circle at 80% -60%, #42556e 0, transparent 55%), #1b222d; border-bottom: 1px solid #465060; }
+    h1 { margin: 0 0 8px; font-size: clamp(26px, 4vw, 42px); letter-spacing: .06em; }
+    header p { margin: 0; color: #b8c2d0; line-height: 1.6; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 24px; }
+    .toolbar label { font-size: 14px; color: #cbd5e1; }
+    input, select { color: #fff; background: #293342; border: 1px solid #718097; border-radius: 6px; padding: 10px 12px; font: inherit; }
+    input { width: 190px; }
+    main { max-width: 1488px; padding: 32px 24px 80px; margin: auto; }
+    .count { margin: 0 0 22px; color: #aeb9c9; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 22px; }
+    .card { margin: 0; background: #202a38; padding: 11px; border: 1px solid #384456; border-radius: 12px; box-shadow: 0 12px 25px #0003; }
+    .stage { aspect-ratio: 3 / 2; position: relative; overflow: hidden; display: grid; place-items: center; isolation: isolate; background: #151a21; border-radius: 7px; }
+    .stage::before, .stage::after, .plate::before, .plate::after { content: ""; position: absolute; pointer-events: none; }
+    .plate { position: relative; isolation: isolate; display: grid; place-items: center; min-width: 62%; max-width: 88%; min-height: 30%; padding: 12px 18px; text-align: center; }
+    .plate span { position: relative; z-index: 3; font-weight: 900; font-size: clamp(20px, 2vw, 30px); letter-spacing: .14em; white-space: nowrap; text-shadow: 0 1px 3px #0006; }
+    figcaption { padding: 13px 4px 3px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    figcaption strong { font-size: 15px; }
+    figcaption small { color: #adbaca; font-size: 12px; white-space: nowrap; }
+    .stage { --a: #d9b56b; --b: #573f26; --c: #f7edc8; --ink: #fff; }
+    .plate { color: var(--ink); }
+
+    /* 01—05：装帧与纹章 */
+    .style-1 { background: radial-gradient(circle at center, color-mix(in srgb,var(--a),#1d1b23 70%),#12151b 78%); }
+    .style-1 .plate { background: linear-gradient(130deg,var(--b),#14151c 55%,var(--b)); border: 5px double var(--a); clip-path: polygon(7% 0,93% 0,100% 50%,93% 100%,7% 100%,0 50%); box-shadow: 0 0 25px var(--a); }
+    .style-1 .plate::before { inset: 7px; border: 1px solid var(--c); clip-path: inherit; }
+    .style-1 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+    .style-2 { background: repeating-linear-gradient(45deg,#20201e 0 4px,#262725 4px 8px); }
+    .style-2 .plate { background: var(--b); border: 2px solid var(--c); box-shadow: 0 0 0 5px var(--b),0 0 0 7px var(--a); }
+    .style-2 .plate::before { inset: -16px 25%; border-top: 2px solid var(--a); border-bottom: 2px solid var(--a); }
+    .style-2 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+    .style-3 { background: radial-gradient(circle,#323646,#10131c); }
+    .style-3 .plate { background: linear-gradient(90deg,var(--a),var(--b) 12% 88%,var(--a)); border: 2px solid var(--c); border-radius: 50% / 14%; }
+    .style-3 .plate::before { inset: 6px; border: 1px dashed var(--c); border-radius: inherit; }
+    .style-3 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+    .style-4 { background: linear-gradient(135deg,#1e242d,#363039); }
+    .style-4 .plate { background: var(--b); border: 3px solid var(--a); transform: rotate(-3deg); box-shadow: 8px 8px 0 #0007; }
+    .style-4 .plate::before { inset: 5px; border: 1px solid var(--c); }
+    .style-4 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+    .style-5 { background: radial-gradient(ellipse at center,var(--b),#10121b 70%); }
+    .style-5 .plate { background: linear-gradient(0deg,#111,var(--b)); border: 2px solid var(--a); border-radius: 4px; }
+    .style-5 .plate::before { width: 28px; height: 28px; left: -13px; background: var(--a); transform: rotate(45deg); }
+    .style-5 .plate::after { width: 28px; height: 28px; right: -13px; background: var(--a); transform: rotate(45deg); }
+    .style-5 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+
+    /* 06—10：未来、纸艺、自然、戏剧、极简 */
+    .style-6 { background: repeating-linear-gradient(0deg,#111820 0 2px,#202936 2px 4px); }
+    .style-6 .plate { background: #111920e8; border: 1px solid var(--a); clip-path: polygon(0 0,86% 0,100% 30%,100% 100%,14% 100%,0 70%); box-shadow: inset 0 0 22px var(--a); }
+    .style-6 .plate span { color: var(--c); font-family: Consolas,monospace; text-shadow: 0 0 9px var(--a); }
+    .style-7 { background: var(--c); }
+    .style-7 .plate { background: var(--b); transform: rotate(-3deg); box-shadow: 5px 6px 0 var(--a),9px 11px 0 #0003; }
+    .style-7 .plate::before { width: 30px; height: 12px; top: -7px; left: calc(50% - 15px); background: #ffffff9c; transform: rotate(5deg); }
+    .style-7 .plate span { color: var(--c); text-shadow: none; }
+    .style-8 { background: radial-gradient(circle at 20% 20%,var(--a),transparent 28%),linear-gradient(130deg,var(--b),#0e2521); }
+    .style-8 .plate { background: #13221fbd; border: 2px solid var(--a); border-radius: 42% 8% 42% 8% / 18% 36% 18% 36%; }
+    .style-8 .plate::before { inset: 5px; border: 1px solid var(--c); border-radius: inherit; }
+    .style-8 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+    .style-9 { background: repeating-radial-gradient(circle at 50% 100%,var(--b) 0 10px,#17131d 11px 23px); }
+    .style-9 .plate { background: linear-gradient(130deg,var(--b),#1d1325); border-top: 5px solid var(--a); border-bottom: 5px solid var(--a); }
+    .style-9 .plate::before { inset: 0 -10px; border-left: 2px solid var(--c); border-right: 2px solid var(--c); }
+    .style-9 .plate span { color: var(--c); font-family: Georgia,"SimSun",serif; }
+    .style-10 { background: var(--c); }
+    .style-10 .plate { background: var(--b); border-radius: 999px; box-shadow: 0 0 0 7px var(--a),0 0 0 10px var(--b); }
+    .style-10 .plate span { color: var(--c); text-shadow: none; font-family: "Segoe UI","Microsoft YaHei",sans-serif; }
+
+    /* 动态款：每款动画只改变装饰，不影响文字可读性。 */
+    .motion .plate { animation: breathe 3.2s ease-in-out infinite; }
+    .motion.style-1 .plate { animation: breathe 3s ease-in-out infinite; }
+    .motion.style-2 .plate { animation: float 3.4s ease-in-out infinite; }
+    .motion.style-3 .plate { animation: glow 2.8s ease-in-out infinite; }
+    .motion.style-4 .plate { animation: tilt 4s ease-in-out infinite; }
+    .motion.style-5 .plate::before, .motion.style-5 .plate::after { animation: gem 2.5s ease-in-out infinite; }
+    .motion.style-6 .plate span { animation: neon 2s ease-in-out infinite; }
+    .motion.style-7 .plate { animation: float 3s ease-in-out infinite; }
+    .motion.style-8 .plate { animation: breathe 4s ease-in-out infinite; }
+    .motion.style-9 .plate { animation: glow 3s ease-in-out infinite; }
+    .motion.style-10 .plate { animation: float 3.6s ease-in-out infinite; }
+    @keyframes breathe { 50% { filter: brightness(1.3); transform: scale(1.025); } }
+    @keyframes float { 50% { translate: 0 -7px; filter: brightness(1.14); } }
+    @keyframes glow { 50% { filter: drop-shadow(0 0 12px var(--a)) brightness(1.25); } }
+    @keyframes tilt { 50% { transform: rotate(2deg); filter: brightness(1.2); } }
+    @keyframes gem { 50% { filter: brightness(1.8); transform: rotate(135deg) scale(1.15); } }
+    @keyframes neon { 50% { text-shadow: 0 0 5px var(--a),0 0 22px var(--a); } }
+    @media (prefers-reduced-motion: reduce) { .motion *, .motion *::before, .motion *::after { animation: none !important; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>铭牌候选 · 50 款</h1>
+    <p>独立选型页。每张预览为 3:2；前 25 款静态，后 25 款动态。编号可直接用于挑选。</p>
+    <div class="toolbar">
+      <label for="word">预览文字</label><input id="word" maxlength="8" value="冒险者" aria-label="铭牌预览文字">
+      <label for="filter">类型</label><select id="filter"><option value="all">全部 50 款</option><option value="static">静态 25 款</option><option value="motion">动态 25 款</option></select>
+    </div>
+  </header>
+  <main><p class="count" id="count"></p><div class="grid" id="grid"></div></main>
+  <script>
+    const names = [
+      '王冠烫金','月蚀徽章','青铜桂冠','紫晶典藏','赤焰骑士',
+      '石刻纹章','午夜丝绒','蓝铜绶带','旧城邮戳','冬日银章',
+      '珍珠缎带','海盐手帐','樱花剪纸','黑胶封套','柑橘拼贴',
+      '深林枝叶','苔原雨露','山岚秘境','琥珀树脂','极光冰晶',
+      '霓虹街机','星际终端','赛博警戒','钴蓝仪表','极简墨印',
+      '熔金脉冲','蓝焰觉醒','赤月回响','深海呼吸','水晶跃迁',
+      '电波闪烁','全息扫描','紫电回路','矩阵流光','量子信标',
+      '纸蝶轻舞','风铃摇曳','墨色浮签','霓虹拼贴','彩纸节拍',
+      '森林萤火','藤蔓低语','流沙微光','潮汐律动','雪原星辉',
+      '剧场开幕','幻影幕布','玫瑰旋舞','星幕流转','月光漂浮'
+    ];
+    const palettes = [
+      ['#d9b56b','#49331e','#fff1bc'],['#a7b9d6','#263c57','#f3f7ff'],['#b88861','#403020','#f8e3c5'],['#bd88da','#39224f','#f3d8ff'],['#fa695b','#5b1f22','#fff1e8'],
+      ['#aab4ad','#3e4440','#fff6e9'],['#6d7bc5','#242540','#e6e9ff'],['#66b7c9','#234354','#e0f9ff'],['#bd765b','#53372f','#ffedde'],['#b2c4d3','#344252','#f7fcff'],
+      ['#ddc1b4','#76504a','#fff9ef'],['#80a7c0','#2e6271','#fff5df'],['#ef8fa6','#963c58','#fff0f5'],['#6d697e','#242332','#f2e6d5'],['#efa355','#a04b2a','#fff9d8'],
+      ['#88ae74','#254c38','#ecffdd'],['#a7bb7c','#3e5940','#f4ffe7'],['#7ba6a9','#284451','#e8fcf9'],['#ddad67','#604b32','#fff4d5'],['#9cbbdc','#4c6b86','#f4fdff'],
+      ['#ff4fd2','#451f5c','#fff0fb'],['#62dbe3','#204358','#e6ffff'],['#ff6257','#482837','#ffebe8'],['#488eff','#162b66','#eef5ff'],['#3d4248','#fffaf0','#ffffff'],
+      ['#ffd36d','#65401e','#fff4d3'],['#48cfff','#1c385b','#efffff'],['#ff5e71','#53253e','#fff4ef'],['#55bce0','#244c62','#edffff'],['#a67dff','#342554','#f5edff'],
+      ['#4cffc4','#173d38','#eafff7'],['#45d6ff','#153e55','#eaffff'],['#d971ff','#3b1c52','#f9e8ff'],['#68b7ff','#202f58','#ebf5ff'],['#fff878','#44441d','#ffffee'],
+      ['#ffb1c9','#784d65','#fff3fa'],['#99ced1','#315e60','#ecffff'],['#6d7689','#343e52','#f7f2eb'],['#ff66be','#503062','#fff1ff'],['#ffd66e','#b14f72','#fff7df'],
+      ['#b5e771','#24543a','#f2ffe5'],['#8dcc78','#3b5948','#efffe8'],['#e3b16a','#5d4633','#fff1d7'],['#69cbd7','#255163','#e9ffff'],['#bedcff','#556d92','#ffffff'],
+      ['#f6aa71','#77334e','#fff5d9'],['#b596e8','#3c2d69','#f7ebff'],['#ec81a6','#654057','#fff1fa'],['#88a9e5','#283d69','#f3f6ff'],['#dcd2ee','#3f3b62','#ffffff']
+    ];
+    const families = [1,2,3,4,5,1,2,3,4,5,7,7,7,7,7,8,8,8,8,8,6,6,6,6,10,1,3,4,5,3,6,6,6,6,6,7,7,7,7,7,8,8,8,8,8,9,9,9,9,10];
+    const grid = document.getElementById('grid');
+    const word = document.getElementById('word');
+    const filter = document.getElementById('filter');
+    const count = document.getElementById('count');
+    function render() {
+      const selected = filter.value;
+      const label = word.value.trim() || '冒险者';
+      const indices = names.map((_, i) => i).filter(i => selected === 'all' || (selected === 'static' ? i < 25 : i >= 25));
+      grid.replaceChildren(...indices.map(i => {
+        const card = document.createElement('figure'); card.className = 'card';
+        const stage = document.createElement('div'); stage.className = `stage style-${families[i]}${i >= 25 ? ' motion' : ''}`;
+        const [a,b,c] = palettes[i]; stage.style.setProperty('--a',a); stage.style.setProperty('--b',b); stage.style.setProperty('--c',c);
+        const plate = document.createElement('div'); plate.className = 'plate';
+        const title = document.createElement('span'); title.textContent = label; plate.append(title); stage.append(plate);
+        const caption = document.createElement('figcaption');
+        const name = document.createElement('strong'); name.textContent = `${String(i+1).padStart(2,'0')} · ${names[i]}`;
+        const type = document.createElement('small'); type.textContent = i < 25 ? '静态' : '动态';
+        caption.append(name,type); card.append(stage,caption); return card;
+      }));
+      count.textContent = `当前展示 ${indices.length} 款 · 预览文字：${label}`;
+    }
+    word.addEventListener('input',render); filter.addEventListener('change',render); render();
+  </script>
+</body>
+</html>

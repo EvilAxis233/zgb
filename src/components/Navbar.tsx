@@ -4,8 +4,6 @@ import { NameplateBadge } from './NameplateBadge';
 import {
   CalendarCheck,
   ChevronDown,
-  Sun,
-  Moon,
   HelpCircle,
   LogOut,
   LogIn,
@@ -21,8 +19,6 @@ interface NavbarProps {
   onOpenLogin: () => void;
   onLogout: () => void;
   onOpenInstructions: () => void;
-  onToggleTheme: () => void;
-  isDarkMode: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,18 +31,27 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLogin,
   onLogout,
   onOpenInstructions,
-  onToggleTheme,
-  isDarkMode,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Hong_Kong',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  const hongKongDate = () => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date());
+  const [today, setToday] = useState(hongKongDate);
+
+  useEffect(() => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const hkOffsetMs = 8 * 60 * 60 * 1000;
+    const nextMidnight = Math.floor((Date.now() + hkOffsetMs) / dayMs + 1) * dayMs - hkOffsetMs;
+    const timer = window.setTimeout(() => setToday(hongKongDate()), nextMidnight - Date.now() + 50);
+    const refreshDate = () => setToday(hongKongDate());
+    document.addEventListener('visibilitychange', refreshDate);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', refreshDate);
+    };
+  }, [today]);
 
   const alreadyCheckedIn = currentUser?.lastCheckInDate === today;
 
@@ -142,28 +147,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* 下拉菜单 */}
         {isDropdownOpen && (
           <div className="absolute right-0 mt-1.5 w-48 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] py-1 z-50">
-            {/* 调整亮度（白天和夜晚配色） */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsDropdownOpen(false);
-                onToggleTheme();
-              }}
-              className="w-full px-4 py-2 text-left text-xs font-bold text-[#121212] hover:bg-[#F4A261] hover:text-[#121212] flex items-center justify-between cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                {isDarkMode ? (
-                  <Moon className="w-4 h-4" />
-                ) : (
-                  <Sun className="w-4 h-4" />
-                )}
-                <span>调整亮度</span>
-              </div>
-              <span className="text-[10px] px-1.5 py-0.5 bg-[#FAF9F5] border border-[#121212] font-mono">
-                {isDarkMode ? '夜晚' : '白天'}
-              </span>
-            </button>
-
             {/* 使用说明 */}
             <button
               type="button"

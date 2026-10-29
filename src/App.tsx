@@ -41,7 +41,6 @@ export function App() {
   const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>('board');
   const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -342,11 +341,6 @@ export function App() {
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={() => run(() => api.logout(), '已退出登录').then(() => { setActiveTab('board'); setBoardView('portal'); })}
         onOpenInstructions={() => setIsInstructionsOpen(true)}
-        onToggleTheme={() => {
-          setIsDarkMode((prev) => !prev);
-          showToast('深色高对比度主题敬请期待', 'info');
-        }}
-        isDarkMode={isDarkMode}
       />
 
       {/* Main Container: 网团保持原先宽裕宽度(max-w-[1760px])，主页四个矩形大厅保持 60%(max-w-[864px]) */}
@@ -355,7 +349,6 @@ export function App() {
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
             <HomePortal
-              recruitingCount={enrichedCampaigns.filter((c) => c.kind === 'online' && !c.hasEnded && !c.isClosed && !c.isFull).length}
               onSelectOnline={() => setBoardView('online')}
               onSelectOffline={() => setBoardView('offline')}
               onSelectPromo={() => setBoardView('promo')}
@@ -651,11 +644,9 @@ export function App() {
 
       {/* Footer */}
       <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4 sm:px-6">
-        <div className={`${mainContainerMaxWidth} mx-auto w-full relative grid grid-cols-1 items-center gap-2 text-center md:flex md:justify-between transition-all duration-150`}>
-          <span className="font-black text-sm text-[#121212] tracking-widest text-left">诸告板 · TRPG 招募平台</span>
-          <span className="text-xs text-[#666666] md:text-right font-medium">
-            有问题请反馈至管理员：不冻港 (3486636827)、EvilAxis (407457008)
-          </span>
+        <div className={`${mainContainerMaxWidth} mx-auto w-full flex flex-col items-stretch gap-2 transition-all duration-150`}>
+          <span className="self-end text-xs text-[#666666] text-right font-medium">测试群（858124339）</span>
+          <span className="self-center font-black text-sm text-[#121212] tracking-widest text-center">诸告板</span>
         </div>
       </footer>
     </div>

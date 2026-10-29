@@ -143,7 +143,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => showAlert({ title: '贴纸功能', message: '贴纸功能即将上线，敬请期待！', type: 'info' })}
+                  onClick={() => showAlert({ title: '贴纸功能', message: '贴纸功能即将上线，若有其他需求也可以提交反馈，我们会尽快受理', type: 'info' })}
                   className="bauhaus-btn flex-1 bg-[#FAF9F5] text-[#888888] px-3 py-2 text-xs font-black gap-1.5 hover:bg-[#F0EFEA] shadow-[2px_2px_0px_#121212] cursor-pointer"
                   title="即将推出"
                 >
