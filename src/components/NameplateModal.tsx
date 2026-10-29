@@ -32,6 +32,13 @@ export const NAMEPLATE_STYLES = [
   ...REFERENCE_NAMEPLATE_STYLES,
 ];
 
+const nameCollator = new Intl.Collator('zh-CN-u-co-pinyin', { numeric: true });
+const sortedNameplateStyles = [...NAMEPLATE_STYLES].sort((a, b) =>
+  a.type === b.type
+    ? nameCollator.compare(a.name, b.name) || a.code.localeCompare(b.code)
+    : a.type === 'dynamic' ? -1 : 1
+);
+
 export const validateNameplateText = (text: string) => {
   let zh = 0;
   let en = 0;
@@ -92,6 +99,7 @@ export const NameplateModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   const { isValid, label } = validateNameplateText(inputText.trim());
+  const visibleStyles = sortedNameplateStyles.filter((style) => styleFilter === 'all' || style.type === styleFilter);
 
   const handleEquip = async () => {
     const cleanText = inputText.trim();
@@ -213,7 +221,7 @@ export const NameplateModal: React.FC<Props> = ({
           {/* 样式库选择区 */}
           <div>
             <div className="flex flex-wrap gap-2 mb-3" aria-label="铭牌类型筛选">
-              {(['all', 'static', 'dynamic'] as const).map((filter) => (
+              {(['all', 'dynamic', 'static'] as const).map((filter) => (
                 <button
                   key={filter}
                   type="button"
@@ -226,11 +234,16 @@ export const NameplateModal: React.FC<Props> = ({
               ))}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {NAMEPLATE_STYLES.filter((style) => styleFilter === 'all' || style.type === styleFilter).map((style) => {
+              {visibleStyles.map((style, index) => {
                 const isSelected = selectedStyle === style.id;
                 return (
-                  <button
-                    key={style.id}
+                  <React.Fragment key={style.id}>
+                    {styleFilter === 'all' && (index === 0 || visibleStyles[index - 1].type !== style.type) && (
+                      <h3 className="col-span-full mt-2 border-b-2 border-[#121212] pb-1 text-sm font-black text-[#121212]">
+                        {style.type === 'dynamic' ? '动态铭牌' : '静态铭牌'}（{NAMEPLATE_STYLES.filter((item) => item.type === style.type).length}）
+                      </h3>
+                    )}
+                    <button
                     type="button"
                     onClick={() => setSelectedStyle(style.id)}
                     className={`flex min-w-0 flex-col justify-between gap-3 p-2.5 border-2 transition-all cursor-pointer text-left ${
@@ -267,7 +280,8 @@ export const NameplateModal: React.FC<Props> = ({
                         </div>
                       )}
                     </div>
-                  </button>
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </div>
