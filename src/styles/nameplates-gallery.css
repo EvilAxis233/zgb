@@ -626,4 +626,7 @@
         }
 
         
+/* Glass needs its own contrast on light cards, without a separate preview backdrop. */
+.nb-ref-s12 { background: rgba(46, 58, 78, .9); }
+
 @media (prefers-reduced-motion: reduce) { .nb-badge[class*="nb-ref-"], .nb-badge[class*="nb-ref-"]::before, .nb-badge[class*="nb-ref-"]::after, .nb-badge[class*="nb-ref-"] .nb-ref-mark, .nb-badge[class*="nb-ref-"] .nb-ref-mark * { animation: none !important; } }

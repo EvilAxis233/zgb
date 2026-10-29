@@ -48,7 +48,7 @@ for (const code of excluded) {
   css = css.replace(new RegExp(`/\\* ${code}:.*?\\*/[\\s\\S]*?(?=/\\* D${String(Number(number) + 1).padStart(2, '0')}:)`, 'g'), '');
 }
 css = css.replaceAll('.np-', '.nb-ref-');
-css = css.replace('30 款动态铭牌独立样式', '27 款动态铭牌独立样式');
+css = css.replace('30 款动态铭牌独立样式 (np-d01 ~ np-d30)', '27 款动态铭牌独立样式 (np-d01 ~ np-d30，排除 D08、D20、D26)');
 const keyframes = [...css.matchAll(/@keyframes ([\w-]+)/g)].map((match) => match[1]);
 for (const keyframe of keyframes) css = css.replace(new RegExp(`\\b${keyframe}\\b`, 'g'), `ref-${keyframe}`);
 css = `/* Styles adapted from the user-provided 50.html for the site's compact badges. */\n` +
@@ -62,6 +62,7 @@ css = `/* Styles adapted from the user-provided 50.html for the site's compact b
   `.nb-ref-font-tech { font-family: Consolas, monospace; }\n` +
   `.nb-ref-font-classic { font-family: "SimSun", serif; }\n` +
   `.nb-ref-font-sans { font-family: "Microsoft YaHei", sans-serif; }\n` + css +
+  `\n/* Glass needs its own contrast on light cards, without a separate preview backdrop. */\n.nb-ref-s12 { background: rgba(46, 58, 78, .9); }\n` +
   `\n@media (prefers-reduced-motion: reduce) { .nb-badge[class*="nb-ref-"], .nb-badge[class*="nb-ref-"]::before, .nb-badge[class*="nb-ref-"]::after, .nb-badge[class*="nb-ref-"] .nb-ref-mark, .nb-badge[class*="nb-ref-"] .nb-ref-mark * { animation: none !important; } }\n`;
 fs.writeFileSync('src/styles/nameplates-gallery.css', css, 'utf8');
 console.log(`Imported ${entries.length} nameplates`);

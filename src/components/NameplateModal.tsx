@@ -271,9 +271,7 @@ export const NameplateModal: React.FC<Props> = ({
                     </div>
 
                     <div className="flex items-center justify-between gap-2 min-h-7">
-                      <span className={style.id.startsWith('nb-ref-') ? 'inline-flex items-center rounded bg-[#121316] px-1.5 py-1' : 'inline-flex items-center'}>
-                        <NameplateBadge nameplate={{ styleId: style.id, text: inputText.trim() || '样标' }} />
-                      </span>
+                      <NameplateBadge nameplate={{ styleId: style.id, text: inputText.trim() || '样标' }} />
                       {isSelected && (
                         <div className="w-4 h-4 bg-[#D62828] text-white flex items-center justify-center shrink-0">
                           <Check size={12} strokeWidth={3} />
