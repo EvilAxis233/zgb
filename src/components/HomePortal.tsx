@@ -15,7 +15,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({ onSelectOnline, onSelect
     { id: 'manage', title: '团务管理', seedColor: '#121212', secondaryColor: '#3A3A3A', accentColor: '#888888', action: onSelectManage },
   ];
 
-  return <div className="w-full flex flex-col gap-4 sm:gap-6 min-h-[calc(100dvh-270px)]">
+  return <div className="w-full flex flex-col gap-4 sm:gap-6 h-[calc(100dvh-270px)] min-h-[728px] sm:min-h-[792px]">
     {items.map((item) => <button
       key={item.id}
       type="button"
