@@ -524,7 +524,9 @@ export async function onRequest(context) {
       } else {
         const allowedStyles = ['nb-s01','nb-s02','nb-s03','nb-s06','nb-s10','nb-s12','nb-s16','nb-s18','nb-d01','nb-d02','nb-d04','nb-d09','nb-d12','nb-d16'];
         const styleId = String(b.nameplate.styleId || '');
-        if (!allowedStyles.includes(styleId)) return fail('无效的铭牌样式');
+        const isReferenceStyle = /^nb-ref-(?:d(?:0[1-9]|[12]\d|30)|s(?:0[1-9]|1\d|20))$/.test(styleId)
+          && !['nb-ref-d08', 'nb-ref-d20', 'nb-ref-d26'].includes(styleId);
+        if (!allowedStyles.includes(styleId) && !isReferenceStyle) return fail('无效的铭牌样式');
         const text = clean(b.nameplate.text, 20);
         if (!text) return fail('铭牌文字不能为空');
         let zh = 0, en = 0;

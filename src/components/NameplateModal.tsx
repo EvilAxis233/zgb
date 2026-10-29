@@ -2,6 +2,7 @@ import React, { useState, useEffect, useId } from 'react';
 import { X, Check } from 'lucide-react';
 import { UserNameplate } from '../types';
 import { NameplateBadge } from './NameplateBadge';
+import { REFERENCE_NAMEPLATE_STYLES } from '../nameplateGallery';
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const NAMEPLATE_STYLES = [
   { id: 'nb-d09', code: 'D09', name: '雷霆电弧', type: 'dynamic' as const },
   { id: 'nb-d12', code: 'D12', name: '雷达扫描', type: 'dynamic' as const },
   { id: 'nb-d16', code: 'D16', name: '潮汐涌浪', type: 'dynamic' as const },
+  ...REFERENCE_NAMEPLATE_STYLES,
 ];
 
 export const validateNameplateText = (text: string) => {
@@ -55,6 +57,7 @@ export const NameplateModal: React.FC<Props> = ({
 }) => {
   const [selectedStyle, setSelectedStyle] = useState<string>('nb-s01');
   const [inputText, setInputText] = useState<string>('跑团狂魔');
+  const [styleFilter, setStyleFilter] = useState<'all' | 'static' | 'dynamic'>('all');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const inputId = useId();
@@ -72,6 +75,7 @@ export const NameplateModal: React.FC<Props> = ({
         setInputText('跑团狂魔');
       }
       setError('');
+      setStyleFilter('all');
     }
   }, [isOpen, currentNameplate]);
 
@@ -140,7 +144,7 @@ export const NameplateModal: React.FC<Props> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="nameplate-modal-title"
-        className="w-full max-w-2xl border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212] flex flex-col max-h-[90vh]"
+        className="w-full max-w-5xl border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212] flex flex-col max-h-[90vh]"
       >
         {/* 弹窗头部 */}
         <header className="flex items-center justify-between bg-[#121212] px-5 py-3.5 text-white shrink-0">
@@ -206,24 +210,37 @@ export const NameplateModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 14 款样式库选择区 */}
+          {/* 样式库选择区 */}
           <div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {NAMEPLATE_STYLES.map((style) => {
+            <div className="flex flex-wrap gap-2 mb-3" aria-label="铭牌类型筛选">
+              {(['all', 'static', 'dynamic'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  aria-pressed={styleFilter === filter}
+                  onClick={() => setStyleFilter(filter)}
+                  className={`px-2.5 py-1 text-xs font-bold border-2 border-[#121212] cursor-pointer ${styleFilter === filter ? 'bg-[#121212] text-white' : 'bg-white text-[#121212]'}`}
+                >
+                  {filter === 'all' ? '全部' : filter === 'static' ? '静态' : '动态'}（{filter === 'all' ? NAMEPLATE_STYLES.length : NAMEPLATE_STYLES.filter((style) => style.type === filter).length}）
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {NAMEPLATE_STYLES.filter((style) => styleFilter === 'all' || style.type === styleFilter).map((style) => {
                 const isSelected = selectedStyle === style.id;
                 return (
                   <button
                     key={style.id}
                     type="button"
                     onClick={() => setSelectedStyle(style.id)}
-                    className={`flex items-center justify-between p-2.5 border-2 transition-all cursor-pointer text-left ${
+                    className={`flex min-w-0 flex-col justify-between gap-3 p-2.5 border-2 transition-all cursor-pointer text-left ${
                       isSelected
                         ? 'border-[#D62828] bg-[#FFF4DA] shadow-[3px_3px_0px_#D62828] translate-x-0.5'
                         : 'border-[#121212] bg-white hover:bg-[#FAF9F5] shadow-[2px_2px_0px_#121212]'
                     }`}
                   >
-                    <div className="min-w-0 flex-1 pr-2">
-                      <div className="flex items-center gap-1.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center flex-wrap gap-1.5">
                         <span className="font-mono text-[10px] font-bold px-1 bg-[#121212] text-white">
                           {style.code}
                         </span>
@@ -240,8 +257,10 @@ export const NameplateModal: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <div className="shrink-0 flex items-center gap-2">
-                      <NameplateBadge nameplate={{ styleId: style.id, text: inputText.trim() || '样标' }} />
+                    <div className="flex items-center justify-between gap-2 min-h-7">
+                      <span className={style.id.startsWith('nb-ref-') ? 'inline-flex items-center rounded bg-[#121316] px-1.5 py-1' : 'inline-flex items-center'}>
+                        <NameplateBadge nameplate={{ styleId: style.id, text: inputText.trim() || '样标' }} />
+                      </span>
                       {isSelected && (
                         <div className="w-4 h-4 bg-[#D62828] text-white flex items-center justify-center shrink-0">
                           <Check size={12} strokeWidth={3} />

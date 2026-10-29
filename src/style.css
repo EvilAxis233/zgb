@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./styles/nameplates.css";
+@import "./styles/nameplates-gallery.css";
 
 html {
   overflow-y: scroll;
