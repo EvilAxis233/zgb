@@ -18,7 +18,7 @@ const guide = [
 const memberBenefits = [
   ['已开放 · GM 点赞券', '会员期间累计签到每满 7 次，获得 2 张 GM 点赞券，比普通用户多 1 张；中断签到不清零。每天签到仍可获得 1 张玩家点赞券。'],
   ['已上线 · 自定义展示铭牌', '会员可在个人档案中选择并佩戴自定义展示铭牌。'],
-  ['开通与续费', '在个人档案点击「升级会员」或「续费会员」，输入密钥即可开通。每个密钥增加 30 天，可叠加使用；每个密钥全站只能兑换一次。'],
+  ['开通与续费', '等待爱发电审核中，即将上线...'],
 ] as const;
 
 export function InstructionsModal({ isOpen, onClose }: InstructionsModalProps) {

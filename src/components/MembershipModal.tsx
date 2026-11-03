@@ -1,58 +1,25 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface Props {
   active: boolean;
   onClose: () => void;
-  onRedeem: (key: string) => Promise<void>;
 }
 
-export function MembershipModal({ active, onClose, onRedeem }: Props) {
-  const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+export function MembershipModal({ active, onClose }: Props) {
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) onClose(); };
+    const handleEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [busy, onClose]);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      await onRedeem(key.trim());
-      onClose();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '兑换失败，请稍后重试');
-    } finally {
-      setBusy(false);
-    }
-  };
+  }, [onClose]);
 
-  return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+  return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="membership-title" className="w-full max-w-md border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
       <header className="flex items-center justify-between bg-[#121212] px-5 py-3 text-white">
         <h2 id="membership-title" className="font-black">{active ? '续费会员' : '升级会员'}</h2>
-        <button type="button" aria-label="关闭弹窗" disabled={busy} onClick={onClose} className="cursor-pointer disabled:opacity-50"><X size={19} /></button>
+        <button type="button" aria-label="关闭弹窗" onClick={onClose} className="cursor-pointer"><X size={19} /></button>
       </header>
-      <div className="space-y-5 p-5">
-        <div className="border-2 border-[#004E98] bg-[#EAF3FB] p-4 text-sm">
-          <h3 className="mb-2 font-black text-[#004E98]">会员权益</h3>
-          <ul className="list-disc space-y-1 pl-5 text-[#333]">
-            <li>累计签到每满 7 次得 2 张 GM 点赞券，中断不清零；每天仍得 1 张玩家点赞券。</li>
-            <li>自定义展示铭牌已上线，可在个人档案中设置。</li>
-            <li>每个密钥增加 30 天；可用不同密钥叠加续费。</li>
-          </ul>
-        </div>
-        <form onSubmit={submit} className="space-y-3">
-          <label htmlFor="membership-key" className="block text-sm font-black">输入会员密钥</label>
-          <input id="membership-key" autoFocus required maxLength={120} autoComplete="off" spellCheck={false} value={key} onChange={(event) => setKey(event.target.value)} placeholder="VIP1.···" className="bauhaus-input w-full px-3 py-2 font-mono text-sm" />
-          {error && <p role="alert" className="text-sm font-bold text-[#B51F1F]">{error}</p>}
-          <button type="submit" disabled={busy || !key.trim()} className="bauhaus-btn w-full bg-[#D62828] py-2.5 font-black text-white disabled:opacity-50">{busy ? '兑换中…' : '兑换 30 天会员'}</button>
-        </form>
-      </div>
+      <p className="p-5 text-center font-black">等待爱发电审核中，即将上线...</p>
     </section>
   </div>;
 }

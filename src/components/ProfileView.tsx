@@ -19,7 +19,6 @@ interface ProfileViewProps {
   onOpenManage: () => void;
   onFeedback: () => void;
   onReport: () => void;
-  onRedeemMembership: (key: string) => Promise<void>;
 }
 
 const nicknameLength = (value: string) => Array.from(value).reduce(
@@ -37,7 +36,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenManage,
   onFeedback,
   onReport,
-  onRedeemMembership,
   onUpdateNameplate,
 }) => {
   const { showAlert } = useDialog();
@@ -472,7 +470,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
-      {membershipOpen && <MembershipModal active={membershipActive} onClose={() => setMembershipOpen(false)} onRedeem={onRedeemMembership} />}
+      {membershipOpen && <MembershipModal active={membershipActive} onClose={() => setMembershipOpen(false)} />}
       {nameplateOpen && (
         <NameplateModal
           isOpen={nameplateOpen}
