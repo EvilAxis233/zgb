@@ -190,7 +190,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     autoFocus
                   />
                   <p id="nickname-length-hint" className={`mt-1 text-[11px] font-bold ${nameLength > 20 ? 'text-[#D62828]' : 'text-[#666]'}`}>
-                    {nameLength}/20（中文计 2，英文计 1）
+                    {nameLength}/20
                   </p>
                 </div>
               ) : (
@@ -303,16 +303,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={newPref}
                   onChange={(e) => setNewPref(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPreference())}
-                  placeholder="添加喜好回车"
+                  placeholder="输入后回车"
                   className="bauhaus-input flex-1 px-2 py-1 text-xs"
                 />
-                <button
-                  type="button"
-                  onClick={addPreference}
-                  className="bauhaus-btn bg-white px-2 py-1 text-xs"
-                >
-                  +
-                </button>
               </div>
             )}
           </div>
@@ -348,16 +341,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={newTaboo}
                   onChange={(e) => setNewTaboo(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTaboo())}
-                  placeholder="添加禁忌回车"
+                  placeholder="输入后回车"
                   className="bauhaus-input flex-1 px-2 py-1 text-xs"
                 />
-                <button
-                  type="button"
-                  onClick={addTaboo}
-                  className="bauhaus-btn bg-white px-2 py-1 text-xs"
-                >
-                  +
-                </button>
               </div>
             )}
           </div>
