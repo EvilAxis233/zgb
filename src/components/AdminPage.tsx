@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Activity, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileSliders, Flag, LayoutDashboard, LogOut, MessageSquareText, Plus, Shield, Tag, Trash2, UsersRound } from 'lucide-react';
+import { Activity, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileSliders, Flag, LayoutDashboard, LogOut, MessageSquareText, Plus, Shield, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminDashboard, type AdminSubmission, type AdminUser, type GiftRecord, type MembershipRedemption } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
+import { statusLabels, statusClasses } from '../utils/submissions';
 import { useDialog } from './BauhausDialog';
 
 const SUBMISSION_PAGE_SIZE = 30;
@@ -13,11 +14,6 @@ const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDash
   { id: 'feedback', label: '反馈受理', icon: MessageSquareText },
   { id: 'report', label: '举报受理', icon: Flag },
 ];
-const statusLabels: Record<AdminSubmission['status'], string> = { pending: '待受理', processing: '处理中', resolved: '已解决', rejected: '已驳回' };
-const statusClasses: Record<AdminSubmission['status'], string> = {
-  pending: 'bg-[#FFF4D6] text-[#7A4B00] border-[#7A4B00]', processing: 'bg-[#EAF3FB] text-[#004E98] border-[#004E98]',
-  resolved: 'bg-[#E7F5F1] text-[#176B57] border-[#176B57]', rejected: 'bg-[#FAF0F0] text-[#B51F1F] border-[#B51F1F]',
-};
 const number = (value: unknown) => Number(value || 0).toLocaleString('zh-CN');
 
 function MetricCard({ label, value, note, tone = 'blue' }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black' }) {
@@ -47,7 +43,7 @@ export function AdminPage() {
   const { showConfirm } = useDialog();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null), [password, setPassword] = useState(''), [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null), [dashboardLoading, setDashboardLoading] = useState(false);
-  const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState(''), [presetTags, setPresetTags] = useState<string[]>([]), [newPresetTag, setNewPresetTag] = useState('');
+  const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]), [userTotal, setUserTotal] = useState(0), [searchInput, setSearchInput] = useState(''), [search, setSearch] = useState(''), [userOffset, setUserOffset] = useState(0);
   const [selected, setSelected] = useState<AdminUser | null>(null), [gifts, setGifts] = useState<GiftRecord[]>([]), [giftTotal, setGiftTotal] = useState(0), [giftOffset, setGiftOffset] = useState(0);
   const [redemptions, setRedemptions] = useState<MembershipRedemption[]>([]), [redemptionTotal, setRedemptionTotal] = useState(0), [redemptionOffset, setRedemptionOffset] = useState(0);
@@ -57,12 +53,11 @@ export function AdminPage() {
   const message = (error: unknown) => setNotice(error instanceof Error ? error.message : '操作失败');
   const loadDashboard = async () => { setDashboardLoading(true); try { setDashboard(await adminApi.dashboard()); } catch (error) { message(error); } finally { setDashboardLoading(false); } };
   const loadRules = async () => setRules((await adminApi.rules()).rules);
-  const loadPresetTags = async () => setPresetTags((await adminApi.presetTags()).presetTags);
   const loadSubmissions = async () => { const data = await adminApi.submissions(submissionType, submissionStatus, submissionOffset); setSubmissions(data.submissions); setSubmissionTotal(data.total); setDraftNotes(Object.fromEntries(data.submissions.map((item) => [item.id, item.admin_note]))); };
 
   useEffect(() => { adminApi.me().then(({ authenticated: ok }) => setAuthenticated(ok)).catch(() => setAuthenticated(false)); }, []);
   useEffect(() => { if (authenticated && activeSection === 'dashboard') loadDashboard(); }, [authenticated, activeSection]);
-  useEffect(() => { if (authenticated && activeSection === 'content') Promise.all([loadRules(), loadPresetTags()]).catch(message); }, [authenticated, activeSection]);
+  useEffect(() => { if (authenticated && activeSection === 'content') loadRules().catch(message); }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset).then((data) => { setUsers(data.users); setUserTotal(data.total); }).catch(message); }, [authenticated, activeSection, search, userOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.gifts(selected.qq, giftOffset).then((data) => { setGifts(data.records); setGiftTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, giftOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.membershipRedemptions(selected.qq, redemptionOffset).then((data) => { setRedemptions(data.records); setRedemptionTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, redemptionOffset]);
@@ -72,8 +67,6 @@ export function AdminPage() {
   const logout = async () => { try { await adminApi.logout(); setAuthenticated(false); setDashboard(null); setSelected(null); } catch (error) { message(error); } };
   const addRule = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { await adminApi.addRule(newRule.trim()); setNewRule(''); await loadRules(); setNotice('规则已添加'); } catch (error) { message(error); } finally { setBusy(false); } };
   const deleteRule = async (name: string) => { if (!await showConfirm({ title: '删除规则', message: `确定删除规则「${name}」？已有团的历史规则名称仍会保留。`, confirmText: '确定删除', type: 'danger' })) return; setBusy(true); try { await adminApi.deleteRule(name); await loadRules(); setNotice('规则已删除'); } catch (error) { message(error); } finally { setBusy(false); } };
-  const addPresetTag = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { await adminApi.addPresetTag(newPresetTag.trim()); setNewPresetTag(''); await loadPresetTags(); setNotice('限选标签已添加'); } catch (error) { message(error); } finally { setBusy(false); } };
-  const deletePresetTag = async (name: string) => { if (!await showConfirm({ title: '删除限选标签', message: `确定删除限选标签「${name}」？`, confirmText: '确定删除', type: 'danger' })) return; setBusy(true); try { await adminApi.deletePresetTag(name); await loadPresetTags(); setNotice('限选标签已删除'); } catch (error) { message(error); } finally { setBusy(false); } };
   const changeBlacklist = async (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent' | null) => { setBusy(true); try { if (duration) await adminApi.blacklist(qq, duration); else await adminApi.unblacklist(qq); const data = await adminApi.users(search, userOffset); setUsers(data.users); setUserTotal(data.total); setSelected(data.users.find((item) => item.qq === qq) || null); setNotice(duration ? '已加入黑名单' : '已移出黑名单'); } catch (error) { message(error); } finally { setBusy(false); } };
   const updateSubmission = async (item: AdminSubmission, status: AdminSubmission['status']) => { setBusy(true); try { await adminApi.updateSubmission(item.id, status, draftNotes[item.id] || ''); await loadSubmissions(); setNotice(`${item.type === 'report' ? '举报' : '反馈'}状态已更新`); } catch (error) { message(error); } finally { setBusy(false); } };
   const changeSection = (id: AdminSection) => { setActiveSection(id); setNotice(''); if (id === 'feedback' || id === 'report') { setSubmissionOffset(0); setSubmissionStatus(''); } };
@@ -84,15 +77,15 @@ export function AdminPage() {
     {authenticated === false && <section className="bauhaus-card max-w-md mx-auto p-7 bg-white"><Shield size={26} className="text-[#D62828] mb-3" /><h2 className="text-xl font-black">后台登录</h2><p className="text-sm text-[#666] mt-1 mb-6">输入管理员密码进入管理中心。</p><form onSubmit={login} className="space-y-4"><label className="block text-sm font-bold" htmlFor="admin-password">管理员密码</label><input id="admin-password" autoComplete="current-password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="bauhaus-input w-full px-3 py-2" /><button disabled={busy} className="bauhaus-btn w-full bg-[#D62828] text-white py-2.5">进入后台</button></form></section>}
     {authenticated && <><nav aria-label="后台功能" className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-6">{sections.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}</button>; })}</nav><div className="mb-5 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" /><h2 className="text-2xl font-black">{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <Dashboard data={dashboard} loading={dashboardLoading} />}
-      {activeSection === 'content' && <ContentSection rules={rules} presetTags={presetTags} newRule={newRule} newPresetTag={newPresetTag} busy={busy} setNewRule={setNewRule} setNewPresetTag={setNewPresetTag} addRule={addRule} addPresetTag={addPresetTag} deleteRule={deleteRule} deletePresetTag={deletePresetTag} />}
+      {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} setNewRule={setNewRule} addRule={addRule} deleteRule={deleteRule} />}
       {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} selected={selected} busy={busy} gifts={gifts} giftTotal={giftTotal} redemptions={redemptions} redemptionTotal={redemptionTotal} redemptionOffset={redemptionOffset} searchInput={searchInput} userOffset={userOffset} giftOffset={giftOffset} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGiftOffset(0); setRedemptionOffset(0); }} setUserOffset={setUserOffset} setGiftOffset={setGiftOffset} setRedemptionOffset={setRedemptionOffset} onBlacklistChange={changeBlacklist} />}
       {(activeSection === 'feedback' || activeSection === 'report') && <SubmissionsSection kind={submissionType} submissions={submissions} total={submissionTotal} offset={submissionOffset} status={submissionStatus} busy={busy} notes={draftNotes} setStatus={(value) => { setSubmissionStatus(value); setSubmissionOffset(0); }} setOffset={setSubmissionOffset} setNote={(id, value) => setDraftNotes((current) => ({ ...current, [id]: value }))} update={updateSubmission} />}
     </>}
   </main></div>;
 }
 
-function ContentSection(props: { rules: string[]; presetTags: string[]; newRule: string; newPresetTag: string; busy: boolean; setNewRule: (v: string) => void; setNewPresetTag: (v: string) => void; addRule: (e: FormEvent) => void; addPresetTag: (e: FormEvent) => void; deleteRule: (v: string) => void; deletePresetTag: (v: string) => void }) {
-  return <div className="grid lg:grid-cols-2 gap-6 items-start"><section className="bauhaus-card p-5 bg-white"><div className="flex justify-between border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">规则系统</h3><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">{props.rules.length} 个</span></div><form onSubmit={props.addRule} className="flex gap-2 mb-4"><input aria-label="新规则名" maxLength={100} required value={props.newRule} onChange={(event) => props.setNewRule(event.target.value)} placeholder="输入新规则名" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" /><button disabled={props.busy} className="bauhaus-btn bg-[#D62828] text-white px-3"><Plus size={18} /></button></form><ItemList items={props.rules} onDelete={props.deleteRule} busy={props.busy} /></section><section className="bauhaus-card p-5 bg-white"><div className="flex justify-between border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black flex items-center gap-2"><Tag size={17} />限选标签</h3><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">{props.presetTags.length} 个</span></div><form onSubmit={props.addPresetTag} className="flex gap-2 mb-4"><input aria-label="新限选标签" maxLength={20} required value={props.newPresetTag} onChange={(event) => props.setNewPresetTag(event.target.value)} placeholder="输入新限选标签" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" /><button disabled={props.busy} className="bauhaus-btn bg-[#004E98] text-white px-3"><Plus size={18} /></button></form><ItemList items={props.presetTags} onDelete={props.deletePresetTag} busy={props.busy} /></section></div>;
+function ContentSection(props: { rules: string[]; newRule: string; busy: boolean; setNewRule: (v: string) => void; addRule: (e: FormEvent) => void; deleteRule: (v: string) => void; }) {
+  return <div className="grid gap-6 items-start"><section className="bauhaus-card p-5 bg-white"><div className="flex justify-between border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">规则系统</h3><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">{props.rules.length} 个</span></div><form onSubmit={props.addRule} className="flex gap-2 mb-4"><input aria-label="新规则名" maxLength={100} required value={props.newRule} onChange={(event) => props.setNewRule(event.target.value)} placeholder="输入新规则名" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" /><button disabled={props.busy} className="bauhaus-btn bg-[#D62828] text-white px-3"><Plus size={18} /></button></form><ItemList items={props.rules} onDelete={props.deleteRule} busy={props.busy} /></section></div>;
 }
 function ItemList({ items, onDelete, busy }: { items: string[]; onDelete: (v: string) => void; busy: boolean }) { return <ul className="space-y-2 max-h-[520px] overflow-y-auto pr-1">{items.map((item) => <li key={item} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm"><span className="font-bold break-all">{item}</span><button disabled={busy} onClick={() => onDelete(item)} aria-label={`删除 ${item}`} className="text-[#D62828] cursor-pointer"><Trash2 size={16} /></button></li>)}</ul>; }
 

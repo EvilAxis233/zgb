@@ -1,5 +1,9 @@
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 const fail = (message, status = 400) => json({ error: message }, status);
+const ADMIN_QQS = new Set(['3486636827', '407457008']);
+const PERMANENT_MEMBERSHIP = 253402300799;
+const isAccountAdmin = (user) => !!user && ADMIN_QQS.has(user.qq);
+const campaignTags = (c) => [...new Set([...parseTags(c.custom_tags), ...parseTags(c.preset_tags)].map((tag) => Array.from(String(tag).trim()).slice(0, 6).join('')).filter(Boolean))].slice(0, 6);
 const now = () => Math.floor(Date.now() / 1000);
 const dateHK = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 const id = () => crypto.randomUUID();
@@ -32,15 +36,15 @@ const nicknameLength = (value) => Array.from(value).reduce((total, character) =>
 const parseTags = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 const parseJsonSafe = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 const assetUrl = (key) => key ? `/api/images/${key}` : '';
-const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', membershipExpiresAt: u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate) });
+const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', isAdmin: isAccountAdmin(u), membershipPermanent: isAccountAdmin(u), membershipExpiresAt: isAccountAdmin(u) ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate) });
 const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null });
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: parseTags(c.preset_tags), customTags: parseTags(c.custom_tags), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
-const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: parseTags(b.preset_tags), customTags: parseTags(b.custom_tags), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
+const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: [], customTags: campaignTags(b), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
 function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = new Map()) {
   const groups = new Map();
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
@@ -51,6 +55,7 @@ async function body(request) { try { return await request.json(); } catch { thro
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
 async function adminAuth(request, db, secret) {
+  if (isAccountAdmin(await auth(request, db))) return true;
   if (!secret) return false;
   const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return false;
@@ -60,7 +65,12 @@ async function adminAuth(request, db, secret) {
 async function auth(request, db) {
   const token = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return null;
-  return db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(await sha256(token), now()).first();
+  const user = await db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(await sha256(token), now()).first();
+  if (isAccountAdmin(user) && user.membership_expires_at !== PERMANENT_MEMBERSHIP) {
+    await db.prepare('UPDATE users SET membership_expires_at=? WHERE qq=?').bind(PERMANENT_MEMBERSHIP, user.qq).run();
+    user.membership_expires_at = PERMANENT_MEMBERSHIP;
+  }
+  return user;
 }
 async function sendCode(env, qq, code) {
   if (!env.RESEND_API_KEY) return { ok: false, reason: 'missing_key' };
@@ -76,24 +86,16 @@ function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const matched = /^(\d{4}-\d{2}-\d{2}).*(早|中|晚)$/.exec(time);
   if (!title || !rule || !matched || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、日期时段和 1–12 人的预计人数');
   const sessionType = kind === 'promo' ? clean(b.sessionType, 40) : kind === 'offline' ? '' : ['语音', '文字', '其他游戏形式'].includes(b.sessionType) ? b.sessionType : '语音';
-  const platforms = kind === 'promo' ? (Array.isArray(b.platforms) ? b.platforms.map((item) => clean(item, 80)).filter(Boolean).slice(0, 1) : []) : kind === 'offline' ? [] : Array.isArray(b.platforms) ? [...new Set(b.platforms.filter((item) => ['Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'].includes(item)))].slice(0, 7) : [];
+  const platforms = kind === 'promo' ? (Array.isArray(b.platforms) ? b.platforms.map((item) => clean(item, 80)).filter(Boolean).slice(0, 1) : []) : kind === 'offline' ? [] : Array.isArray(b.platforms) ? [...new Set(b.platforms.filter((item) => ['QQ', 'Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'].includes(item)))].slice(0, 8) : [];
   const province = kind === 'offline' ? clean(b.province, 40) : '';
   const city = kind === 'offline' ? clean(b.city, 40) : '';
   const address = kind === 'offline' ? clean(b.address, 200) : '';
   if (kind === 'offline' && requireLocation && (!(province || city) || Array.from(province + city).length > 8)) throw new Error('请填写省份和城市，合计最多八个字');
   if (kind === 'promo' && (!sessionType || !platforms.length)) throw new Error('请填写宣群方式和平台');
-  const cleanTags = (list, maxCount, maxLen) => {
-    if (!Array.isArray(list)) return [];
-    const res = [];
-    for (const item of list) {
-      const t = clean(item, maxLen);
-      if (t && !res.includes(t)) res.push(t);
-      if (res.length >= maxCount) break;
-    }
-    return res;
-  };
-  const presetTags = cleanTags(b.presetTags, 2, 20);
-  const customTags = cleanTags(b.customTags, 2, 6);
+  const presetTags = [];
+  if (!Array.isArray(b.customTags ?? [])) throw new Error('自定义标签格式无效');
+  const customTags = [...new Set((b.customTags || []).map((tag) => typeof tag === 'string' ? tag.trim() : '').filter(Boolean))];
+  if (customTags.length > 6 || customTags.some((tag) => Array.from(tag).length > 6)) throw new Error('最多 6 个自定义标签，每个最多 6 字');
   return { kind, title, rule, sessionType, platforms, province, city, address, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
 }
 function validateNewSlot(raw, unrestricted = false) {
@@ -186,7 +188,14 @@ export async function onRequest(context) {
       if (path[1] === 'logout' && method === 'POST') {
         const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
         if (token && env.ADMIN_PASSWORD) await db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await adminTokenHash(token, env.ADMIN_PASSWORD)).run();
-        return json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
+        const account = await auth(request, db);
+        const response = json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
+        if (isAccountAdmin(account)) {
+          const userToken = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
+          if (userToken) await db.prepare('DELETE FROM sessions WHERE token_hash=?').bind(await sha256(userToken)).run();
+          response.headers.append('Set-Cookie', sessionCookie('', 0));
+        }
+        return response;
       }
       if (!await adminAuth(request, db, env.ADMIN_PASSWORD)) return fail('请先登录后台', 401);
       if (path[1] === 'dashboard' && path.length === 2 && method === 'GET') {
@@ -257,25 +266,6 @@ export async function onRequest(context) {
           return result.meta.changes ? json({ ok: true }) : fail('规则不存在', 404);
         }
       }
-      if (path[1] === 'preset-tags' && path.length === 2) {
-        if (method === 'GET') {
-          const rows = await db.prepare('SELECT name FROM preset_tags ORDER BY rowid').all();
-          return json({ presetTags: rows.results.map((row) => row.name) });
-        }
-        if (method === 'POST') {
-          const name = clean((await body(request)).name, 20);
-          if (!name) return fail('请输入标签名');
-          const exists = await db.prepare('SELECT 1 FROM preset_tags WHERE name=? COLLATE NOCASE').bind(name).first();
-          if (exists) return fail('标签名已存在', 409);
-          await db.prepare('INSERT INTO preset_tags(name,created_at) VALUES(?,?)').bind(name, new Date().toISOString()).run();
-          return json({ ok: true }, 201);
-        }
-        if (method === 'DELETE') {
-          const name = clean((await body(request)).name, 20);
-          const result = await db.prepare('DELETE FROM preset_tags WHERE name=?').bind(name).run();
-          return result.meta.changes ? json({ ok: true }) : fail('标签不存在', 404);
-        }
-      }
       if (path[1] === 'users' && path.length === 2 && method === 'GET') {
         const search = clean(url.searchParams.get('search'), 40);
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
@@ -291,7 +281,7 @@ export async function onRequest(context) {
             `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
             `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY u.created_at DESC LIMIT 50 OFFSET ?`).bind(now(), pattern, pattern, offset)
         ]);
-        return json({ users: users.results, total: count.results[0].n });
+        return json({ users: users.results.map((account) => ({ ...account, isAdmin: isAccountAdmin(account), membershipPermanent: isAccountAdmin(account), membership_expires_at: isAccountAdmin(account) ? PERMANENT_MEMBERSHIP : account.membership_expires_at })), total: count.results[0].n });
       }
       if (path[1] === 'users' && path[2] && path[3] === 'blacklist' && path.length === 4) {
         const qq = path[2];
@@ -411,10 +401,9 @@ export async function onRequest(context) {
       const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
       const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
       const rules = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
-      const presetTags = await db.prepare('SELECT name FROM preset_tags ORDER BY rowid').all();
       const popularCustomTags = await db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all();
       const campaigns = campaignsDto(rows.results);
-      return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
+      return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'campaigns' && path[1] && path.length === 2 && method === 'GET') {
       const c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(path[1]).first();
@@ -435,6 +424,7 @@ export async function onRequest(context) {
     }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'membership' && path[1] === 'redeem' && path.length === 2 && method === 'POST') {
+      if (isAccountAdmin(user)) return fail('管理员已享有永久会员，无需兑换密钥');
       if (!env.MEMBER_VERIFY_PUBLIC_KEY) return fail('会员兑换暂不可用', 503);
       const submitted = (await body(request)).key;
       const code = typeof submitted === 'string' ? submitted.trim() : '';
@@ -453,6 +443,18 @@ export async function onRequest(context) {
       }
       const updated = await db.prepare('SELECT membership_expires_at FROM users WHERE qq=?').bind(user.qq).first();
       return json({ membershipExpiresAt: updated.membership_expires_at });
+    }
+    if (path[0] === 'submissions' && path.length === 1 && method === 'GET') {
+      const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+      const [count, rows] = await db.batch([
+        db.prepare('SELECT COUNT(*) n FROM submissions WHERE user_qq=?').bind(user.qq),
+        db.prepare('SELECT s.id,s.type,s.content,s.status,s.created_at,s.updated_at,s.reported_qq,r.name reported_name FROM submissions s LEFT JOIN users r ON r.qq=s.reported_qq WHERE s.user_qq=? ORDER BY s.created_at DESC,s.id DESC LIMIT 30 OFFSET ?').bind(user.qq, offset)
+      ]);
+      const submissions = await Promise.all(rows.results.map(async (item) => {
+        const images = await db.prepare('SELECT image_key FROM submission_images WHERE submission_id=? ORDER BY sort_order,id').bind(item.id).all();
+        return { ...item, images: images.results.map((image) => assetUrl(image.image_key)) };
+      }));
+      return json({ submissions, total: count.results[0].n });
     }
     if (path[0] === 'submissions' && path.length === 1 && method === 'POST') {
       const form = await request.formData();
@@ -490,19 +492,18 @@ export async function onRequest(context) {
       return json({ id: submissionId }, 201);
     }
     if (path[0] === 'bootstrap' && method === 'GET') {
-      const [cs, memberships, hosts, rules, presetTags, popularCustomTags] = await db.batch([
+      const [cs, memberships, hosts, rules, popularCustomTags] = await db.batch([
         db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`),
         db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=?').bind(user.qq),
         db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL'),
         db.prepare('SELECT name FROM rules ORDER BY rowid'),
-        db.prepare('SELECT name FROM preset_tags ORDER BY rowid'),
         db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10')
       ]);
       const joined = new Set(memberships.results.map((m) => m.campaign_id));
       const visible = cs.results.filter((c) => (!c.finished_at && !c.closed_at && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
       const masters = await db.prepare('SELECT * FROM campaign_batches WHERE gm_qq=?').bind(user.qq).all();
       const campaigns = campaignsDto(cs.results, joined, user.qq, new Map(masters.results.map((master) => [master.id, master])));
-      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: campaigns.filter((c) => visible.some((item) => item.id === c.id)), rules: rules.results.map((row) => row.name), presetTags: presetTags.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
+      return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: campaigns.filter((c) => visible.some((item) => item.id === c.id)), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && path.length === 1 && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
@@ -682,7 +683,7 @@ export async function onRequest(context) {
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request);
         if (c.batch_id) {
-          if (!b || typeof b.description !== 'string' || !Array.isArray(b.presetTags) || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags'].includes(key))) return fail('批量团只允许修改简介和标签');
+          if (!b || typeof b.description !== 'string' || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags'].includes(key))) return fail('批量团只允许修改简介和标签');
           const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, false);
           const presetTags = JSON.stringify(tags.presetTags), customTags = JSON.stringify(tags.customTags);
           await db.batch([
@@ -725,7 +726,7 @@ export async function onRequest(context) {
     return fail('接口不存在', 404);
   } catch (error) {
     console.error('API error', error);
-    const validation = error instanceof Error && /无效的 JSON|请填写/.test(error.message);
+    const validation = error instanceof Error && /无效的 JSON|请填写|自定义标签/.test(error.message);
     return fail(validation ? error.message : '操作失败，请稍后重试', validation ? 400 : 500);
   }
 }

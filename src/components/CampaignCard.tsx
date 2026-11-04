@@ -107,9 +107,6 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           </div>
           <div className="border-t border-dashed border-[#D8D5CC] pt-2">
             <div className="flex flex-wrap content-start items-start gap-2">
-              {campaign.presetTags?.map((tag) => (
-                <span key={`preset-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FAF9F5] px-2 py-0.5 text-sm font-bold text-[#121212] shadow-[1px_1px_0px_#121212]">{tag}</span>
-              ))}
               {campaign.customTags?.map((tag) => (
                 <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
               ))}

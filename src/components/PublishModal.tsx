@@ -13,7 +13,6 @@ interface PublishModalProps {
   onClose: () => void;
   currentUser: UserProfile | null;
   rules: string[];
-  presetTags?: string[];
   popularCustomTags?: string[];
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
 }
@@ -39,7 +38,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   onClose,
   currentUser,
   rules,
-  presetTags = [],
   popularCustomTags = [],
   onPublish,
 }) => {
@@ -51,7 +49,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [location, setLocation] = useState('');
   const [address, setAddress] = useState('');
   const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
-  const [selectedPresetTags, setSelectedPresetTags] = useState<string[]>([]);
   const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState('');
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
@@ -162,7 +159,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       rule: rule.trim(),
       sessionType,
       platforms,
-      presetTags: selectedPresetTags,
+      presetTags: [],
       customTags: selectedCustomTags,
       gmId: currentUser.id,
       gmName: currentUser.name,
@@ -196,7 +193,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     rule: previewRule,
     sessionType,
     platforms,
-    presetTags: selectedPresetTags,
+    presetTags: [],
     customTags: selectedCustomTags,
     gmId: currentUser?.id || 'current-user',
     gmName: currentUser?.name || '当前主持',
@@ -393,69 +390,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 {kind === 'offline' && <label className="block font-bold text-[#121212]">完整地址<input maxLength={200} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="填写活动的详细地址" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label>}
                 {kind === 'online' && platforms.length > 0 && <div className="flex flex-wrap gap-1.5">{platforms.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] border border-[#004E98] text-[#004E98] text-xs font-bold">{platform}</span>)}</div>}
 
-                {/* Row 2: Tag System (Left: Preset Tags dropdown, Right: Custom Tags input with popover) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Left: Preset Tags dropdown */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block font-bold text-[#121212]">
-                        限选标签 <span className="text-xs font-normal text-[#666]">(最多2个)</span>
-                      </label>
-                      <span className="text-[11px] text-[#666]">{selectedPresetTags.length}/2</span>
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (!val) return;
-                        if (selectedPresetTags.includes(val)) return;
-                        if (selectedPresetTags.length >= 2) {
-                          showAlert('最多选择 2 个限选标签');
-                          return;
-                        }
-                        setSelectedPresetTags([...selectedPresetTags, val]);
-                      }}
-                      disabled={selectedPresetTags.length >= 2}
-                      className="bauhaus-input w-full px-3 py-2 text-sm cursor-pointer disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
-                    >
-                      <option value="">{selectedPresetTags.length >= 2 ? '已选满 (2个)' : '点击下拉选择限选标签…'}</option>
-                      {presetTags
-                        .filter((t) => !selectedPresetTags.includes(t))
-                        .map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                    </select>
-                    {selectedPresetTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {selectedPresetTags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FAF9F5] border border-[#121212] text-xs font-bold text-[#121212]"
-                          >
-                            <span>{tag}</span>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPresetTags(selectedPresetTags.filter((t) => t !== tag))}
-                              className="hover:text-[#D62828] cursor-pointer"
-                              title="删除标签"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
+                <div>
                   {/* Right: Custom Tags input */}
                   <div className="relative">
                     <div className="flex items-center justify-between mb-1">
                       <label className="block font-bold text-[#121212]">
-                        自选标签 <span className="text-xs font-normal text-[#666]">(最多2个，限6字)</span>
+                        自定义标签 <span className="text-xs font-normal text-[#666]">(最多6个，每个最多6字)</span>
                       </label>
-                      <span className="text-[11px] text-[#666]">{selectedCustomTags.length}/2</span>
+                      <span className="text-[11px] text-[#666]">{selectedCustomTags.length}/6</span>
                     </div>
                     <div className="relative">
                       <input
@@ -469,30 +411,30 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                             const tag = customTagInput.trim();
                             if (!tag) return;
                             if (tag.length > 6) {
-                              showAlert('自选标签最多 6 个字');
+                              showAlert('自定义标签最多 6 个字');
                               return;
                             }
                             if (selectedCustomTags.includes(tag)) {
                               setCustomTagInput('');
                               return;
                             }
-                            if (selectedCustomTags.length >= 2) {
-                              showAlert('最多添加 2 个自选标签');
+                            if (selectedCustomTags.length >= 6) {
+                              showAlert('最多添加 6 个自定义标签');
                               return;
                             }
                             setSelectedCustomTags([...selectedCustomTags, tag]);
                             setCustomTagInput('');
                           }
                         }}
-                        disabled={selectedCustomTags.length >= 2}
-                        placeholder={selectedCustomTags.length >= 2 ? '已选满 (2个)' : '输入回车添加 (限6字)'}
+                        disabled={selectedCustomTags.length >= 6}
+                        placeholder={selectedCustomTags.length >= 6 ? '已选满 (6个)' : '输入回车添加 (限6字)'}
                         className="bauhaus-input w-full pl-3 pr-10 py-2 text-sm disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
                         onClick={() => setShowCustomTagDropdown(!showCustomTagDropdown)}
                         className="absolute right-0 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-[#004E98] hover:text-[#D62828] cursor-pointer"
-                        title="查看常用与最新自选标签"
+                        title="查看常用与最新自定义标签"
                       >
                         <BookOpen className="w-4 h-4" />
                       </button>
@@ -502,12 +444,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     {showCustomTagDropdown && (
                       <div className="absolute left-0 right-0 top-full mt-1 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-2.5 z-30 max-h-56 overflow-y-auto">
                         <div className="text-[11px] font-bold text-[#666] mb-1.5 flex items-center justify-between border-b border-[#E5E5E0] pb-1">
-                          <span>热门与最新自选标签</span>
+                          <span>热门与最新自定义标签</span>
                           <button
                             type="button"
                             onClick={() => setShowCustomTagDropdown(false)}
                             className="w-7 h-7 flex items-center justify-center bg-[#121212] text-white hover:bg-[#D62828] cursor-pointer"
-                            aria-label="关闭自选标签"
+                            aria-label="关闭自定义标签"
                           >
                             <X className="w-4 h-4" strokeWidth={3} />
                           </button>
@@ -520,8 +462,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                   if (selectedCustomTags.includes(tag)) return;
-                                  if (selectedCustomTags.length >= 2) {
-                                    showAlert('最多添加 2 个自选标签');
+                                  if (selectedCustomTags.length >= 6) {
+                                    showAlert('最多添加 6 个自定义标签');
                                     return;
                                   }
                                   setSelectedCustomTags([...selectedCustomTags, tag]);

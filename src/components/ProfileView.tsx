@@ -122,11 +122,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="w-full lg:w-60 xl:w-64 shrink-0 lg:sticky lg:top-20 space-y-3">
         <AccountSideActions destination="manage" onNavigate={onOpenManage} onFeedback={onFeedback} onReport={onReport} />
-        <button type="button" onClick={() => setMembershipOpen(true)} className="bauhaus-btn w-full bg-[#FFF4DA] px-4 py-3 text-sm font-black gap-2"><Crown size={17} />{membershipActive ? '续费会员' : '升级会员'}</button>
+        <button type="button" disabled={currentUser.membershipPermanent} onClick={() => setMembershipOpen(true)} className="bauhaus-btn w-full bg-[#FFF4DA] px-4 py-3 text-sm font-black gap-2"><Crown size={17} />{currentUser.membershipPermanent ? '永久会员' : membershipActive ? '续费会员' : '升级会员'}</button>
         {membershipActive && (
           <div className="space-y-3">
             <p className="text-xs font-bold text-[#5C4300]">
-              到期：{new Date(currentUser.membershipExpiresAt! * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}
+              {currentUser.membershipPermanent ? '管理员权益 · 永久有效' : `到期：${new Date(currentUser.membershipExpiresAt! * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}`}
             </p>
             <div className="border-t-2 border-[#121212] pt-3 space-y-2">
               <div className="flex gap-2">

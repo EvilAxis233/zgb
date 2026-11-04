@@ -12,7 +12,6 @@ interface Props {
   hostedCampaigns: Campaign[];
   joinedCampaigns: Campaign[];
   rules: string[];
-  presetTags?: string[];
   popularCustomTags?: string[];
   onDeleteCampaign: (id: string) => void;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
@@ -32,7 +31,6 @@ export const ManageView: React.FC<Props> = ({
   hostedCampaigns,
   joinedCampaigns,
   rules,
-  presetTags = [],
   popularCustomTags = [],
   onDeleteCampaign,
   onSetCampaignClosed,
@@ -111,11 +109,6 @@ export const ManageView: React.FC<Props> = ({
               <p className="mt-1 text-xs text-[#666]">{campaign.rule} · {formatDisplayTime(campaign.timeSchedule)}</p>
               {campaign.kind !== 'offline' && !!campaign.platforms?.length && <p className="mt-1 text-xs text-[#004E98] font-bold">{campaign.kind === 'promo' ? '平台' : '游戏平台'}：{campaign.platforms.join('、')}</p>}
               <div className="mt-1 flex flex-wrap gap-1">
-                {campaign.presetTags?.map((tag) => (
-                  <span key={tag} className="text-[10px] font-bold px-1.5 py-0.2 bg-[#FAF9F5] border border-[#CCCCCC]">
-                    {tag}
-                  </span>
-                ))}
                 {campaign.customTags?.map((tag) => (
                   <span key={tag} className="text-[10px] font-bold px-1.5 py-0.2 bg-[#FFF9F9] border border-[#E5B5B5] text-[#D62828]">
                     #{tag}
@@ -194,10 +187,8 @@ export const ManageView: React.FC<Props> = ({
           <p className="text-xs font-bold">{editingCampaign.title}</p>
           <p className="text-xs text-[#666]">保存后，简介和标签会同步到所有时段，也会用于之后新增的时段。</p>
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
-          <label className="block text-xs font-bold">限选标签（最多 2 个）<select value="" onChange={(e) => { const value = e.target.value; if (value && !editingCampaign.presetTags?.includes(value)) setEditingCampaign({ ...editingCampaign, presetTags: [...(editingCampaign.presetTags || []), value] }); }} disabled={(editingCampaign.presetTags?.length || 0) >= 2} className="bauhaus-input mt-1 w-full p-2"><option value="">选择标签…</option>{presetTags.filter((tag) => !editingCampaign.presetTags?.includes(tag)).map((tag) => <option key={tag}>{tag}</option>)}</select></label>
-          <div className="flex flex-wrap gap-1">{editingCampaign.presetTags?.map((tag) => <button type="button" key={tag} onClick={() => setEditingCampaign({ ...editingCampaign, presetTags: editingCampaign.presetTags?.filter((item) => item !== tag) })} className="border px-2 py-1 text-xs">{tag} ×</button>)}</div>
-          <label className="block text-xs font-bold">自选标签（最多 2 个，限 6 字）<input maxLength={6} value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} className="bauhaus-input mt-1 w-full p-2" placeholder="输入标签后点击添加" /></label>
-          <button type="button" onClick={() => { const tag = customTagInput.trim(); if (tag && (editingCampaign.customTags?.length || 0) < 2 && !editingCampaign.customTags?.includes(tag)) { setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), tag] }); setCustomTagInput(''); } }} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
+          <label className="block text-xs font-bold">自定义标签（最多 6 个，每个最多 6 字）<input maxLength={6} value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} className="bauhaus-input mt-1 w-full p-2" placeholder="输入标签后点击添加" /></label>
+          <button type="button" onClick={() => { const tag = customTagInput.trim(); if (tag && (editingCampaign.customTags?.length || 0) < 6 && !editingCampaign.customTags?.includes(tag)) { setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), tag] }); setCustomTagInput(''); } }} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
           <div className="flex flex-wrap gap-1">{editingCampaign.customTags?.map((tag) => <button type="button" key={tag} onClick={() => setEditingCampaign({ ...editingCampaign, customTags: editingCampaign.customTags?.filter((item) => item !== tag) })} className="border px-2 py-1 text-xs">#{tag} ×</button>)}</div>
           <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
         </> : <>
@@ -237,42 +228,19 @@ export const ManageView: React.FC<Props> = ({
         </div>
         {editingCampaign.kind === 'offline' && <label className="block text-xs font-bold">完整地址<input maxLength={200} className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.address || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, address: e.target.value })} placeholder="填写活动的详细地址" /></label>}
 
-        {/* Tags row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <div className="flex justify-between text-xs font-bold mb-1"><span>限选标签 (最多2个)</span><span className="text-[#666]">{editingCampaign.presetTags?.length || 0}/2</span></div>
-            <select value="" onChange={(e) => {
-              const val = e.target.value;
-              if (!val) return;
-              const current = editingCampaign.presetTags || [];
-              if (current.includes(val) || current.length >= 2) return;
-              setEditingCampaign({ ...editingCampaign, presetTags: [...current, val] });
-            }} disabled={(editingCampaign.presetTags?.length || 0) >= 2} className="bauhaus-input w-full p-2 text-xs cursor-pointer disabled:bg-[#F2F0E8]">
-              <option value="">{(editingCampaign.presetTags?.length || 0) >= 2 ? '已满' : '选择限选标签…'}</option>
-              {presetTags.filter(t => !editingCampaign.presetTags?.includes(t)).map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {editingCampaign.presetTags?.map(tag => (
-                <span key={tag} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 bg-[#FAF9F5] border border-[#121212]">
-                  {tag}
-                  <button type="button" onClick={() => setEditingCampaign({ ...editingCampaign, presetTags: editingCampaign.presetTags?.filter(t => t !== tag) })}><X className="w-3 h-3 text-[#D62828]" /></button>
-                </span>
-              ))}
-            </div>
-          </div>
-
+        <div>
           <div className="relative">
-            <div className="flex justify-between text-xs font-bold mb-1"><span>自选标签 (最多2个，限6字)</span><span className="text-[#666]">{editingCampaign.customTags?.length || 0}/2</span></div>
+            <div className="flex justify-between text-xs font-bold mb-1"><span>自定义标签 (最多6个，每个最多6字)</span><span className="text-[#666]">{editingCampaign.customTags?.length || 0}/6</span></div>
             <div className="relative">
               <input maxLength={6} value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value.slice(0, 6))} onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const t = customTagInput.trim();
-                  if (!t || (editingCampaign.customTags || []).length >= 2 || (editingCampaign.customTags || []).includes(t)) return;
+                  if (!t || (editingCampaign.customTags || []).length >= 6 || (editingCampaign.customTags || []).includes(t)) return;
                   setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), t] });
                   setCustomTagInput('');
                 }
-              }} disabled={(editingCampaign.customTags?.length || 0) >= 2} placeholder="回车添加标签" className="bauhaus-input w-full p-2 pr-7 text-xs disabled:bg-[#F2F0E8]" />
+              }} disabled={(editingCampaign.customTags?.length || 0) >= 6} placeholder="回车添加标签" className="bauhaus-input w-full p-2 pr-7 text-xs disabled:bg-[#F2F0E8]" />
               <button type="button" onClick={() => setShowCustomTagDropdown(!showCustomTagDropdown)} className="absolute right-1.5 top-2 text-[#004E98] hover:text-[#D62828]"><Sparkles className="w-4 h-4" /></button>
             </div>
             {showCustomTagDropdown && (
@@ -282,7 +250,7 @@ export const ManageView: React.FC<Props> = ({
                   {popularCustomTags.map((tag) => (
                     <button key={tag} type="button" onClick={() => {
                       const cur = editingCampaign.customTags || [];
-                      if (cur.includes(tag) || cur.length >= 2) return;
+                      if (cur.includes(tag) || cur.length >= 6) return;
                       setEditingCampaign({ ...editingCampaign, customTags: [...cur, tag] });
                     }} className="text-[11px] px-1.5 py-0.5 border border-[#121212] bg-[#FAF9F5] text-[#D62828] hover:bg-[#D62828] hover:text-white">
                       #{tag}

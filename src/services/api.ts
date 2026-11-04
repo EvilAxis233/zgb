@@ -11,8 +11,8 @@ const patch = <T>(path: string, value: unknown) => request<T>(path, { method: 'P
 
 export const api = {
   me: () => request<{ user: UserProfile | null }>('auth/me'),
-  campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[]; presetTags: string[]; popularCustomTags: string[] }>('campaigns'),
-  bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; rules: string[]; presetTags: string[]; popularCustomTags: string[] }>('bootstrap'),
+  campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[]; popularCustomTags: string[] }>('campaigns'),
+  bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; rules: string[]; popularCustomTags: string[] }>('bootstrap'),
   requestCode: (qq: string) => post<{ ok: boolean }>('auth/request-code', { qq }),
   verify: (qq: string, code: string) => post<{ user: UserProfile }>('auth/verify', { qq, code }),
   logout: () => post('auth/logout'),
@@ -39,6 +39,7 @@ export const api = {
     const form = new FormData(); form.append('file', file);
     return request<{ imageKey: string; imageUrl: string }>('upload', { method: 'POST', body: form });
   },
+  tickets: (offset = 0) => request<{ submissions: UserTicket[]; total: number }>(`submissions?offset=${offset}`),
   submitFeedback: async (type: 'feedback' | 'report', content: string, images: File[], reportedUser = '') => {
     const form = new FormData();
     form.append('type', type);
@@ -50,6 +51,8 @@ export const api = {
 };
 
 export interface AdminUser {
+  isAdmin: boolean;
+  membershipPermanent: boolean;
   qq: string;
   name: string;
   created_at: string;
@@ -94,6 +97,8 @@ export interface AdminDashboard {
   generatedAt: string;
 }
 
+export type UserTicket = Pick<AdminSubmission, 'id' | 'type' | 'content' | 'status' | 'created_at' | 'updated_at' | 'images' | 'reported_name' | 'reported_qq'>;
+
 export interface AdminSubmission {
   id: string;
   user_qq: string;
@@ -118,9 +123,6 @@ export const adminApi = {
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
-  presetTags: () => request<{ presetTags: string[] }>('admin/preset-tags'),
-  addPresetTag: (name: string) => post('admin/preset-tags', { name }),
-  deletePresetTag: (name: string) => request('admin/preset-tags', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
   users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
   gifts: (qq: string, offset: number) => request<{ records: GiftRecord[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/gifts?offset=${offset}`),
   membershipRedemptions: (qq: string, offset: number) => request<{ records: MembershipRedemption[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/membership-redemptions?offset=${offset}`),

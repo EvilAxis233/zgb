@@ -149,16 +149,9 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   <span>{campaign.sessionType || '语音'}</span>
                 </span>}
                 {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>)}
-                {campaign.presetTags?.map((tag) => (
-                  <span key={`dt-preset-${tag}`} className="px-2 py-0.5 bg-[#FAF9F5] border border-[#121212] text-xs font-bold text-[#121212]">
-                    {tag}
-                  </span>
-                ))}
-                {campaign.customTags?.map((tag) => (
-                  <span key={`dt-custom-${tag}`} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">
-                    #{tag}
-                  </span>
-                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mb-2" aria-label="次级标签">
+                {campaign.customTags?.map((tag) => <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">#{tag}</span>)}
                 {!campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">招募中</span>}
                 {campaign.hasEnded && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已结团</span>}
                 {!campaign.hasEnded && campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已锁车</span>}

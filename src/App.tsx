@@ -17,6 +17,7 @@ import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
 import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
+import { TicketsModal } from './components/TicketsModal';
 import { SubmissionModal } from './components/SubmissionModal';
 import { parseTimeSchedule, TimePeriod } from './utils/date';
 
@@ -33,13 +34,13 @@ export function App() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rules, setRules] = useState<string[]>([]);
-  const [presetTags, setPresetTags] = useState<string[]>([]);
   const [popularCustomTags, setPopularCustomTags] = useState<string[]>([]);
   const [currentUserId, setUserIdState] = useState<string | null>(null);
 
   // UI States
   const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>('board');
   const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
+  const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
@@ -69,7 +70,6 @@ export function App() {
       setUsers([...data.users.filter((u) => u.id !== data.user.id), data.user]);
       setCampaigns(data.campaigns);
       setRules(data.rules);
-      setPresetTags(data.presetTags || []);
       setPopularCustomTags(data.popularCustomTags || []);
       setUserIdState(data.user.id);
     } else {
@@ -77,7 +77,6 @@ export function App() {
       setUsers(data.users);
       setCampaigns(data.campaigns);
       setRules(data.rules);
-      setPresetTags(data.presetTags || []);
       setPopularCustomTags(data.popularCustomTags || []);
       setUserIdState(null);
     }
@@ -334,6 +333,7 @@ export function App() {
         onDailyCheckIn={handleDailyCheckIn}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={() => run(() => api.logout(), '已退出登录').then(() => { setActiveTab('board'); setBoardView('portal'); })}
+        onOpenTickets={() => currentUser ? setIsTicketsOpen(true) : setIsLoginOpen(true)}
         onOpenInstructions={() => setIsInstructionsOpen(true)}
       />
 
@@ -558,7 +558,6 @@ export function App() {
               hostedCampaigns={myCampaigns}
               joinedCampaigns={myJoinedCampaigns}
               rules={rules}
-              presetTags={presetTags}
               popularCustomTags={popularCustomTags}
               onDeleteCampaign={handleDeleteCampaign}
               onSetCampaignClosed={handleSetCampaignClosed}
@@ -596,11 +595,11 @@ export function App() {
         onClose={() => setIsPublishOpen(false)}
         currentUser={currentUser}
         rules={rules}
-        presetTags={presetTags}
         popularCustomTags={popularCustomTags}
         onPublish={handlePublish}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
+      {isTicketsOpen && currentUser && <TicketsModal onClose={() => setIsTicketsOpen(false)} />}
       <InstructionsModal isOpen={isInstructionsOpen} onClose={() => setIsInstructionsOpen(false)} />
       <SubmissionModal type={submissionType} onClose={() => setSubmissionType(null)} onSubmit={handleSubmit} />
 
@@ -639,7 +638,7 @@ export function App() {
       <footer className="mt-16 border-t-4 border-[#121212] bg-[#FFFFFF] py-4 px-4 sm:px-6">
         <div className="max-w-[1760px] mx-auto w-full min-h-12 flex flex-col items-center justify-center gap-2 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center transition-all duration-150">
           <span className="font-black text-xl sm:text-2xl text-[#121212] tracking-widest text-center sm:col-start-2 sm:row-start-1">诸告板</span>
-          <span className="self-end text-sm text-[#666666] text-right font-medium sm:col-start-3 sm:row-start-1 sm:justify-self-end sm:self-center">测试群（858124339）</span>
+          <span className="self-end text-sm text-[#666666] text-right font-medium sm:col-start-3 sm:row-start-1 sm:justify-self-end sm:self-center">交流群（917744498）</span>
         </div>
       </footer>
     </div>

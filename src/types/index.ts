@@ -18,13 +18,15 @@ export interface UserProfile {
     playerHearts: number; // 玩家点赞道具 (每日签到获得)
   };
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD
+  isAdmin?: boolean;
+  membershipPermanent?: boolean;
   membershipExpiresAt: number | null; // Unix seconds
   nameplate?: UserNameplate | null;
 }
 
 export type SessionType = '语音' | '文字' | '其他游戏形式';
 export type CampaignKind = 'online' | 'offline' | 'promo';
-export const GAME_PLATFORMS = ['Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'] as const;
+export const GAME_PLATFORMS = ['QQ', 'Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'] as const;
 export type GamePlatform = typeof GAME_PLATFORMS[number];
 
 export interface Campaign {

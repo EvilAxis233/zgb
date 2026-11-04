@@ -5,6 +5,8 @@ import {
   CalendarCheck,
   ChevronDown,
   HelpCircle,
+  Ticket,
+  Shield,
   LogOut,
   LogIn,
 } from 'lucide-react';
@@ -18,6 +20,7 @@ interface NavbarProps {
   onDailyCheckIn: () => void;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onOpenTickets: () => void;
   onOpenInstructions: () => void;
 }
 
@@ -30,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onDailyCheckIn,
   onOpenLogin,
   onLogout,
+  onOpenTickets,
   onOpenInstructions,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -97,7 +101,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   );
 
   const actionContent = (
-    <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+    <div className="flex max-w-full flex-wrap items-center justify-end gap-2 sm:gap-2.5">
+      {currentUser?.isAdmin && <a href="/admin" className="bauhaus-btn bg-[#004E98] text-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm gap-1.5"><Shield size={15} />后台</a>}
       {/* 签到按钮：在头像左侧，保留签到交互 */}
       <button
         onClick={onDailyCheckIn}
@@ -160,6 +165,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>使用说明</span>
             </button>
 
+            <button type="button" onClick={() => { setIsDropdownOpen(false); onOpenTickets(); }} className="w-full px-4 py-2 text-left text-xs font-bold hover:bg-[#121212] hover:text-white flex items-center gap-2.5 cursor-pointer"><Ticket size={16} />工单</button>
             {/* 分隔线 */}
             <div className="border-t border-[#121212] my-1" />
 
@@ -230,7 +236,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           ))}
         </nav>
         <div className="self-center lg:justify-self-center">{logoContent}</div>
-        <div className="self-end lg:justify-self-end">{actionContent}</div>
+        <div className="min-w-0 max-w-full self-end lg:justify-self-end">{actionContent}</div>
       </div>
     </header>
   );
