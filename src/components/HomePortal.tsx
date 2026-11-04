@@ -34,7 +34,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({ onSelectOnline, onSelect
         <span className="w-2.5 h-2.5 bg-[#D62828]" />
         <span className="w-2.5 h-2.5 bg-[#004E98]" />
       </div>
-      <span className="relative z-10 text-4xl sm:text-5xl font-bold leading-normal tracking-wider text-[#121212]" style={{ fontFamily: '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif' }}>{item.title}</span>
+      <span className="relative z-10 bg-[#F2F0E8] px-3 py-1 text-4xl sm:text-5xl font-bold leading-normal tracking-wider text-[#121212]" style={{ fontFamily: '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif' }}>{item.title}</span>
     </button>)}
   </div>;
 };
