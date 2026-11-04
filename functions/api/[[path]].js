@@ -41,14 +41,14 @@ const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerH
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
-const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
+const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
 const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: [], customTags: campaignTags(b), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
 function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = new Map()) {
   const groups = new Map();
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
-  return rows.map((c) => ({ ...campDto(c, joined.has(c.id), viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
+  return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
 const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
@@ -82,9 +82,10 @@ async function sendCode(env, qq, code) {
 function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const kind = fixedKind || (['online', 'offline', 'promo'].includes(b.kind) ? b.kind : 'online');
   const title = clean(b.title, 100), rule = clean(b.rule, 100), summary = clean(b.summary, 300) || '', time = clean(b.timeSchedule, 200), contact = clean(b.contact, 200);
-  const players = Number(b.maxPlayers);
+  const players = kind === 'promo' ? 1 : Number(b.maxPlayers);
   const matched = /^(\d{4}-\d{2}-\d{2}).*(早|中|晚)$/.exec(time);
-  if (!title || !rule || !matched || !Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写完整团名、规则、日期时段和 1–12 人的预计人数');
+  if (!title || !rule || !matched) throw new Error(kind === 'promo' ? '请填写完整宣群标题、规则和日期时段' : '请填写完整团名、规则和日期时段');
+  if (!Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写 1–12 人的预计人数');
   const sessionType = kind === 'promo' ? clean(b.sessionType, 40) : kind === 'offline' ? '' : ['语音', '文字', '其他游戏形式'].includes(b.sessionType) ? b.sessionType : '语音';
   const platforms = kind === 'promo' ? (Array.isArray(b.platforms) ? b.platforms.map((item) => clean(item, 80)).filter(Boolean).slice(0, 1) : []) : kind === 'offline' ? [] : Array.isArray(b.platforms) ? [...new Set(b.platforms.filter((item) => ['QQ', 'Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'].includes(item)))].slice(0, 8) : [];
   const province = kind === 'offline' ? clean(b.province, 40) : '';
@@ -212,12 +213,12 @@ export async function onRequest(context) {
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last30
             FROM users`).bind(today, asDate(sevenDaysAgo), asDate(thirtyDaysAgo)),
           db.prepare(`SELECT COUNT(*) total,
-            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players THEN 1 ELSE 0 END) recruiting,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (kind='promo' OR (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players) THEN 1 ELSE 0 END) recruiting,
             SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NOT NULL THEN 1 ELSE 0 END) finished,
             SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END) closed,
             SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) deleted,
             COALESCE(SUM((SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)),0) members,
-            COALESCE(ROUND(AVG(CASE WHEN deleted_at IS NULL THEN 100.0*(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)/max_players END),1),0) avg_fill_rate
+            COALESCE(ROUND(AVG(CASE WHEN deleted_at IS NULL AND kind<>'promo' THEN 100.0*(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)/max_players END),1),0) avg_fill_rate
             FROM campaigns`).bind(today),
           db.prepare(`SELECT
             (SELECT COUNT(*) FROM campaign_memberships) memberships,
@@ -410,11 +411,11 @@ export async function onRequest(context) {
       if (!c) return fail('团不存在', 404);
       const membership = user ? await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(c.id, user.qq).first() : null;
       const siblings = c.batch_id ? await db.prepare(`${campaignSelect} AND c.batch_id=? ORDER BY c.scheduled_date,c.time_period`).bind(c.batch_id).all() : null;
-      const isPublic = !c.finished_at && ((!c.closed_at && Number(c.member_count) < c.max_players) || !!siblings?.results.some((slot) => !slot.finished_at && !slot.closed_at && Number(slot.member_count) < slot.max_players));
+      const isPublic = !c.finished_at && ((!c.closed_at && (c.kind === 'promo' || Number(c.member_count) < c.max_players)) || !!siblings?.results.some((slot) => !slot.finished_at && !slot.closed_at && (slot.kind === 'promo' || Number(slot.member_count) < slot.max_players)));
       if (!isPublic && (!user || (c.gm_qq !== user.qq && !membership))) return fail('团不存在', 404);
       const players = await db.prepare('SELECT u.* FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id=? ORDER BY m.joined_at,u.qq').bind(c.id).all();
       const gm = await db.prepare('SELECT * FROM users WHERE qq=?').bind(c.gm_qq).first();
-      const canSeeContact = !!user && (c.gm_qq === user.qq || !!membership);
+      const canSeeContact = !!user && (c.kind === 'promo' || c.gm_qq === user.qq || !!membership);
       const joined = new Set();
       if (user && siblings?.results.length) {
         const records = await db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=? AND campaign_id IN (SELECT id FROM campaigns WHERE batch_id=?)').bind(user.qq, c.batch_id).all();
@@ -500,7 +501,7 @@ export async function onRequest(context) {
         db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10')
       ]);
       const joined = new Set(memberships.results.map((m) => m.campaign_id));
-      const visible = cs.results.filter((c) => (!c.finished_at && !c.closed_at && Number(c.member_count) < c.max_players) || c.gm_qq === user.qq || joined.has(c.id));
+      const visible = cs.results.filter((c) => (!c.finished_at && !c.closed_at && (c.kind === 'promo' || Number(c.member_count) < c.max_players)) || c.gm_qq === user.qq || joined.has(c.id));
       const masters = await db.prepare('SELECT * FROM campaign_batches WHERE gm_qq=?').bind(user.qq).all();
       const campaigns = campaignsDto(cs.results, joined, user.qq, new Map(masters.results.map((master) => [master.id, master])));
       return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: campaigns.filter((c) => visible.some((item) => item.id === c.id)), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
@@ -643,6 +644,7 @@ export async function onRequest(context) {
       const cid = path[1], c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(cid).first();
       if (!c) return fail('团不存在', 404);
       if (path[2] === 'signup' && path.length === 3 && method === 'POST') {
+        if (c.kind === 'promo') return fail('宣群无需报名，请登录后查看联系方式', 409);
         if (c.gm_qq === user.qq) return fail('主持人不能报名自己的团');
         const blacklisted = await db.prepare('SELECT 1 FROM user_blacklist WHERE qq=? AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at>?)').bind(user.qq, now()).first();
         if (blacklisted) return fail('当前账号在黑名单中，暂时无法报名', 403);
@@ -675,6 +677,7 @@ export async function onRequest(context) {
       if (path[2] === 'status' && path.length === 3 && method === 'PATCH') {
         const b = await body(request);
         if (typeof b.closed !== 'boolean') return fail('状态无效');
+        if (c.kind === 'promo' && !b.closed) return fail('宣群封车后不能重新开放', 409);
         if (c.finished_at) return fail('已结团，不能重新开放', 409);
         if (!b.closed && campaignExpired(c)) return fail('预定时间已过，请先修改时间', 409);
         await db.prepare('UPDATE campaigns SET closed_at=? WHERE id=?').bind(b.closed ? new Date().toISOString() : null, cid).run();

@@ -174,7 +174,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       hasEnded: false,
       hasExpired: false,
       isSignedUp: false,
-      maxPlayers: Number(maxPlayers) || 4,
+      maxPlayers: kind === 'promo' ? 1 : Number(maxPlayers) || 4,
       currentPlayers: 0,
     });
 
@@ -202,14 +202,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     summary: '',
     description: description.trim() || '暂无详细简介',
     timeSchedule: timeSlots[0] || '时间待定',
-    slots: timeSlots.map((slot, index) => ({ id: `preview-${index}`, timeSchedule: slot, currentPlayers: 0, maxPlayers: Number(maxPlayers) || 4, isFull: false, hasEnded: false, hasExpired: false, isSignedUp: false })),
+    slots: timeSlots.map((slot, index) => ({ id: `preview-${index}`, timeSchedule: slot, currentPlayers: 0, maxPlayers: kind === 'promo' ? 1 : Number(maxPlayers) || 4, isFull: false, hasEnded: false, hasExpired: false, isSignedUp: false })),
     imageUrl: imageUrl.trim() || undefined,
     bannerColor,
     isFull: false,
     hasEnded: false,
     hasExpired: false,
     isSignedUp: false,
-    maxPlayers: Number(maxPlayers) || 4,
+    maxPlayers: kind === 'promo' ? 1 : Number(maxPlayers) || 4,
     currentPlayers: 0,
     createdAt: new Date().toISOString().slice(0, 10),
   };
@@ -352,7 +352,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </div>
 
                   {/* Players Count */}
-                  <div>
+                  {kind !== 'promo' && <div>
                     <label className="block font-bold text-[#121212] mb-1">
                       人数
                     </label>
@@ -364,7 +364,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       onChange={(e) => setMaxPlayers(Number(e.target.value))}
                       className="bauhaus-input w-full px-2 py-2 text-sm"
                     />
-                  </div>
+                  </div>}
 
                   {kind === 'offline' ? <label className="block font-bold text-[#121212] sm:col-span-2">省份 / 城市<input required maxLength={8} value={location} onChange={(e) => setLocation(Array.from(e.target.value).slice(0, 8).join(''))} placeholder="例如：广东省深圳市（最多八字）" className="bauhaus-input mt-1 w-full px-3 py-2 text-sm" /></label> : <>
                     <div>

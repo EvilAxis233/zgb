@@ -152,10 +152,10 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               </div>
               <div className="flex flex-wrap items-center gap-2 mb-2" aria-label="次级标签">
                 {campaign.customTags?.map((tag) => <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">#{tag}</span>)}
-                {!campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">招募中</span>}
-                {campaign.hasEnded && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已结团</span>}
-                {!campaign.hasEnded && campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已锁车</span>}
-                <span className="px-2.5 py-0.5 bg-[#F4A261] text-xs font-bold border border-[#121212] flex items-center gap-1"><Users className="w-3.5 h-3.5" />{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>
+                {!campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '展示中' : '招募中'}</span>}
+                {campaign.kind !== 'promo' && campaign.hasEnded && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已结团</span>}
+                {!campaign.hasEnded && campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '已封车' : '已锁车'}</span>}
+                {campaign.kind !== 'promo' && <span className="px-2.5 py-0.5 bg-[#F4A261] text-xs font-bold border border-[#121212] flex items-center gap-1"><Users className="w-3.5 h-3.5" />{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>}
               </div>
               {campaign.kind === 'offline' && campaign.address && <p className="mb-2 text-xs font-bold text-[#555] break-all">完整地址：{campaign.address}</p>}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -171,7 +171,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                     >
                       {campaign.slots.map((slot) => (
                         <option key={slot.id} value={slot.id}>
-                          {formatDisplayTime(slot.timeSchedule)} · {slot.currentPlayers}/{slot.maxPlayers}{slot.hasEnded ? ' 已结团' : slot.isClosed ? ' 已锁车' : slot.isFull ? ' 已满' : ''}{slot.isSignedUp ? ' 已报名' : ''}
+                          {`${formatDisplayTime(slot.timeSchedule)}${campaign.kind === 'promo' ? (slot.isClosed ? ' 已封车' : '') : ` · ${slot.currentPlayers}/${slot.maxPlayers}${slot.hasEnded ? ' 已结团' : slot.isClosed ? ' 已锁车' : slot.isFull ? ' 已满' : ''}${slot.isSignedUp ? ' 已报名' : ''}`}`}
                         </option>
                       ))}
                     </select>
@@ -184,12 +184,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   <span>{formatDisplayTime(campaign.timeSchedule)}</span>
                 </div>
                 <div className="text-xs">
-                  {isGm || campaign.isSignedUp ? (
+                  {isGm || campaign.isSignedUp || (campaign.kind === 'promo' && currentUser) ? (
                     <span className="text-[#121212]">
                       联系方式：<span className="font-mono text-[#004E98] select-all font-black">{campaign.contact || campaign.gmQq}</span>
                     </span>
                   ) : (
-                    <span className="text-[#777777]">联系方式：报名后可查看</span>
+                    <span className="text-[#777777]">{campaign.kind === 'promo' ? '联系方式：登录后可查看' : '联系方式：报名后可查看'}</span>
                   )}
                 </div>
               </div>
@@ -199,25 +199,26 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <MarkdownView content={campaign.description} />
           </section>
           <section className="col-span-full border-2 border-[#121212] bg-white shadow-[4px_4px_0px_#121212]">
-            <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">成员名单</h2><span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span></div>
+            <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">{campaign.kind === 'promo' ? '发布者' : '成员名单'}</h2>{campaign.kind !== 'promo' && <span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span>}</div>
             {gm && memberRow(gm)}
-            {players.length ? (
+            {campaign.kind !== 'promo' && (players.length ? (
               <div className="grid grid-cols-1 md:grid-cols-3">
                 {players.map((member, index) => memberRow(member, index, players.length, true))}
               </div>
             ) : (
               <div className="px-4 py-6 text-center text-xs text-[#777]">尚无玩家报名</div>
-            )}
+            ))}
           </section>
           </div>
         </div>
         <footer className="bg-[#F6F5F0] border-t-2 border-[#121212] px-5 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <span className="text-xs text-[#666]">发布时间: {campaign.createdAt}</span>
           <div className="flex flex-wrap items-center justify-end gap-3">
-            {!currentUser && !campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold">登录后报名</button>}
-            {currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <button type="button" onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
-            {currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
-            {(campaign.hasEnded || campaign.isClosed || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed ? '本团已锁车' : '报名人数已满'}</span>}
+            {campaign.kind !== 'promo' && !currentUser && !campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold">登录后报名</button>}
+            {campaign.kind !== 'promo' && currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <button type="button" onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
+            {campaign.kind !== 'promo' && currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
+            {campaign.kind !== 'promo' && (campaign.hasEnded || campaign.isClosed || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed ? '本团已锁车' : '报名人数已满'}</span>}
+            {campaign.kind === 'promo' && !currentUser && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold">登录查看联系方式</button>}
             <button type="button" onClick={onClose} className="bauhaus-btn bg-white px-5 py-1.5 text-xs font-bold">关闭</button>
           </div>
         </footer>
