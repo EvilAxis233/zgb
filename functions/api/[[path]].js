@@ -657,8 +657,11 @@ export async function onRequest(context) {
       }
       if (path[2] === 'signup' && path.length === 3 && method === 'DELETE') {
         if (campaignExpired(c) || c.finished_at) return fail('开团日结束后不能取消报名');
-        const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(cid, user.qq).run();
-        return result.meta.changes ? json({ ok: true }) : fail('你尚未报名', 404);
+        if (c.closed_at) return fail('本团已锁车，不能取消报名', 409);
+        const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)').bind(cid, user.qq, cid, dateHK()).run();
+        if (result.meta.changes) return json({ ok: true });
+        const current = await db.prepare('SELECT closed_at FROM campaigns WHERE id=?').bind(cid).first();
+        return current?.closed_at ? fail('本团已锁车，不能取消报名', 409) : fail('你尚未报名', 404);
       }
       if (path[2] === 'members' && path[3] && path.length === 4 && method === 'DELETE') {
         if (c.gm_qq !== user.qq) return fail('只有主持人可以移除玩家', 403);
