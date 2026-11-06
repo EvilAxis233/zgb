@@ -1,13 +1,13 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "zgb-trpg",
+  "name": "zgb-abc",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-10-15",
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "zgb-trpg",
-      "database_id": "743b8f10-ed08-4875-87e0-63dc191b8051",
+      "database_id": "0b791363-7497-4637-9587-3d9c468ac99a",
       "migrations_dir": "./migrations"
     }
   ],
