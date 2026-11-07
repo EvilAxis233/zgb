@@ -166,7 +166,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         <label className="block text-xs font-bold">一句话简介<input maxLength={300} className="bauhaus-input mt-1 w-full p-2" value={draft.summary || ''} onChange={(e) => setDraft({ ...draft, summary: e.target.value })} placeholder="卡片上的简短说明，可留空" /></label>
         {coverBlock}
 
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
+        <div className={`grid grid-cols-1 gap-3 ${draft.kind === 'promo' ? 'sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1fr)_minmax(0,1.1fr)]' : 'sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)]'}`}>
           <div className="relative">
             <label className="block text-xs font-bold mb-1">规则系统</label>
             <div className="relative">

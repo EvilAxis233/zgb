@@ -333,7 +333,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 </div>
 
                 {/* Rule, player count, game type, and platforms */}
-                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
+                <div className={`grid grid-cols-1 gap-3 ${kind === 'promo' ? 'sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1fr)_minmax(0,1.1fr)]' : 'sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)]'}`}>
                   {/* Rule with dynamic input and popup */}
                   <div className="relative">
                     <label className="block font-bold text-[#121212] mb-1 flex items-center justify-between gap-2">

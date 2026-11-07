@@ -289,7 +289,7 @@ export const ManageView: React.FC<Props> = ({
         {coverBlock}
         
         {/* Rule, players, game type, and platforms */}
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
+        <div className={`grid grid-cols-1 gap-3 ${editingCampaign.kind === 'promo' ? 'sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1fr)_minmax(0,1.1fr)]' : 'sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)]'}`}>
           <div className="relative">
             <label className="block text-xs font-bold mb-1">规则系统</label>
             <div className="relative">
