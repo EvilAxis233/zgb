@@ -149,7 +149,9 @@ html {
     0 0 12px rgba(233, 196, 106, 0.35);
 }
 
-.gilded-avatar > * {
+/* 只提升「内容层」的层级；绝对定位的辅助元素（上传遮罩 .absolute、
+   隐藏文件框 .sr-only 等）必须保持原定位，否则会参与 flex 布局挤偏头像。 */
+.gilded-avatar > :where(:not(.absolute):not(.fixed):not(.sr-only)) {
   position: relative;
   z-index: 1;
 }
@@ -157,10 +159,7 @@ html {
 .gilded-avatar::before {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 220%;
-  aspect-ratio: 1;
+  inset: -60%;
   z-index: 0;
   background: conic-gradient(
     from 0deg,
@@ -174,9 +173,8 @@ html {
     #C99A2E 315deg,
     #6B4106 360deg
   );
-  transform: translate(-50%, -50%) rotate(0deg);
+  transform: rotate(0deg);
   animation: gilded-rotate 6s linear infinite;
-  will-change: transform;
 }
 
 .gilded-avatar::after {
@@ -191,8 +189,8 @@ html {
 }
 
 @keyframes gilded-rotate {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes gilded-shine {
