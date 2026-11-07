@@ -304,12 +304,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </button>
           </div>
 
-          {/* Modal Body: Left form, Right preview */}
-          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          {/* Modal Body: Left form, Right preview（移动端整体纵向滚动，右侧预览固定高度） */}
+          <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
             {/* 中间主信息栏 (比两侧栏扩大 35%，宽度为 594px) */}
             <form
               onSubmit={handleSubmit}
-              className="w-full lg:w-[594px] shrink-0 h-full overflow-y-auto no-scrollbar p-5 sm:p-6 text-sm flex flex-col"
+              className="w-full lg:w-[594px] shrink-0 lg:h-full overflow-y-auto no-scrollbar p-5 sm:p-6 text-sm flex flex-col"
             >
               <div className="space-y-3 flex-1 pb-3">
                 {/* Title */}
@@ -750,7 +750,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
           </form>
 
           {/* RIGHT: Live Preview (与左侧时间弹窗等宽 440px) */}
-          <div className="w-full lg:w-[440px] shrink-0 h-full flex flex-col border-t-4 lg:border-t-0 lg:border-l-4 border-[#121212] bg-[#FAF9F5] overflow-hidden">
+          <div className="w-full lg:w-[440px] shrink-0 h-[680px] lg:h-full flex flex-col border-t-4 lg:border-t-0 lg:border-l-4 border-[#121212] bg-[#FAF9F5] overflow-hidden">
             {/* Top Half: Card Preview (fits complete card without scrollbar) */}
             <div className="flex-[1.4] min-h-[380px] flex flex-col border-b-4 border-[#121212] overflow-hidden">
               <div className="bg-[#121212] text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shrink-0">
