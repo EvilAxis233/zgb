@@ -38,7 +38,7 @@
 
 ## 管理后台
 
-访问 `/admin`。QQ 账号 `3486636827`、`407457008` 使用已验证的站内登录会话获得管理员权限，签到旁显示「后台」入口；这些账号享有永久会员和会员签到、铭牌权益，无需输入后台密码。账号管理员在后台退出时同时退出站内登录。后台密码从 Pages Secret `ADMIN_PASSWORD` 读取；未配置时后台登录不可用。后台使用独立的 HttpOnly、Secure、SameSite=Strict Cookie，会话有效期 12 小时；单个 IP 15 分钟内连续五次输错后会暂时拒绝登录。更换密码会使旧管理员会话失效；原来公开于源码的密码不得继续使用。
+访问 `/admin`。站主 QQ `407457008` 使用已验证的站内登录会话获得管理员权限，签到旁显示「后台」入口，无需输入后台密码；其他管理员由站长在后台任命，可进后台但不自动获得会员。账号管理员在后台退出时同时退出站内登录。后台密码从 Pages Secret `ADMIN_PASSWORD` 读取；未配置时后台登录不可用。后台使用独立的 HttpOnly、Secure、SameSite=Strict Cookie，会话有效期 12 小时；单个 IP 15 分钟内连续五次输错后会暂时拒绝登录。更换密码会使旧管理员会话失效；原来公开于源码的密码不得继续使用。
 
 后台首页为数据看板，汇总用户增长、团次状态、报名、点赞、登录会话、板块分布、热门规则及反馈举报队列。内容配置、账号与礼物、反馈受理、举报受理分别使用独立入口。反馈和举报写入 D1，图片存入 R2；单次最多 9 张且每张不超过 5MB，举报至少需要 1 张图片。管理员可筛选受理状态、填写备注并标记处理中、已解决或已驳回。账号列表按 QQ 号或昵称搜索、分页显示，点选账号可查看送礼、收礼和会员密钥兑换记录。
 
@@ -52,7 +52,7 @@
 
 ## 生产部署
 
-GitHub 仓库为 [dqqql/zgb](https://github.com/dqqql/zgb)，生产地址为 [zgb-trpg.pages.dev](https://zgb-trpg.pages.dev)。Cloudflare Pages 项目 `zgb-trpg` 连接该仓库，生产分支 `main`，构建命令 `npm run build`，输出目录 `dist`。推送 `main` 会自动部署生产；其他分支使用预览部署。`wrangler.jsonc` 保存 D1/R2 绑定，远端迁移运行 `npm run db:migrate:remote`。
+GitHub 仓库为 [EvilAxis233/zgb](https://github.com/EvilAxis233/zgb)，生产地址为 [pigbee.fun](https://pigbee.fun)（Pages 默认域 `zgb-abc.pages.dev`）。Cloudflare Pages 项目 `zgb-abc` 连接该仓库，生产分支 `main`，构建命令 `npm run build`，输出目录 `dist`。推送 `main` 会自动部署生产；其他分支使用预览部署。`wrangler.jsonc` 保存 D1（`zgb-trpg`）与 R2（`zgb-trpg-covers`）绑定，远端迁移运行 `npm run db:migrate:remote`。仓库、Cloudflare 账号、域名与 Pages 项目均由站主本人持有；生产环境所需 Secret 为 `ADMIN_PASSWORD`、`OTP_SECRET`、`RESEND_API_KEY`、`BOT_BRIDGE_TOKEN`（只保存在 Cloudflare，不入库、不进 Git）。
 
 Pages 生产环境还需设置独立的加密 Secret `ADMIN_PASSWORD`，替换已公开的旧密码后再部署本版本；旧管理员 Cookie 会失效。`BOT_BRIDGE_TOKEN` 仅在准备接入相应机器人时设置，并与测试环境分别生成。`RESEND_FROM` 在 `wrangler.jsonc` 中设置。更换任何 Secret 后重新部署，再验证 `/api/health`、空首页和实际 QQ 邮件登录。不要在预览环境复用生产 Secret 或向真实用户发送测试验证码。
 
