@@ -1,6 +1,5 @@
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 const fail = (message, status = 400) => json({ error: message }, status);
-const ADMIN_QQS = new Set(['3486636827', '407457008']);
 const OWNER_QQS = new Set(['407457008']);
 const PERMANENT_MEMBERSHIP = 253402300799;
 const RULE_LIMIT = 10;
@@ -16,19 +15,11 @@ const roleOf = (user) => {
 const isSiteAdmin = (user) => !!roleOf(user);
 const isOwner = (user) => roleOf(user) === 'owner';
 const isMember = (user) => !!user && (roleOf(user) === 'owner' || (user.membership_expires_at ?? 0) > now());
-const isAccountAdmin = (user) => !!user && ADMIN_QQS.has(user.qq);
 const campaignTags = (c) => [...new Set([...parseTags(c.custom_tags), ...parseTags(c.preset_tags)].map((tag) => Array.from(String(tag).trim()).slice(0, 6).join('')).filter(Boolean))].slice(0, 6);
 const dateHK = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 const id = () => crypto.randomUUID();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function sha256(value) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))); }
-const adminTokenHash = (token, secret) => sha256(`${secret}:${token}`);
-async function passwordMatches(value, secret) {
-  const [actual, expected] = await Promise.all([sha256(value), sha256(secret)]);
-  let difference = 0;
-  for (let i = 0; i < expected.length; i++) difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
-  return difference === 0;
-}
 async function botAuth(request, secret) {
   if (!secret) return false;
   const authorization = request.headers.get('Authorization') || '';
@@ -76,18 +67,8 @@ const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.ava
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
-async function adminAuth(request, db, secret) {
-  const account = await auth(request, db);
-  if (isSiteAdmin(account)) return true;
-  if (!secret) return false;
-  const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
-  if (!token) return false;
-  const session = await db.prepare('SELECT 1 FROM admin_sessions WHERE token_hash=? AND expires_at>?').bind(await adminTokenHash(token, secret), now()).first();
-  if (!session) return false;
-  // 密码通道仅在没有站长账号时作为应急入口，避免共享密码绕过角色管理。
-  const ownerExists = await db.prepare("SELECT 1 FROM users WHERE role='owner' LIMIT 1").first();
-  return !ownerExists;
-}
+// 后台只认 QQ 登录 + 角色（owner/admin）；旧的密码应急通道已下线。
+const adminAuth = async (request, db) => isSiteAdmin(await auth(request, db));
 async function auth(request, db) {
   const token = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return null;
@@ -135,24 +116,9 @@ function validateNewSlot(raw, unrestricted = false) {
   if (actualDate !== date || date < dateHK() || (!unrestricted && date > latestDate)) throw new Error('请填写有效的开团日期和时段');
   return { time, date, period: matched[2] };
 }
-function decodeBase64Url(value) {
-  return Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4)), (character) => character.charCodeAt(0));
-}
-async function verifyMembershipKey(code, publicKeyBase64) {
-  const match = /^VIP1\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{86})$/.exec(code);
-  if (!match) return false;
-  try {
-    const nonce = decodeBase64Url(match[1]);
-    const signature = decodeBase64Url(match[2]);
-    if (nonce.length !== 16 || signature.length !== 64) return false;
-    const canonical = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    if (canonical(nonce) !== match[1] || canonical(signature) !== match[2]) return false;
-    const publicKey = Uint8Array.from(atob(publicKeyBase64), (character) => character.charCodeAt(0));
-    const key = await crypto.subtle.importKey('spki', publicKey, { name: 'Ed25519' }, false, ['verify']);
-    return crypto.subtle.verify('Ed25519', key, signature, new TextEncoder().encode(`ZGB-MEMBER|VIP1|30D|${match[1]}`));
-  } catch { return false; }
-}
 const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,u.nameplate gm_nameplate,u.stickers gm_stickers,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
+// 每个 Worker 实例内记录上次自动关团时间，实现 60 秒节流。
+let lastSweepAt = 0;
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -163,7 +129,11 @@ export async function onRequest(context) {
   if (!db) return fail('数据库未配置', 503);
   try {
     if (method !== 'GET' && method !== 'HEAD' && request.headers.get('Origin') && request.headers.get('Origin') !== url.origin) return fail('请求来源无效', 403);
-    await db.prepare('UPDATE campaigns SET closed_at=? WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date<?').bind(new Date().toISOString(), dateHK()).run();
+    // 自动关团扫库按实例节流（60 秒一次），避免每个请求都先跑一条 UPDATE 写查询拖慢响应。
+    if (Date.now() - lastSweepAt > 60000) {
+      lastSweepAt = Date.now();
+      await db.prepare('UPDATE campaigns SET closed_at=? WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date<?').bind(new Date().toISOString(), dateHK()).run();
+    }
     if (path[0] === 'health' && method === 'GET') { await db.prepare('SELECT 1').first(); return json({ ok: true }); }
     if (path[0] === 'internal' && path[1] === 'bot') {
       if (!env.BOT_BRIDGE_TOKEN) return fail('机器人接口未配置', 503);
@@ -193,29 +163,11 @@ export async function onRequest(context) {
       return object ? new Response(object.body, { headers: { 'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } }) : fail('图片不存在', 404);
     }
     if (path[0] === 'admin') {
-      if (path[1] === 'login' && method === 'POST') {
-        if (!env.ADMIN_PASSWORD) return fail('后台密码未配置', 503);
-        const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-        const attempts = await db.prepare('SELECT COUNT(*) n FROM admin_login_attempts WHERE ip=? AND created_at>?').bind(ip, now() - 900).first();
-        if (attempts.n >= 5) return fail('尝试过多，请 15 分钟后再试', 429);
-        const submitted = (await body(request)).password;
-        if (typeof submitted !== 'string' || submitted.length > 200 || !await passwordMatches(submitted, env.ADMIN_PASSWORD)) {
-          await db.prepare('INSERT INTO admin_login_attempts(ip,created_at) VALUES(?,?)').bind(ip, now()).run();
-          return fail('密码错误', 401);
-        }
-        await db.prepare('DELETE FROM admin_login_attempts WHERE ip=?').bind(ip).run();
-        const token = hex(crypto.getRandomValues(new Uint8Array(32)));
-        await db.prepare('INSERT INTO admin_sessions(token_hash,expires_at,created_at) VALUES(?,?,?)').bind(await adminTokenHash(token, env.ADMIN_PASSWORD), now() + 12 * 3600, now()).run();
-        return json({ ok: true }, 200, { 'Set-Cookie': adminCookie(token, 12 * 3600) });
-      }
       if (path[1] === 'me' && method === 'GET') {
         const account = await auth(request, db);
-        const owner = await db.prepare("SELECT 1 FROM users WHERE role='owner' LIMIT 1").first();
-        return json({ authenticated: await adminAuth(request, db, env.ADMIN_PASSWORD), role: roleOf(account), name: account?.name || '', passwordFallbackAvailable: !owner });
+        return json({ authenticated: isSiteAdmin(account), role: roleOf(account), name: account?.name || '' });
       }
       if (path[1] === 'logout' && method === 'POST') {
-        const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
-        if (token && env.ADMIN_PASSWORD) await db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await adminTokenHash(token, env.ADMIN_PASSWORD)).run();
         const account = await auth(request, db);
         const response = json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
         if (isSiteAdmin(account)) {
@@ -225,7 +177,7 @@ export async function onRequest(context) {
         }
         return response;
       }
-      if (!await adminAuth(request, db, env.ADMIN_PASSWORD)) return fail('请先登录后台', 401);
+      if (!await adminAuth(request, db)) return fail('请先登录后台', 401);
       if (path[1] === 'dashboard' && path.length === 2 && method === 'GET') {
         const today = dateHK();
         const sevenDaysAgo = new Date(`${today}T00:00:00+08:00`);
@@ -332,26 +284,6 @@ export async function onRequest(context) {
           const result = await db.prepare('UPDATE user_blacklist SET lifted_at=? WHERE qq=? AND lifted_at IS NULL').bind(new Date().toISOString(), qq).run();
           return result.meta.changes ? json({ ok: true }) : fail('该账号不在黑名单中', 409);
         }
-      }
-      if (path[1] === 'users' && path[2] && path[3] === 'gifts' && method === 'GET') {
-        const qq = path[2], offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
-        if (!qqValid(qq)) return fail('QQ 号无效');
-        const [count, records] = await db.batch([
-          db.prepare('SELECT COUNT(*) n FROM praises WHERE from_qq=? OR to_qq=?').bind(qq, qq),
-          db.prepare(`SELECT p.id,p.from_qq,p.to_qq,p.type,p.created_at,fu.name from_name,tu.name to_name ` +
-            `FROM praises p JOIN users fu ON fu.qq=p.from_qq JOIN users tu ON tu.qq=p.to_qq ` +
-            `WHERE p.from_qq=? OR p.to_qq=? ORDER BY p.created_at DESC LIMIT 50 OFFSET ?`).bind(qq, qq, offset)
-        ]);
-        return json({ records: records.results, total: count.results[0].n });
-      }
-      if (path[1] === 'users' && path[2] && path[3] === 'membership-redemptions' && path.length === 4 && method === 'GET') {
-        const qq = path[2], offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
-        if (!qqValid(qq)) return fail('QQ 号无效');
-        const [count, records] = await db.batch([
-          db.prepare('SELECT COUNT(*) n FROM membership_redemptions WHERE user_qq=?').bind(qq),
-          db.prepare('SELECT key_code,redeemed_at,expires_at FROM membership_redemptions WHERE user_qq=? ORDER BY redeemed_at DESC,key_hash DESC LIMIT 50 OFFSET ?').bind(qq, offset)
-        ]);
-        return json({ records: records.results, total: count.results[0].n });
       }
       // 后台按 QQ 发放 N 个月会员：单月按 30 天，12 个月按 365 天。
       if (path[1] === 'users' && path[2] && path[3] === 'membership' && path.length === 4 && method === 'POST') {

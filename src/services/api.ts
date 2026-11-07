@@ -80,16 +80,6 @@ export interface MembershipGrant {
   created_at: string;
 }
 
-export interface GiftRecord {
-  id: string;
-  from_qq: string;
-  to_qq: string;
-  from_name: string;
-  to_name: string;
-  type: 'gm' | 'player';
-  created_at: string;
-}
-
 export interface AdminDashboard {
   users: { total: number; today: number; last7: number; last30: number };
   campaigns: { total: number; recruiting: number; finished: number; closed: number; deleted: number; members: number; avg_fill_rate: number };
@@ -121,8 +111,7 @@ export interface AdminSubmission {
 }
 
 export const adminApi = {
-  me: () => request<{ authenticated: boolean; role: 'owner' | 'admin' | null; name: string; passwordFallbackAvailable: boolean }>('admin/me'),
-  login: (password: string) => post<{ ok: boolean }>('admin/login', { password }),
+  me: () => request<{ authenticated: boolean; role: 'owner' | 'admin' | null; name: string }>('admin/me'),
   logout: () => post('admin/logout'),
   dashboard: () => request<AdminDashboard>('admin/dashboard'),
   rules: () => request<{ rules: string[] }>('admin/rules'),
