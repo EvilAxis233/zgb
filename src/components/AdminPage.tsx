@@ -41,13 +41,13 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
 
 export function AdminPage() {
   const { showConfirm } = useDialog();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null), [password, setPassword] = useState(''), [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null), [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null), [dashboardLoading, setDashboardLoading] = useState(false);
   const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]), [userTotal, setUserTotal] = useState(0), [searchInput, setSearchInput] = useState(''), [search, setSearch] = useState(''), [userOffset, setUserOffset] = useState(0);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);
-  const [myRole, setMyRole] = useState<'owner' | 'admin' | null>(null), [passwordFallback, setPasswordFallback] = useState(false);
+  const [myRole, setMyRole] = useState<'owner' | 'admin' | null>(null);
   const [submissions, setSubmissions] = useState<AdminSubmission[]>([]), [submissionTotal, setSubmissionTotal] = useState(0), [submissionOffset, setSubmissionOffset] = useState(0), [submissionStatus, setSubmissionStatus] = useState(''), [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const submissionType = activeSection === 'report' ? 'report' : 'feedback';
@@ -56,14 +56,13 @@ export function AdminPage() {
   const loadRules = async () => setRules((await adminApi.rules()).rules);
   const loadSubmissions = async () => { const data = await adminApi.submissions(submissionType, submissionStatus, submissionOffset); setSubmissions(data.submissions); setSubmissionTotal(data.total); setDraftNotes(Object.fromEntries(data.submissions.map((item) => [item.id, item.admin_note]))); };
 
-  useEffect(() => { adminApi.me().then((data) => { setAuthenticated(data.authenticated); setMyRole(data.role); setPasswordFallback(data.passwordFallbackAvailable); }).catch(() => setAuthenticated(false)); }, []);
+  useEffect(() => { adminApi.me().then((data) => { setAuthenticated(data.authenticated); setMyRole(data.role); }).catch(() => setAuthenticated(false)); }, []);
   useEffect(() => { if (authenticated && activeSection === 'dashboard') loadDashboard(); }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'content') loadRules().catch(message); }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset).then((data) => { setUsers(data.users); setUserTotal(data.total); }).catch(message); }, [authenticated, activeSection, search, userOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.grants(selected.qq, grantOffset).then((data) => { setGrants(data.records); setGrantTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, grantOffset]);
   useEffect(() => { if (authenticated && (activeSection === 'feedback' || activeSection === 'report')) loadSubmissions().catch(message); }, [authenticated, activeSection, submissionStatus, submissionOffset]);
 
-  const login = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setNotice(''); try { await adminApi.login(password); setPassword(''); setAuthenticated(true); setActiveSection('dashboard'); } catch (error) { message(error); } finally { setBusy(false); } };
   const logout = async () => { try { await adminApi.logout(); setAuthenticated(false); setDashboard(null); setSelected(null); } catch (error) { message(error); } };
   const addRule = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { await adminApi.addRule(newRule.trim()); setNewRule(''); await loadRules(); setNotice('规则已添加'); } catch (error) { message(error); } finally { setBusy(false); } };
   const deleteRule = async (name: string) => { if (!await showConfirm({ title: '删除规则', message: `确定删除规则「${name}」？已有团的历史规则名称仍会保留。`, confirmText: '确定删除', type: 'danger' })) return; setBusy(true); try { await adminApi.deleteRule(name); await loadRules(); setNotice('规则已删除'); } catch (error) { message(error); } finally { setBusy(false); } };
@@ -105,12 +104,6 @@ export function AdminPage() {
         <a href="/" className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-sm">返回首页登录</a>
         <button type="button" onClick={() => window.location.reload()} className="bauhaus-btn bg-white px-4 py-2 text-sm">我已登录，刷新</button>
       </div>
-      {passwordFallback && <form onSubmit={login} className="mt-5 border-t-2 border-[#121212] pt-4 space-y-3">
-        <p className="text-xs font-bold text-[#666]">当前站点还没有站长账号，可用后台密码应急进入。</p>
-        <label className="block text-sm font-bold" htmlFor="admin-password">管理员密码</label>
-        <input id="admin-password" autoComplete="current-password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="bauhaus-input w-full px-3 py-2" />
-        <button disabled={busy} className="bauhaus-btn w-full bg-[#D62828] text-white py-2.5">进入后台</button>
-      </form>}
     </section>}
     {authenticated && <><nav aria-label="后台功能" className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-6">{sections.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}</button>; })}</nav><div className="mb-5 flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" /><h2 className="text-2xl font-black">{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <Dashboard data={dashboard} loading={dashboardLoading} />}
