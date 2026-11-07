@@ -12,6 +12,7 @@ import {
   LogIn,
   Sun,
   Moon,
+  UserRound,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -172,6 +173,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* 下拉菜单 */}
         {isDropdownOpen && (
           <div className="absolute right-0 mt-1.5 w-48 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] py-1 z-50">
+            {/* 个人档案：名字下拉的第一个选项 */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsDropdownOpen(false);
+                if (currentUser) setActiveTab('profile');
+                else onOpenLogin();
+              }}
+              className="w-full px-4 py-2 text-left text-xs font-bold text-[#121212] hover:bg-[#121212] hover:text-white flex items-center gap-2.5 cursor-pointer transition-colors"
+            >
+              <UserRound className="w-4 h-4 text-current" />
+              <span>个人档案</span>
+            </button>
+
             {/* 使用说明 */}
             <button
               type="button"
@@ -261,7 +276,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="border-b-4 border-[#121212] bg-[#FFFFFF] sticky top-0 z-30 select-none">
       <div className="max-w-[1760px] w-full mx-auto px-4 sm:px-6 py-3 flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
-        <nav className="flex items-center gap-2 lg:justify-self-start" aria-label="板块导航">
+        <nav className="flex flex-wrap items-center gap-2 lg:justify-self-start" aria-label="板块导航">
           {boardTabs.map(({ view, label }) => (
             <button
               key={view}
@@ -273,6 +288,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               {label}
             </button>
           ))}
+          {/* 团务管理：常驻入口，紧跟在「宣群」右侧 */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsDropdownOpen(false);
+              if (currentUser) setActiveTab('manage');
+              else onOpenLogin();
+            }}
+            aria-current={activeTab === 'manage' ? 'page' : undefined}
+            className={`bauhaus-btn px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'manage' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
+          >
+            团务管理
+          </button>
         </nav>
         <div className="self-center lg:justify-self-center">{logoContent}</div>
         <div className="min-w-0 max-w-full self-end lg:justify-self-end">{actionContent}</div>
