@@ -1,4 +1,4 @@
-import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Mic, MessageSquare, ClipboardList } from 'lucide-react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -92,6 +92,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <>
               <div className="flex min-h-5 flex-wrap items-center gap-2">
                 {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
+                {!!member.stickers?.length && <span className="flex items-center gap-1">{member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-5 w-5 border border-[#121212] bg-white object-cover" />)}</span>}
                 {receivedPraiseBadge}
               </div>
               <strong className="mt-1.5 block text-sm break-all">{member.name}</strong>
@@ -102,9 +103,10 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 <strong className="min-w-0 flex-1 truncate text-sm">{member.name}</strong>
                 {receivedPraiseBadge}
               </div>
-              {member.nameplate && (
-                <div className="mt-1.5 flex">
-                  <NameplateBadge nameplate={member.nameplate} />
+              {(member.nameplate || !!member.stickers?.length) && (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
+                  {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-5 w-5 border border-[#121212] bg-white object-cover" />)}
                 </div>
               )}
             </>
@@ -137,15 +139,6 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="px-2.5 py-0.5 bg-[#004E98] text-white text-xs font-bold border border-[#121212]">{campaign.rule}</span>
                 {campaign.kind === 'offline' ? <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{locationLabel(campaign)}</span> : <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212] flex items-center gap-1">
-                  {campaign.kind === 'promo' ? null : <>
-                  {campaign.sessionType === '文字' ? (
-                    <MessageSquare className="w-3.5 h-3.5" />
-                  ) : campaign.sessionType === '其他游戏形式' ? (
-                    <ClipboardList className="w-3.5 h-3.5" />
-                  ) : (
-                    <Mic className="w-3.5 h-3.5" />
-                  )}
-                  </>}
                   <span>{campaign.sessionType || '语音'}</span>
                 </span>}
                 {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>)}

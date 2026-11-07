@@ -195,6 +195,29 @@ export function App() {
     }
   };
 
+  const handleUpdateStickers = async (keys: string[]) => {
+    setPendingActions((count) => count + 1);
+    try {
+      const { user } = await api.updateStickers(keys);
+      setUsers((previous) => previous.map((item) => item.id === user.id ? user : item));
+      setCampaigns((previous) => previous.map((campaign) => campaign.gmId === user.id
+        ? { ...campaign, gmStickers: user.stickers }
+        : campaign));
+      setSelectedCampaign((previous) => previous ? {
+        ...previous,
+        gmStickers: previous.gmId === user.id ? user.stickers : previous.gmStickers,
+        members: previous.members.map((member) => member.id === user.id ? { ...member, stickers: user.stickers } : member),
+      } : null);
+      showToast(keys.length ? '贴纸已更新' : '贴纸已清空', 'success');
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '操作失败', 'error');
+      return false;
+    } finally {
+      setPendingActions((count) => count - 1);
+    }
+  };
+
   // Send Praise
   const openCampaign = async (campaign: Pick<Campaign, 'id'>) => {
     setLoadingCampaignId(campaign.id);
@@ -546,6 +569,7 @@ export function App() {
               onFeedback={() => openSubmission('feedback')}
               onReport={() => openSubmission('report')}
               onUpdateNameplate={handleUpdateNameplate}
+              onUpdateStickers={handleUpdateStickers}
             />
           </div>
         )}
@@ -597,6 +621,7 @@ export function App() {
         rules={rules}
         popularCustomTags={popularCustomTags}
         onPublish={handlePublish}
+        onUpdateStickers={handleUpdateStickers}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
       {isTicketsOpen && currentUser && <TicketsModal onClose={() => setIsTicketsOpen(false)} />}

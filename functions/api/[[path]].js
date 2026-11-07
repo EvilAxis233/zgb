@@ -1,10 +1,23 @@
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 const fail = (message, status = 400) => json({ error: message }, status);
 const ADMIN_QQS = new Set(['3486636827', '407457008']);
+const OWNER_QQS = new Set(['407457008']);
 const PERMANENT_MEMBERSHIP = 253402300799;
+const RULE_LIMIT = 10;
+const RULE_MAX_LENGTH = 20;
+const now = () => Math.floor(Date.now() / 1000);
+// 角色：站长（owner）可任命管理员；管理员可进后台但不自动获得会员。
+const roleOf = (user) => {
+  if (!user) return null;
+  if (OWNER_QQS.has(user.qq) || user.role === 'owner') return 'owner';
+  if (user.role === 'admin') return 'admin';
+  return null;
+};
+const isSiteAdmin = (user) => !!roleOf(user);
+const isOwner = (user) => roleOf(user) === 'owner';
+const isMember = (user) => !!user && (roleOf(user) === 'owner' || (user.membership_expires_at ?? 0) > now());
 const isAccountAdmin = (user) => !!user && ADMIN_QQS.has(user.qq);
 const campaignTags = (c) => [...new Set([...parseTags(c.custom_tags), ...parseTags(c.preset_tags)].map((tag) => Array.from(String(tag).trim()).slice(0, 6).join('')).filter(Boolean))].slice(0, 6);
-const now = () => Math.floor(Date.now() / 1000);
 const dateHK = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 const id = () => crypto.randomUUID();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -36,12 +49,21 @@ const nicknameLength = (value) => Array.from(value).reduce((total, character) =>
 const parseTags = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 const parseJsonSafe = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 const assetUrl = (key) => key ? `/api/images/${key}` : '';
-const userDto = (u) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', isAdmin: isAccountAdmin(u), membershipPermanent: isAccountAdmin(u), membershipExpiresAt: isAccountAdmin(u) ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate) });
-const publicUserDto = (u) => ({ ...userDto(u), inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null });
+// 规则库只保留最近使用的 RULE_LIMIT 个，保证后台与发车下拉完全一致。
+async function touchRule(db, name, iso) {
+  await db.prepare('INSERT INTO rules(name,created_at,last_used_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET last_used_at=excluded.last_used_at').bind(name, iso, iso).run();
+  await db.prepare('DELETE FROM rules WHERE name NOT IN (SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT ?)').bind(RULE_LIMIT).run();
+}
+const userDto = (u) => {
+  const role = roleOf(u);
+  const permanent = role === 'owner' || u.membership_expires_at === PERMANENT_MEMBERSHIP;
+  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers) };
+};
+const publicUserDto = (u) => ({ ...userDto(u), role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [] });
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
 const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: [], customTags: campaignTags(b), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
@@ -50,26 +72,26 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
   return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
-const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
+const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
 async function adminAuth(request, db, secret) {
-  if (isAccountAdmin(await auth(request, db))) return true;
+  const account = await auth(request, db);
+  if (isSiteAdmin(account)) return true;
   if (!secret) return false;
   const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return false;
   const session = await db.prepare('SELECT 1 FROM admin_sessions WHERE token_hash=? AND expires_at>?').bind(await adminTokenHash(token, secret), now()).first();
-  return !!session;
+  if (!session) return false;
+  // 密码通道仅在没有站长账号时作为应急入口，避免共享密码绕过角色管理。
+  const ownerExists = await db.prepare("SELECT 1 FROM users WHERE role='owner' LIMIT 1").first();
+  return !ownerExists;
 }
 async function auth(request, db) {
   const token = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return null;
   const user = await db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(await sha256(token), now()).first();
-  if (isAccountAdmin(user) && user.membership_expires_at !== PERMANENT_MEMBERSHIP) {
-    await db.prepare('UPDATE users SET membership_expires_at=? WHERE qq=?').bind(PERMANENT_MEMBERSHIP, user.qq).run();
-    user.membership_expires_at = PERMANENT_MEMBERSHIP;
-  }
   return user;
 }
 async function sendCode(env, qq, code) {
@@ -85,6 +107,7 @@ function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const players = kind === 'promo' ? 1 : Number(b.maxPlayers);
   const matched = /^(\d{4}-\d{2}-\d{2}).*(早|中|晚)$/.exec(time);
   if (!title || !rule || !matched) throw new Error(kind === 'promo' ? '请填写完整宣群标题、规则和日期时段' : '请填写完整团名、规则和日期时段');
+  if (nicknameLength(rule) > RULE_MAX_LENGTH) throw new Error('规则系统最多 10 个中文字符或 20 个英文字符');
   if (!Number.isInteger(players) || players < 1 || players > 12) throw new Error('请填写 1–12 人的预计人数');
   const sessionType = kind === 'promo' ? clean(b.sessionType, 40) : kind === 'offline' ? '' : ['语音', '文字', '其他游戏形式'].includes(b.sessionType) ? b.sessionType : '语音';
   const platforms = kind === 'promo' ? (Array.isArray(b.platforms) ? b.platforms.map((item) => clean(item, 80)).filter(Boolean).slice(0, 1) : []) : kind === 'offline' ? [] : Array.isArray(b.platforms) ? [...new Set(b.platforms.filter((item) => ['QQ', 'Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'].includes(item)))].slice(0, 8) : [];
@@ -129,7 +152,7 @@ async function verifyMembershipKey(code, publicKeyBase64) {
     return crypto.subtle.verify('Ed25519', key, signature, new TextEncoder().encode(`ZGB-MEMBER|VIP1|30D|${match[1]}`));
   } catch { return false; }
 }
-const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,u.nameplate gm_nameplate,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
+const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,u.nameplate gm_nameplate,u.stickers gm_stickers,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -185,13 +208,17 @@ export async function onRequest(context) {
         await db.prepare('INSERT INTO admin_sessions(token_hash,expires_at,created_at) VALUES(?,?,?)').bind(await adminTokenHash(token, env.ADMIN_PASSWORD), now() + 12 * 3600, now()).run();
         return json({ ok: true }, 200, { 'Set-Cookie': adminCookie(token, 12 * 3600) });
       }
-      if (path[1] === 'me' && method === 'GET') return json({ authenticated: await adminAuth(request, db, env.ADMIN_PASSWORD) });
+      if (path[1] === 'me' && method === 'GET') {
+        const account = await auth(request, db);
+        const owner = await db.prepare("SELECT 1 FROM users WHERE role='owner' LIMIT 1").first();
+        return json({ authenticated: await adminAuth(request, db, env.ADMIN_PASSWORD), role: roleOf(account), name: account?.name || '', passwordFallbackAvailable: !owner });
+      }
       if (path[1] === 'logout' && method === 'POST') {
         const token = /(?:^|;\s*)zgb_admin=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
         if (token && env.ADMIN_PASSWORD) await db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await adminTokenHash(token, env.ADMIN_PASSWORD)).run();
         const account = await auth(request, db);
         const response = json({ ok: true }, 200, { 'Set-Cookie': adminCookie('', 0) });
-        if (isAccountAdmin(account)) {
+        if (isSiteAdmin(account)) {
           const userToken = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
           if (userToken) await db.prepare('DELETE FROM sessions WHERE token_hash=?').bind(await sha256(userToken)).run();
           response.headers.append('Set-Cookie', sessionCookie('', 0));
@@ -250,15 +277,14 @@ export async function onRequest(context) {
       }
       if (path[1] === 'rules' && path.length === 2) {
         if (method === 'GET') {
-          const rows = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
+          const rows = await db.prepare('SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT ?').bind(RULE_LIMIT).all();
           return json({ rules: rows.results.map((row) => row.name) });
         }
         if (method === 'POST') {
           const name = clean((await body(request)).name, 100);
           if (!name) return fail('请输入规则名');
-          const exists = await db.prepare('SELECT 1 FROM rules WHERE name=? COLLATE NOCASE').bind(name).first();
-          if (exists) return fail('规则名已存在', 409);
-          await db.prepare('INSERT INTO rules(name,created_at) VALUES(?,?)').bind(name, new Date().toISOString()).run();
+          if (nicknameLength(name) > RULE_MAX_LENGTH) return fail('规则名最多 10 个中文字符或 20 个英文字符');
+          await touchRule(db, name, new Date().toISOString());
           return json({ ok: true }, 201);
         }
         if (method === 'DELETE') {
@@ -274,7 +300,7 @@ export async function onRequest(context) {
         const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";
         const [count, users] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).bind(pattern, pattern),
-          db.prepare(`SELECT u.qq,u.name,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,u.membership_expires_at,` +
+          db.prepare(`SELECT u.qq,u.name,u.role,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,u.membership_expires_at,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count,` +
             `(SELECT COUNT(*) FROM submissions s WHERE s.type='report' AND s.reported_qq=u.qq) report_count,` +
@@ -282,7 +308,7 @@ export async function onRequest(context) {
             `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
             `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY u.created_at DESC LIMIT 50 OFFSET ?`).bind(now(), pattern, pattern, offset)
         ]);
-        return json({ users: users.results.map((account) => ({ ...account, isAdmin: isAccountAdmin(account), membershipPermanent: isAccountAdmin(account), membership_expires_at: isAccountAdmin(account) ? PERMANENT_MEMBERSHIP : account.membership_expires_at })), total: count.results[0].n });
+        return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n });
       }
       if (path[1] === 'users' && path[2] && path[3] === 'blacklist' && path.length === 4) {
         const qq = path[2];
@@ -326,6 +352,47 @@ export async function onRequest(context) {
           db.prepare('SELECT key_code,redeemed_at,expires_at FROM membership_redemptions WHERE user_qq=? ORDER BY redeemed_at DESC,key_hash DESC LIMIT 50 OFFSET ?').bind(qq, offset)
         ]);
         return json({ records: records.results, total: count.results[0].n });
+      }
+      // 后台按 QQ 发放 N 个月会员：单月按 30 天，12 个月按 365 天。
+      if (path[1] === 'users' && path[2] && path[3] === 'membership' && path.length === 4 && method === 'POST') {
+        const qq = path[2];
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        const months = Math.floor(Number((await body(request)).months));
+        if (!Number.isInteger(months) || months < 1 || months > 12) return fail('请填写 1–12 个月');
+        const operator = await auth(request, db);
+        const target = await db.prepare('SELECT qq,role,membership_expires_at FROM users WHERE qq=?').bind(qq).first();
+        if (!target) return fail('账号不存在', 404);
+        if (target.role === 'owner') return fail('站长本身是永久会员，无需发放', 409);
+        const days = months === 12 ? 365 : months * 30;
+        const base = Math.max(now(), target.membership_expires_at || 0);
+        const expiresAt = base + days * 86400;
+        await db.batch([
+          db.prepare('UPDATE users SET membership_expires_at=? WHERE qq=?').bind(expiresAt, qq),
+          db.prepare('INSERT INTO membership_grants(id,user_qq,months,days,granted_by,expires_at,created_at) VALUES(?,?,?,?,?,?,?)').bind(id(), qq, months, days, operator?.qq || 'admin', expiresAt, new Date().toISOString())
+        ]);
+        return json({ ok: true, months, days, membershipExpiresAt: expiresAt });
+      }
+      if (path[1] === 'users' && path[2] && path[3] === 'grants' && path.length === 4 && method === 'GET') {
+        const qq = path[2], offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        const [count, records] = await db.batch([
+          db.prepare('SELECT COUNT(*) n FROM membership_grants WHERE user_qq=?').bind(qq),
+          db.prepare('SELECT id,months,days,granted_by,expires_at,created_at FROM membership_grants WHERE user_qq=? ORDER BY created_at DESC LIMIT 50 OFFSET ?').bind(qq, offset)
+        ]);
+        return json({ records: records.results, total: count.results[0].n });
+      }
+      // 只有站长可以任命或取消后台管理员（管理员不带会员）。
+      if (path[1] === 'users' && path[2] && path[3] === 'role' && path.length === 4 && method === 'PATCH') {
+        if (!isOwner(await auth(request, db))) return fail('只有站长可以任命管理员', 403);
+        const qq = path[2];
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        const next = (await body(request)).role;
+        if (!['admin', ''].includes(next)) return fail('角色无效');
+        const target = await db.prepare('SELECT role FROM users WHERE qq=?').bind(qq).first();
+        if (!target) return fail('账号不存在', 404);
+        if (target.role === 'owner') return fail('不能修改站长角色', 409);
+        await db.prepare('UPDATE users SET role=? WHERE qq=?').bind(next || null, qq).run();
+        return json({ ok: true, role: next || null });
       }
       if (path[1] === 'submissions' && path.length === 2 && method === 'GET') {
         const type = ['feedback','report'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : '';
@@ -401,7 +468,7 @@ export async function onRequest(context) {
     if (path[0] === 'campaigns' && path.length === 1 && method === 'GET') {
       const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
       const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
-      const rules = await db.prepare('SELECT name FROM rules ORDER BY rowid').all();
+      const rules = await db.prepare('SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT 10').all();
       const popularCustomTags = await db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all();
       const campaigns = campaignsDto(rows.results);
       return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
@@ -424,26 +491,8 @@ export async function onRequest(context) {
       return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
     if (!user) return fail('请先登录', 401);
-    if (path[0] === 'membership' && path[1] === 'redeem' && path.length === 2 && method === 'POST') {
-      if (isAccountAdmin(user)) return fail('管理员已享有永久会员，无需兑换密钥');
-      if (!env.MEMBER_VERIFY_PUBLIC_KEY) return fail('会员兑换暂不可用', 503);
-      const submitted = (await body(request)).key;
-      const code = typeof submitted === 'string' ? submitted.trim() : '';
-      if (!await verifyMembershipKey(code, env.MEMBER_VERIFY_PUBLIC_KEY)) return fail('密钥无效', 400);
-      const keyHash = await sha256(code), redeemedAt = now();
-      try {
-        await db.batch([
-          db.prepare(`INSERT INTO membership_redemptions(key_hash,key_code,user_qq,redeemed_at,expires_at)
-            VALUES(?,?,?,?,MAX(COALESCE((SELECT membership_expires_at FROM users WHERE qq=?),?),?)+2592000)`)
-            .bind(keyHash, code, user.qq, redeemedAt, user.qq, redeemedAt, redeemedAt),
-          db.prepare('UPDATE users SET membership_expires_at=(SELECT expires_at FROM membership_redemptions WHERE key_hash=?) WHERE qq=?').bind(keyHash, user.qq)
-        ]);
-      } catch (error) {
-        if (await db.prepare('SELECT 1 FROM membership_redemptions WHERE key_hash=?').bind(keyHash).first()) return fail('该密钥已被使用', 409);
-        throw error;
-      }
-      const updated = await db.prepare('SELECT membership_expires_at FROM users WHERE qq=?').bind(user.qq).first();
-      return json({ membershipExpiresAt: updated.membership_expires_at });
+    if (path[0] === 'membership' && path.length === 2 && method === 'GET') {
+      return json({ isMember: isMember(user), membershipExpiresAt: roleOf(user) === 'owner' ? PERMANENT_MEMBERSHIP : user.membership_expires_at ?? null, renewalContact: '917744498' });
     }
     if (path[0] === 'submissions' && path.length === 1 && method === 'GET') {
       const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
@@ -497,7 +546,7 @@ export async function onRequest(context) {
         db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`),
         db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=?').bind(user.qq),
         db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL'),
-        db.prepare('SELECT name FROM rules ORDER BY rowid'),
+        db.prepare('SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT 10'),
         db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10')
       ]);
       const joined = new Set(memberships.results.map((m) => m.campaign_id));
@@ -518,8 +567,8 @@ export async function onRequest(context) {
       return json({ user: userDto(updated) });
     }
     if (path[0] === 'profile' && path[1] === 'nameplate' && method === 'PATCH') {
-      const isMember = (user.membership_expires_at ?? 0) > now();
-      if (!isMember) return fail('只有会员可以使用自定义铭牌功能', 403);
+      const isMemberUser = isMember(user);
+      if (!isMemberUser) return fail('只有会员可以使用自定义铭牌功能', 403);
       const b = await body(request);
       if (!b.nameplate) {
         await db.prepare('UPDATE users SET nameplate=NULL WHERE qq=?').bind(user.qq).run();
@@ -542,6 +591,20 @@ export async function onRequest(context) {
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
     }
+    if (path[0] === 'profile' && path[1] === 'stickers' && method === 'PATCH') {
+      if (!isMember(user)) return fail('只有会员可以使用贴纸功能', 403);
+      const input = (await body(request)).stickers;
+      if (!Array.isArray(input) || input.length > 2) return fail('最多可以佩戴 2 张贴纸');
+      const keys = [...new Set(input.map((item) => clean(item, 120)).filter(Boolean))];
+      if (keys.length !== input.length) return fail('贴纸不能重复');
+      for (const key of keys) {
+        if (!/^[A-Za-z0-9._/-]+$/.test(key) || key.includes('..')) return fail('贴纸文件无效');
+        if (!await env.COVERS?.head(key)) return fail('贴纸文件不存在，请重新上传');
+      }
+      await db.prepare('UPDATE users SET stickers=? WHERE qq=?').bind(JSON.stringify(keys), user.qq).run();
+      const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      return json({ user: userDto(updated) });
+    }
     if (path[0] === 'profile' && path[1] === 'avatar' && method === 'POST') {
       if (!env.COVERS) return fail('图片存储未配置', 503);
       const form = await request.formData(), file = form.get('file');
@@ -556,21 +619,22 @@ export async function onRequest(context) {
       const today = dateHK();
       const yesterday = dateHK(new Date(Date.now() - 86400000));
       const checkedAt = now();
+      const memberNow = isMember(user) ? 1 : 0;
       const result = await db.prepare(`UPDATE users SET
         gm_hearts=gm_hearts+CASE
-          WHEN membership_expires_at>? THEN CASE WHEN (member_checkin_count+1)%7=0 THEN 2 ELSE 0 END
+          WHEN ?=1 THEN CASE WHEN (member_checkin_count+1)%7=0 THEN 3 ELSE 0 END
           WHEN last_checkin=? AND (checkin_streak+1)%7=0 THEN 1 ELSE 0 END,
-        member_checkin_count=member_checkin_count+CASE WHEN membership_expires_at>? THEN 1 ELSE 0 END,
+        member_checkin_count=member_checkin_count+CASE WHEN ?=1 THEN 1 ELSE 0 END,
         checkin_streak=CASE WHEN last_checkin=? THEN checkin_streak+1 ELSE 1 END,
         last_checkin=?,player_hearts=player_hearts+1
         WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)
-        RETURNING checkin_streak,member_checkin_count,membership_expires_at`).bind(checkedAt, yesterday, checkedAt, yesterday, today, user.qq, today).first();
+        RETURNING checkin_streak,member_checkin_count,membership_expires_at`).bind(memberNow, yesterday, memberNow, yesterday, today, user.qq, today).first();
       if (!result) return fail('今日已签到');
       const streak = result.checkin_streak;
-      const isMember = result.membership_expires_at > checkedAt;
-      const progress = isMember ? result.member_checkin_count : streak;
-      const gmHeartsAwarded = progress % 7 === 0 ? (isMember ? 2 : 1) : 0;
-      return json({ ok: true, streak, memberCheckinCount: result.member_checkin_count, isMember,
+      const memberAfter = !!memberNow;
+      const progress = memberAfter ? result.member_checkin_count : streak;
+      const gmHeartsAwarded = progress % 7 === 0 ? (memberAfter ? 3 : 1) : 0;
+      return json({ ok: true, streak, memberCheckinCount: result.member_checkin_count, isMember: memberAfter,
         daysUntilGmReward: gmHeartsAwarded ? 0 : 7 - progress % 7,
         gmHeartsAwarded, gmAwarded: gmHeartsAwarded > 0 });
     }
@@ -618,9 +682,9 @@ export async function onRequest(context) {
       await db.batch([
         ...(batchId ? [db.prepare('INSERT INTO campaign_batches(id,gm_qq,title,rule,summary,description,image_key,banner_color,max_players,contact,session_type,platforms,preset_tags,custom_tags,created_at,kind,province,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, imageKey, c.color, c.players, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), createdAt, c.kind, c.province, c.city, c.address)] : []),
         ...statements,
-        db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(c.rule, createdAt),
         db.prepare('INSERT INTO bot_outbox(event_id,campaign_id,rule,created_at) VALUES(?,?,?,?)').bind(id(), cid, c.rule, createdAt)
       ]);
+      await touchRule(db, c.rule, createdAt);
       for (const tag of c.customTags) {
         await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, createdAt, createdAt).run();
       }
@@ -709,9 +773,9 @@ export async function onRequest(context) {
         const contact = data.contact || c.contact || user.qq;
         const nowIso = new Date().toISOString();
         await db.batch([
-          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, cid),
-          db.prepare('INSERT OR IGNORE INTO rules(name,created_at) VALUES(?,?)').bind(data.rule, nowIso)
+          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, cid)
         ]);
+        await touchRule(db, data.rule, nowIso);
         for (const tag of data.customTags) {
           await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, nowIso, nowIso).run();
         }
@@ -732,7 +796,7 @@ export async function onRequest(context) {
     return fail('接口不存在', 404);
   } catch (error) {
     console.error('API error', error);
-    const validation = error instanceof Error && /无效的 JSON|请填写|自定义标签/.test(error.message);
+    const validation = error instanceof Error && /无效的 JSON|请填写|自定义标签|规则系统最多|规则名最多/.test(error.message);
     return fail(validation ? error.message : '操作失败，请稍后重试', validation ? 400 : 500);
   }
 }

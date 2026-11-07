@@ -2,7 +2,7 @@ import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { NameplateBadge } from './NameplateBadge';
-import { BookOpen, Mic, MessageSquare, ClipboardList, ThumbsUp, MapPin } from 'lucide-react';
+import { BookOpen, ThumbsUp, MapPin } from 'lucide-react';
 import { locationLabel } from '../utils/location';
 
 interface CampaignCardProps {
@@ -53,27 +53,18 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         {/* Rule, session type, and platforms share the image/content seam. */}
         <div className="absolute -bottom-3 left-3 right-3 flex items-center gap-1.5 z-10 overflow-hidden py-0.5">
           {/* Rule Tag */}
-          <div className="px-3 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#121212] flex items-center gap-2 shrink-0 whitespace-nowrap">
-            <BookOpen className="w-[18px] h-[18px] text-[#004E98]" />
+          <div className="px-3 py-0.5 bg-[#FFFFFF] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[14px] font-bold text-[#121212] flex items-center gap-2 shrink-0 whitespace-nowrap">
+            <BookOpen className="w-4 h-4 text-[#004E98]" />
             <span>{campaign.rule}</span>
           </div>
 
           {/* Section-specific metadata beside the rule. */}
-          {campaign.kind === 'offline' ? <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">{locationLabel(campaign)}</div> : <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            {campaign.kind === 'promo' ? null : <>
-            {campaign.sessionType === '文字' ? (
-              <MessageSquare className="w-[15px] h-[15px]" />
-            ) : campaign.sessionType === '其他游戏形式' ? (
-              <ClipboardList className="w-[15px] h-[15px]" />
-            ) : (
-              <Mic className="w-[15px] h-[15px]" />
-            )}
-            </>}
+          {campaign.kind === 'offline' ? <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[14px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">{locationLabel(campaign)}</div> : <div className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[14px] font-bold text-[#004E98] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
             <span>{campaign.sessionType || '语音'}</span>
           </div>}
 
           {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => (
-            <div key={platform} className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[15px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">
+            <div key={platform} className="px-2.5 py-0.5 bg-[#F0F5FA] border-2 border-[#121212] shadow-[2px_2px_0px_#121212] text-[14px] font-bold text-[#004E98] shrink-0 whitespace-nowrap">
               {platform}
             </div>
           ))}
@@ -90,6 +81,13 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
               <NameplateBadge nameplate={campaign.gmNameplate} />
             ) : (
               <span className="truncate">GM: {campaign.gmName}</span>
+            )}
+            {!!campaign.gmStickers?.length && (
+              <span className="flex shrink-0 items-center gap-1">
+                {campaign.gmStickers.slice(0, 2).map((src, index) => (
+                  <img key={`${src}-${index}`} src={src} alt="GM 贴纸" className="h-6 w-6 border-2 border-[#121212] bg-white object-cover" />
+                ))}
+              </span>
             )}
           </div>
             <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
