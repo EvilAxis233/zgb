@@ -208,7 +208,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   {currentUser.nameplate && <NameplateBadge nameplate={currentUser.nameplate} />}
                   {!!currentUser.stickers?.length && (
                     <span className="flex items-center gap-1">
-                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-6 w-[112px] border-2 border-[#121212] bg-white object-cover" />)}
+                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-6 w-[72px] border-2 border-[#121212] bg-white object-cover" />)}
                     </span>
                   )}
                 </div>
@@ -472,7 +472,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
       {stickerOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setStickerOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="w-full max-w-md border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
+          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="max-h-[90vh] w-full max-w-md overflow-y-auto border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
             <header className="flex items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
               <h2 className="font-black text-sm">我的贴纸库</h2>
               <button type="button" onClick={() => setStickerOpen(false)} className="text-xs font-bold cursor-pointer">关闭</button>

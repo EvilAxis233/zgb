@@ -11,6 +11,7 @@ interface CampaignCardProps {
 }
 
 export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick }) => {
+  const hasStickers = !!campaign.gmStickers?.length;
   return (
     <article
       onClick={onClick}
@@ -74,29 +75,29 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
 
       {/* Main Content Area */}
       <div className="p-3.5 pt-8 flex-1 flex flex-col">
-        {/* 第一行：头像 + GM 名称，右侧为获赞徽章 */}
+        {/* 第一行：头像 + ID + 会员铭牌，右侧为获赞徽章 */}
         <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
             <span className={`h-7 w-7 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white ${campaign.gmIsMember ? 'gilded-avatar' : 'border-2 border-[#121212] bg-[#D62828]'}`} aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#D62828]">{campaign.gmName.charAt(0)}</span>}</span>
-            <span className="truncate">GM: {campaign.gmName}</span>
+            <span className="truncate">{campaign.gmName}</span>
+            {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
           </div>
           <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
             <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
           </span>
         </div>
 
-        {/* 头像与分割线之间的空白区：铭牌 + 等高的长条贴纸，整行从头像右缘撑到赞徽章右缘。
-            上下间距都用固定值，避免 flex-1 把剩余空间自动分配、改动一处就挤动另一处。 */}
-        <div className="flex h-6 shrink-0 items-center gap-1.5">
-          {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
-          {!!campaign.gmStickers?.length && campaign.gmStickers.slice(0, 2).map((src, index) => (
-            <span key={`${src}-${index}`} className="block h-6 min-w-0 flex-1 overflow-hidden">
+        {/* 第二行：铭牌已上移到 ID 右边，两张贴纸独占整行并向下填满到分割线前的区域。
+            有贴纸时 56px 高 + 6px 下间距，无贴纸时 24px 占位 + 38px 下间距，两者总高一致，卡片高度不变。 */}
+        <div className={`flex shrink-0 items-stretch gap-1.5 ${hasStickers ? 'h-14' : 'h-6'}`}>
+          {campaign.gmStickers?.slice(0, 2).map((src, index) => (
+            <span key={`${src}-${index}`} className="block h-full min-w-0 flex-1 overflow-hidden">
               <img src={src} alt="GM 贴纸" className="h-full w-full object-cover" />
             </span>
           ))}
         </div>
 
-        <div className="mt-[38px] border-t border-dashed border-[#D8D5CC] pt-2">
+        <div className={`${hasStickers ? 'mt-1.5' : 'mt-[38px]'} border-t border-dashed border-[#D8D5CC] pt-2`}>
           <div className="flex flex-wrap content-start items-start gap-2">
             {campaign.customTags?.map((tag) => (
               <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
