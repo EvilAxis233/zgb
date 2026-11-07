@@ -9,9 +9,10 @@ interface Props {
 const GROUP_QQ = '917744498';
 
 const benefits = [
-  '签到每满 7 次可得 3 张 GM 点赞券（普通用户仅 1 张）',
-  '自定义铭牌 + 2 张贴纸，显示在名字与铭牌旁',
-  '支持上传动态头像与动态封面（GIF 保留动画）',
+  '会员专属动态鎏金头像框，主界面、团详情与个人资料同步显示',
+  '累计签到每满 7 次得 3 张 GM 点赞券（普通用户 1 张），中断不清零',
+  '自定义展示铭牌：多种样式 + 自定义文字（4 汉字 / 8 英文）',
+  '贴纸库预存 10 张、默认佩戴 2 张，发车时可临时改选',
 ];
 
 export function MembershipModal({ active, onClose }: Props) {
@@ -59,7 +60,7 @@ export function MembershipModal({ active, onClose }: Props) {
           </div>
         </div>
 
-        <p className="text-[11px] text-[#666] leading-relaxed">会员时长由站长或管理员在后台按整月发放，单月按 30 天计算，12 个月按 365 天计算；到期后权益自动停止，未用完的 GM 点赞券不受影响。</p>
+        <p className="text-[11px] text-[#666] leading-relaxed">会员时长由站长或管理员在后台按整月发放，单月按 30 天计算，12 个月按 365 天计算；到期后权益自动停止，未用完的 GM 点赞券不受影响。动态头像与动态封面（GIF / APNG / 动态 WebP 保留动画）是全站基础功能，所有登录用户都可使用。</p>
       </div>
     </section>
   </div>;
