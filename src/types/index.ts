@@ -24,8 +24,10 @@ export interface UserProfile {
   membershipPermanent?: boolean;
   membershipExpiresAt: number | null; // Unix seconds
   nameplate?: UserNameplate | null;
-  stickers?: string[]; // 会员贴纸（最多 2 张图片地址）
+  stickers?: string[]; // 会员默认佩戴的贴纸（最多 2 张图片地址）
   stickerKeys?: string[]; // 贴纸在存储中的 key，用于编辑时回填
+  stickerLibrary?: string[]; // 贴纸库（最多 10 张图片地址）
+  stickerLibraryKeys?: string[]; // 贴纸库的存储 key
 }
 
 export type SessionType = '语音' | '文字' | '其他游戏形式';
@@ -56,6 +58,7 @@ export interface Campaign {
   gmPraises?: number;
   gmNameplate?: UserNameplate | null;
   gmStickers?: string[];
+  stickerKeys?: string[]; // 发布时本团临时选用的贴纸 key（不改默认佩戴）
   contact?: string;
   summary?: string;
   description: string;

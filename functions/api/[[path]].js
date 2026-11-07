@@ -48,13 +48,13 @@ async function touchRule(db, name, iso) {
 const userDto = (u) => {
   const role = roleOf(u);
   const permanent = role === 'owner' || u.membership_expires_at === PERMANENT_MEMBERSHIP;
-  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers) };
+  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers), stickerLibrary: parseTags(u.sticker_library).map((key) => assetUrl(key)).filter(Boolean), stickerLibraryKeys: parseTags(u.sticker_library) };
 };
-const publicUserDto = (u) => ({ ...userDto(u), role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [] });
+const publicUserDto = (u) => ({ ...userDto(u), role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [], stickerLibrary: [], stickerLibraryKeys: [] });
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.sticker_override || c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
 const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, currentPlayers: Number(c.member_count || 0), maxPlayers: c.max_players, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && Number(c.member_count || 0) >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: joined.has(c.id) });
 const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: [], customTags: campaignTags(b), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
@@ -523,16 +523,32 @@ export async function onRequest(context) {
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
     }
-    if (path[0] === 'profile' && path[1] === 'stickers' && method === 'PATCH') {
+    // 贴纸库：会员最多预存 10 张，发团时从这里挑（不允许现场上传）
+    if (path[0] === 'profile' && path[1] === 'sticker-library' && method === 'PATCH') {
       if (!isMember(user)) return fail('只有会员可以使用贴纸功能', 403);
       const input = (await body(request)).stickers;
-      if (!Array.isArray(input) || input.length > 2) return fail('最多可以佩戴 2 张贴纸');
+      if (!Array.isArray(input) || input.length > 10) return fail('贴纸库最多存放 10 张');
       const keys = [...new Set(input.map((item) => clean(item, 120)).filter(Boolean))];
       if (keys.length !== input.length) return fail('贴纸不能重复');
       for (const key of keys) {
         if (!/^[A-Za-z0-9._/-]+$/.test(key) || key.includes('..')) return fail('贴纸文件无效');
         if (!await env.COVERS?.head(key)) return fail('贴纸文件不存在，请重新上传');
       }
+      // 从贴纸库移除的图片，同时从默认佩戴里摘掉
+      const equipped = parseTags(user.stickers).filter((key) => keys.includes(key));
+      await db.prepare('UPDATE users SET sticker_library=?,stickers=? WHERE qq=?').bind(JSON.stringify(keys), JSON.stringify(equipped), user.qq).run();
+      const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      return json({ user: userDto(updated) });
+    }
+    // 默认佩戴：只能从贴纸库里选，最多 2 张
+    if (path[0] === 'profile' && path[1] === 'stickers' && method === 'PATCH') {
+      if (!isMember(user)) return fail('只有会员可以使用贴纸功能', 403);
+      const input = (await body(request)).stickers;
+      if (!Array.isArray(input) || input.length > 2) return fail('最多可以佩戴 2 张贴纸');
+      const keys = [...new Set(input.map((item) => clean(item, 120)).filter(Boolean))];
+      if (keys.length !== input.length) return fail('贴纸不能重复');
+      const library = parseTags(user.sticker_library);
+      if (keys.some((key) => !library.includes(key))) return fail('请先从贴纸库上传该贴纸');
       await db.prepare('UPDATE users SET stickers=? WHERE qq=?').bind(JSON.stringify(keys), user.qq).run();
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
@@ -597,6 +613,11 @@ export async function onRequest(context) {
     if (path[0] === 'campaigns' && method === 'POST' && path.length === 1) {
       const b = await body(request), c = validateCampaign(b), imageKey = clean(b.imageKey, 100) || null;
       if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
+      // 贴纸只能从个人贴纸库里挑：本团临时选择，不改默认佩戴
+      const library = parseTags(user.sticker_library);
+      const pickedStickers = Array.isArray(b.stickerKeys) ? [...new Set(b.stickerKeys.map((item) => clean(item, 120)).filter(Boolean))].slice(0, 2) : [];
+      if (pickedStickers.some((key) => !library.includes(key))) return fail('只能从贴纸库中选择贴纸');
+      const stickerOverride = pickedStickers.length ? JSON.stringify(pickedStickers) : null;
       const cid = id();
       const createdAt = new Date().toISOString();
       const contact = c.contact || user.qq;
@@ -614,7 +635,7 @@ export async function onRequest(context) {
       const latestDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(latest);
       if (new Set(slotKeys).size !== slots.length || slots.some((slot) => slot.scheduledDate < today || (c.kind === 'online' && slot.scheduledDate > latestDate)) || (rawSlots.length > 1 && !slotKeys.includes(`${c.scheduledDate}:${c.period}`))) return fail('所选时段无效或重复');
       const batchId = slots.length > 1 ? cid : null;
-      const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId, c.kind, c.province, c.city, c.address));
+      const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address,sticker_override) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId, c.kind, c.province, c.city, c.address, stickerOverride));
       await db.batch([
         ...(batchId ? [db.prepare('INSERT INTO campaign_batches(id,gm_qq,title,rule,summary,description,image_key,banner_color,max_players,contact,session_type,platforms,preset_tags,custom_tags,created_at,kind,province,city,address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(cid, user.qq, c.title, c.rule, c.summary || '', c.description, imageKey, c.color, c.players, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), createdAt, c.kind, c.province, c.city, c.address)] : []),
         ...statements,
@@ -631,8 +652,8 @@ export async function onRequest(context) {
       if (!template) return fail('主团不存在', 404);
       const slot = validateNewSlot((await body(request)).timeSchedule, template.kind !== 'online');
       const cid = id(), createdAt = new Date().toISOString();
-      const result = await db.prepare(`INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address)
-        SELECT ?,b.gm_qq,b.title,b.rule,b.summary,b.description,?,?,?,b.image_key,b.banner_color,b.max_players,?,b.contact,b.session_type,b.platforms,b.preset_tags,b.custom_tags,b.id,b.kind,b.province,b.city,b.address
+      const result = await db.prepare(`INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address,sticker_override)
+        SELECT ?,b.gm_qq,b.title,b.rule,b.summary,b.description,?,?,?,b.image_key,b.banner_color,b.max_players,?,b.contact,b.session_type,b.platforms,b.preset_tags,b.custom_tags,b.id,b.kind,b.province,b.city,b.address,(SELECT x.sticker_override FROM campaigns x WHERE x.batch_id=b.id AND x.deleted_at IS NULL ORDER BY x.created_at LIMIT 1)
         FROM campaign_batches b WHERE b.id=? AND b.gm_qq=?
         AND (SELECT COUNT(*) FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL)<96
         AND EXISTS(SELECT 1 FROM campaigns WHERE batch_id=b.id AND deleted_at IS NULL AND finished_at IS NULL)

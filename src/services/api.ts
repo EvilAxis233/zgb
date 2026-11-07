@@ -19,6 +19,7 @@ export const api = {
   profile: (value: Partial<UserProfile>) => patch<{ user: UserProfile }>('profile', value),
   updateNameplate: (nameplate: UserNameplate | null) => patch<{ user: UserProfile }>('profile/nameplate', { nameplate }),
   updateStickers: (stickers: string[]) => patch<{ user: UserProfile }>('profile/stickers', { stickers }),
+  updateStickerLibrary: (stickers: string[]) => patch<{ user: UserProfile }>('profile/sticker-library', { stickers }),
   checkin: () => post<{ ok: boolean; streak: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),

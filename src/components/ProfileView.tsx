@@ -7,7 +7,7 @@ import { AccountSideActions } from './AccountSideActions';
 import { MembershipModal } from './MembershipModal';
 import { NameplateModal } from './NameplateModal';
 import { NameplateBadge } from './NameplateBadge';
-import { StickerManager } from './StickerManager';
+import { StickerLibrary } from './StickerLibrary';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -16,6 +16,7 @@ interface ProfileViewProps {
   onUpdateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   onUpdateNameplate: (nameplate: UserNameplate | null) => Promise<boolean>;
   onUpdateStickers: (keys: string[]) => Promise<boolean>;
+  onUpdateStickerLibrary: (keys: string[]) => Promise<boolean>;
   onSelectCampaign: (campaign: Campaign) => void;
   onUploadAvatar: (file: File) => void;
   onOpenManage: () => void;
@@ -40,6 +41,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onReport,
   onUpdateNameplate,
   onUpdateStickers,
+  onUpdateStickerLibrary,
 }) => {
   const { showAlert } = useDialog();
   const [isEditing, setIsEditing] = useState(false);
@@ -468,17 +470,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
       {stickerOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setStickerOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="w-full max-w-sm border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
+          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="w-full max-w-md border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
             <header className="flex items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
-              <h2 className="font-black text-sm">我的贴纸</h2>
+              <h2 className="font-black text-sm">我的贴纸库</h2>
               <button type="button" onClick={() => setStickerOpen(false)} className="text-xs font-bold cursor-pointer">关闭</button>
             </header>
             <div className="p-4">
-              <StickerManager
+              <StickerLibrary
                 isMember={membershipActive || !!currentUser.membershipPermanent}
-                keys={currentUser.stickerKeys || []}
-                onChange={onUpdateStickers}
-                hint="佩戴后显示在名字与铭牌旁；两张会保持同样大小"
+                library={currentUser.stickerLibraryKeys || []}
+                defaults={currentUser.stickerKeys || []}
+                onChangeLibrary={onUpdateStickerLibrary}
+                onChangeDefaults={onUpdateStickers}
               />
             </div>
           </section>

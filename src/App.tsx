@@ -217,15 +217,24 @@ export function App() {
     try {
       const { user } = await api.updateStickers(keys);
       setUsers((previous) => previous.map((item) => item.id === user.id ? user : item));
-      setCampaigns((previous) => previous.map((campaign) => campaign.gmId === user.id
-        ? { ...campaign, gmStickers: user.stickers }
-        : campaign));
-      setSelectedCampaign((previous) => previous ? {
-        ...previous,
-        gmStickers: previous.gmId === user.id ? user.stickers : previous.gmStickers,
-        members: previous.members.map((member) => member.id === user.id ? { ...member, stickers: user.stickers } : member),
-      } : null);
-      showToast(keys.length ? '贴纸已更新' : '贴纸已清空', 'success');
+      // 卡片上的贴纸可能来自各团的临时选择，改默认后统一拉一次最新数据
+      await refresh();
+      showToast(keys.length ? '默认贴纸已更新' : '默认贴纸已清空', 'success');
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '操作失败', 'error');
+      return false;
+    } finally {
+      setPendingActions((count) => count - 1);
+    }
+  };
+
+  const handleUpdateStickerLibrary = async (keys: string[]) => {
+    setPendingActions((count) => count + 1);
+    try {
+      const { user } = await api.updateStickerLibrary(keys);
+      setUsers((previous) => previous.map((item) => item.id === user.id ? user : item));
+      showToast(keys.length ? '贴纸库已更新' : '贴纸库已清空', 'success');
       return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : '操作失败', 'error');
@@ -587,6 +596,7 @@ export function App() {
               onReport={() => openSubmission('report')}
               onUpdateNameplate={handleUpdateNameplate}
               onUpdateStickers={handleUpdateStickers}
+              onUpdateStickerLibrary={handleUpdateStickerLibrary}
             />
           </div>
         )}
@@ -651,7 +661,6 @@ export function App() {
         rules={rules}
         popularCustomTags={popularCustomTags}
         onPublish={handlePublish}
-        onUpdateStickers={handleUpdateStickers}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
       {isTicketsOpen && currentUser && <TicketsModal onClose={() => setIsTicketsOpen(false)} />}
