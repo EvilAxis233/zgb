@@ -8,9 +8,9 @@ interface Props {
   onConfirm: (file: File) => void;
 }
 
-// 铭牌移到 ID 行后，两张贴纸独占整行并向下填满空白，实测约 166x56 = 3:1，按同一比例裁剪才不会
+// 铭牌移到 ID 行后，两张贴纸独占整行；贴纸收短后实测约 166x48 ≈ 3.5:1，按同一比例裁剪才不会
 // 让图片被压扁或裁掉（缩略图与发团预览也都用这个比例）。
-export const STICKER_ASPECT = 3;
+export const STICKER_ASPECT = 3.5;
 const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 }, sticker: { width: 720, height: Math.round(720 / STICKER_ASPECT) } };
 const titles = { avatar: '裁剪头像', cover: '裁剪团封面', sticker: '裁剪贴纸' };
 
@@ -112,7 +112,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
-          <p className="flex items-center gap-2 text-xs text-[#555]"><Move className="h-4 w-4 shrink-0 text-[#004E98]" />{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×56（宽:高 3:1），这里按同样比例裁剪，剪出来的图正好铺满那个位置。拖动图片调整取景位置，下方滑块缩放，下面可预览发团后的实际效果。' : '拖动图片调整取景位置，使用下方滑块缩放；也可聚焦图片后用方向键微调。'}</p>
+          <p className="flex items-center gap-2 text-xs text-[#555]"><Move className="h-4 w-4 shrink-0 text-[#004E98]" />{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪，剪出来的图正好铺满那个位置。拖动图片调整取景位置，下方滑块缩放，下面可预览发团后的实际效果。' : '拖动图片调整取景位置，使用下方滑块缩放；也可聚焦图片后用方向键微调。'}</p>
           <canvas
             ref={canvasRef}
             width={width}
@@ -145,20 +145,20 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           />
           {shape === 'sticker' && (
             <div className="border-2 border-dashed border-[#121212] bg-[#FAF9F5] p-2">
-              <p className="mb-2 text-[10px] font-black text-[#666]">发团卡片上的实际效果（贴纸独占整行，约 166×56，无边框）</p>
+              <p className="mb-2 text-[10px] font-black text-[#666]">发团卡片上的实际效果（贴纸独占整行，约 166×48，圆角无边框）</p>
               {[1, 2].map((count) => (
                 <div key={count} className="mb-1.5 flex items-center gap-2 last:mb-0">
                   <span className="w-7 shrink-0 text-[10px] font-bold text-[#666]">{count} 张</span>
-                  <div className="flex h-14 w-[338px] max-w-full items-stretch gap-1.5">
+                  <div className="flex h-14 w-[338px] max-w-full items-center gap-1.5">
                     {Array.from({ length: count }, (_, index) => (
-                      <span key={index} className="block h-full min-w-0 flex-1 overflow-hidden">
+                      <span key={index} className="block h-12 min-w-0 flex-1 overflow-hidden rounded-lg">
                         {stickerPreview && <img src={stickerPreview} alt="" className="h-full w-full object-cover" />}
                       </span>
                     ))}
                   </div>
                 </div>
               ))}
-              <p className="mt-1.5 text-[10px] text-[#666]">贴纸按 3:1 裁剪、直接铺满，无边框；只贴 1 张时会更扁、两侧略被裁掉，主要内容请放在中间。</p>
+              <p className="mt-1.5 text-[10px] text-[#666]">贴纸按 3.5:1 裁剪、直接铺满，四角带圆角；只贴 1 张时会更扁、两侧略被裁掉，主要内容请放在中间。</p>
             </div>
           )}
           <div className="flex items-center gap-3">

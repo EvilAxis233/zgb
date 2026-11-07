@@ -87,11 +87,12 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           </span>
         </div>
 
-        {/* 第二行：铭牌已上移到 ID 右边，两张贴纸独占整行并向下填满到分割线前的区域。
-            有贴纸时 56px 高 + 6px 下间距，无贴纸时 24px 占位 + 38px 下间距，两者总高一致，卡片高度不变。 */}
-        <div className={`flex shrink-0 items-stretch gap-1.5 ${hasStickers ? 'h-14' : 'h-6'}`}>
+        {/* 第二行：铭牌已上移到 ID 右边，两张贴纸独占整行。
+            行高固定 56px、贴纸本身 48px 并垂直居中：稍微收短贴纸、软化直角，
+            同时卡片总高、贴纸行下间距（6px）都不变，无贴纸的卡片也仍然对齐。 */}
+        <div className={`flex shrink-0 items-center gap-1.5 ${hasStickers ? 'h-14' : 'h-6'}`}>
           {campaign.gmStickers?.slice(0, 2).map((src, index) => (
-            <span key={`${src}-${index}`} className="block h-full min-w-0 flex-1 overflow-hidden">
+            <span key={`${src}-${index}`} className="block h-12 min-w-0 flex-1 overflow-hidden rounded-lg">
               <img src={src} alt="GM 贴纸" className="h-full w-full object-cover" />
             </span>
           ))}

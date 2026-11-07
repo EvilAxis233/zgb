@@ -135,7 +135,8 @@ export function App() {
     let imageKey = data.imageKey ?? null;
     if (data.imageUrl?.startsWith('data:image/')) {
       const blob = await fetch(data.imageUrl).then((r) => r.blob());
-      const uploaded = await api.upload(new File([blob], 'cover', { type: blob.type }));
+      const ext = blob.type === 'image/jpeg' ? 'jpg' : (blob.type.split('/')[1] || 'png');
+      const uploaded = await api.upload(new File([blob], `cover.${ext}`, { type: blob.type }));
       imageKey = uploaded.imageKey;
     }
     return { ...data, imageKey };

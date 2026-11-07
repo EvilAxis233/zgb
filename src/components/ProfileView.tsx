@@ -8,6 +8,7 @@ import { MembershipModal } from './MembershipModal';
 import { NameplateModal } from './NameplateModal';
 import { NameplateBadge } from './NameplateBadge';
 import { StickerLibrary } from './StickerLibrary';
+import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -176,13 +177,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 {currentUser.avatar ? <img src={currentUser.avatar} alt="我的头像" className="h-full w-full object-cover" /> : <span className="relative z-[1]">{(name || currentUser.name || '?').charAt(0)}</span>}
               </span>
               <span className="absolute inset-x-0 bottom-0 z-[3] py-1 bg-black/75 text-[10px] flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"><Upload className="w-3 h-3" />更换</span>
-              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
-                else if (file && file.size > 20 * 1024 * 1024) showAlert({ title: '图片过大', message: '原图请小于 20MB', type: 'warning' });
-                else if (file && file.type === 'image/gif') onUploadAvatar(file);
-                else if (file) setAvatarToCrop(file);
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp" className="sr-only" onChange={async (event) => {
+                const file = normalizeImageFile(event.target.files?.[0]);
                 event.target.value = '';
+                if (!file) return;
+                if (!acceptedImage(file)) {
+                  showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
+                  return;
+                }
+                // 动态头像必须原样上传：一进 canvas 裁剪就只剩第一帧。
+                const animated = await isAnimatedImage(file);
+                if (file.size > (animated ? MAX_ANIMATED_BYTES : MAX_STATIC_BYTES)) {
+                  showAlert({ title: '图片过大', message: animated ? '动态头像不会压缩，请小于 8MB' : '原图请小于 20MB', type: 'warning' });
+                } else if (animated) onUploadAvatar(file);
+                else setAvatarToCrop(file);
               }} />
             </label>
             <div>
@@ -208,11 +216,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   {currentUser.nameplate && <NameplateBadge nameplate={currentUser.nameplate} />}
                   {!!currentUser.stickers?.length && (
                     <span className="flex items-center gap-1">
-                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-6 w-[72px] border-2 border-[#121212] bg-white object-cover" />)}
+                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-6 w-[84px] rounded border-2 border-[#121212] bg-white object-cover" />)}
                     </span>
                   )}
                 </div>
               )}
+              <p className="mt-1 text-[11px] font-bold text-[#888]">点击头像更换 · 动图保留动画（不裁剪，请小于 8MB、尽量正方形）</p>
             </div>
           </div>
 

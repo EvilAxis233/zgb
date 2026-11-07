@@ -6,6 +6,7 @@ import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 import { locationLabel } from '../utils/location';
 import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
+import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface Props {
   campaign: Campaign;
@@ -34,11 +35,18 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
   const [stickerTouched, setStickerTouched] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
-  const pickCover = (file: File | undefined) => {
+  const pickCover = async (selected: File | undefined) => {
+    const file = normalizeImageFile(selected);
     if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) { alert('请选择 PNG、JPG、GIF 或 WebP 图片'); return; }
-    if (file.size > 20 * 1024 * 1024) { alert('原图请小于 20MB'); return; }
-    setCoverToCrop(file);
+    if (!acceptedImage(file)) { alert('请选择 PNG、JPG、GIF 或 WebP 图片'); return; }
+    const animated = await isAnimatedImage(file);
+    if (file.size > (animated ? MAX_ANIMATED_BYTES : MAX_STATIC_BYTES)) { alert(animated ? '动态封面不会压缩，请小于 8MB' : '原图请小于 20MB'); return; }
+    if (animated) {
+      // 动图原样上传，跳过 canvas 裁剪，否则只剩第一帧。
+      const reader = new FileReader();
+      reader.onload = () => { if (typeof reader.result === 'string') setDraft((previous) => ({ ...previous, imageUrl: reader.result as string })); };
+      reader.readAsDataURL(file);
+    } else setCoverToCrop(file);
   };
 
   const save = async (event: React.FormEvent) => {
@@ -72,11 +80,11 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         ) : (
           <span className="flex flex-col items-center gap-1 text-center text-[11px] font-bold text-[#121212]">
             <Upload className="h-4 w-4 text-[#004E98]" />上传封面（自动裁剪为 16:9）
-            <span className="text-[10px] font-normal text-[#888]">PNG / JPG / GIF / WebP，原图小于 20MB</span>
+            <span className="text-[10px] font-normal text-[#888]">PNG / JPG / GIF / WebP · 动图保留动画（小于 8MB）</span>
           </span>
         )}
       </button>
-      <input ref={coverInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(event) => { pickCover(event.target.files?.[0]); event.target.value = ''; }} />
+      <input ref={coverInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(event) => { pickCover(event.target.files?.[0]); event.target.value = ''; }} />
     </div>
   );
 

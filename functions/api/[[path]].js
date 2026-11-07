@@ -40,6 +40,17 @@ const nicknameLength = (value) => Array.from(value).reduce((total, character) =>
 const parseTags = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 const parseJsonSafe = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 const assetUrl = (key) => key ? `/api/images/${key}` : '';
+// 动态图（GIF/APNG/动画 WebP）必须原样直传：canvas 裁剪只会留下第一帧。
+// 放宽直传体积，并在浏览器没给出 MIME 时按扩展名兜底，避免把 .gif 判成非法文件。
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const UPLOAD_TYPES = new Set(['image/png','image/jpeg','image/gif','image/webp']);
+const EXT_UPLOAD_TYPE = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp' };
+const uploadTypeOf = (file) => {
+  const provided = String(file.type || '').toLowerCase();
+  if (UPLOAD_TYPES.has(provided)) return provided;
+  const ext = String(file.name || '').split('.').pop()?.toLowerCase() || '';
+  return EXT_UPLOAD_TYPE[ext] || '';
+};
 // 规则库只保留最近使用的 RULE_LIMIT 个，保证后台与发车下拉完全一致。
 async function touchRule(db, name, iso) {
   await db.prepare('INSERT INTO rules(name,created_at,last_used_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET last_used_at=excluded.last_used_at').bind(name, iso, iso).run();
@@ -473,9 +484,10 @@ export async function onRequest(context) {
       try {
         for (let index = 0; index < files.length; index++) {
           const file = files[index];
-          const ext = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1];
+          const type = uploadTypeOf(file) || file.type;
+          const ext = type === 'image/jpeg' ? 'jpg' : type.split('/')[1];
           const key = `submissions/${submissionId}/${index + 1}-${id()}.${ext}`;
-          await env.COVERS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+          await env.COVERS.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: type } });
           uploaded.push(key);
         }
         await db.batch([
@@ -571,10 +583,13 @@ export async function onRequest(context) {
     if (path[0] === 'profile' && path[1] === 'avatar' && method === 'POST') {
       if (!env.COVERS) return fail('图片存储未配置', 503);
       const form = await request.formData(), file = form.get('file');
-      if (!(file instanceof File) || !['image/png','image/jpeg','image/gif','image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) return fail('仅支持小于 2MB 的 PNG、JPG、GIF、WebP 图片');
-      const ext = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1];
+      if (!(file instanceof File)) return fail('请选择图片');
+      const type = uploadTypeOf(file);
+      if (!type || file.size > MAX_UPLOAD_BYTES) return fail('仅支持小于 8MB 的 PNG、JPG、GIF、WebP 图片');
+      const ext = type === 'image/jpeg' ? 'jpg' : type.split('/')[1];
       const key = `avatars/${id()}.${ext}`;
-      await env.COVERS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+      // 用完整字节写入，避免流式上传在 GIF 多帧数据上被截断成静态首帧。
+      await env.COVERS.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: type } });
       await db.prepare('UPDATE users SET avatar_key=? WHERE qq=?').bind(key, user.qq).run();
       return json({ avatar: assetUrl(key) });
     }
@@ -620,9 +635,11 @@ export async function onRequest(context) {
     if (path[0] === 'upload' && method === 'POST') {
       if (!env.COVERS) return fail('图片存储未配置', 503);
       const form = await request.formData(), file = form.get('file');
-      if (!(file instanceof File) || !['image/png','image/jpeg','image/gif','image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) return fail('仅支持小于 2MB 的 PNG、JPG、GIF、WebP 图片');
-      const key = `${id()}.${file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1]}`;
-      await env.COVERS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+      if (!(file instanceof File)) return fail('请选择图片');
+      const type = uploadTypeOf(file);
+      if (!type || file.size > MAX_UPLOAD_BYTES) return fail('仅支持小于 8MB 的 PNG、JPG、GIF、WebP 图片');
+      const key = `${id()}.${type === 'image/jpeg' ? 'jpg' : type.split('/')[1]}`;
+      await env.COVERS.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: type } });
       return json({ imageKey: key, imageUrl: `/api/images/${key}` });
     }
     if (path[0] === 'campaigns' && method === 'POST' && path.length === 1) {

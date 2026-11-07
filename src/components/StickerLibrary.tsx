@@ -3,8 +3,7 @@ import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
-
-const ACCEPTED = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 export const STICKER_LIBRARY_LIMIT = 10;
 export const STICKER_DEFAULT_LIMIT = 2;
 
@@ -36,16 +35,19 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
     }
   };
 
-  const accept = (file: File) => {
-    if (!ACCEPTED.includes(file.type)) {
+  const accept = async (selected: File) => {
+    const file = normalizeImageFile(selected);
+    if (!file || !acceptedImage(file)) {
       showAlert({ title: '格式不支持', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showAlert({ title: '图片过大', message: '贴纸请小于 2MB', type: 'warning' });
+    // 动态图不能走 canvas 裁剪，否则只剩第一帧；静态图会裁剪压缩到 2MB 内。
+    const animated = await isAnimatedImage(file);
+    if (file.size > (animated ? MAX_ANIMATED_BYTES : MAX_STATIC_BYTES)) {
+      showAlert({ title: '图片过大', message: animated ? '动态贴纸不会压缩，请小于 8MB' : '原图请小于 20MB', type: 'warning' });
       return;
     }
-    if (file.type === 'image/gif') upload(file);
+    if (animated) upload(file);
     else setCropFile(file);
   };
 
@@ -68,7 +70,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
         {library.map((key) => {
           const order = defaults.indexOf(key);
           return (
-            <div key={key} className={`relative aspect-[3/1] border-2 bg-white overflow-hidden ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212]'}`}>
+            <div key={key} className={`relative aspect-[7/2] rounded border-2 bg-white overflow-hidden ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212]'}`}>
               <button
                 type="button"
                 onClick={() => toggleDefault(key)}
@@ -100,7 +102,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
             type="button"
             disabled={!isMember || busy}
             onClick={() => inputRef.current?.click()}
-            className="aspect-[3/1] border-2 border-dashed border-[#121212] bg-[#FAF9F5] flex flex-col items-center justify-center gap-0.5 text-[#666] cursor-pointer hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="aspect-[7/2] rounded border-2 border-dashed border-[#121212] bg-[#FAF9F5] flex flex-col items-center justify-center gap-0.5 text-[#666] cursor-pointer hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="上传贴纸到贴纸库"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -110,7 +112,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
       </div>
       <p className="mt-2 text-[10px] text-[#666] leading-relaxed">
         {isMember
-          ? `最多预存 ${STICKER_LIBRARY_LIMIT} 张；点图片设为默认佩戴（最多 ${STICKER_DEFAULT_LIMIT} 张），发团时可以从库里临时改选，不影响默认。静图按发团卡片的贴纸尺寸（约 166×56、3:1）裁剪，GIF 保留动画但不会裁剪，请自行做成 3:1 长条。`
+          ? `最多预存 ${STICKER_LIBRARY_LIMIT} 张；点图片设为默认佩戴（最多 ${STICKER_DEFAULT_LIMIT} 张），发团时可以从库里临时改选，不影响默认。静图按发团卡片的贴纸尺寸（约 166×48、3.5:1）裁剪，GIF 保留动画但不会裁剪，请自行做成 3.5:1 长条。`
           : '会员专享：开通后可预存 10 张贴纸，并选 2 张默认佩戴'}
       </p>
       <input
@@ -157,7 +159,7 @@ export function StickerPicker({ library, value, onChange }: StickerPickerProps) 
               key={key}
               type="button"
               onClick={() => toggle(key)}
-              className={`relative aspect-[3/1] border-2 bg-white overflow-hidden cursor-pointer ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212] hover:border-[#004E98]'}`}
+              className={`relative aspect-[7/2] rounded border-2 bg-white overflow-hidden cursor-pointer ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212] hover:border-[#004E98]'}`}
               aria-pressed={order >= 0}
               aria-label={order >= 0 ? '取消本团使用' : '本团使用这张贴纸'}
               title={order >= 0 ? '点击取消' : '点击使用'}

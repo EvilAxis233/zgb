@@ -6,6 +6,7 @@ import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
 import { ImageCropper } from './ImageCropper';
+import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -61,6 +62,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [coverSource, setCoverSource] = useState<File | null>(null);
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
+  const [coverAnimated, setCoverAnimated] = useState(false);
   const [bannerColor, setBannerColor] = useState(BAUHAUS_COLORS[0].hex);
   const [isDragging, setIsDragging] = useState(false);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
@@ -94,17 +96,26 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     setStickerKeys(currentUser?.stickerKeys || []);
   }, [isOpen, kind]);
 
-  const processFile = (file: File) => {
-    if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
+  const processFile = async (selected: File) => {
+    const file = normalizeImageFile(selected);
+    if (!file) return;
+    if (!acceptedImage(file)) {
       showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      showAlert({ title: '图片过大', message: '原图请小于 20MB，裁剪后将压缩至 2MB 内', type: 'warning' });
+    // 动态封面直接原样上传：canvas 裁剪只会导出第一帧，动画会丢失。
+    const animated = await isAnimatedImage(file);
+    if (file.size > (animated ? MAX_ANIMATED_BYTES : MAX_STATIC_BYTES)) {
+      showAlert({ title: '图片过大', message: animated ? '动态封面不会压缩，请小于 8MB' : '原图请小于 20MB，裁剪后将压缩至 2MB 内', type: 'warning' });
       return;
     }
     setCoverSource(file);
-    setCoverToCrop(file);
+    setCoverAnimated(animated);
+    if (animated) {
+      const reader = new FileReader();
+      reader.onload = () => { if (typeof reader.result === 'string') setImageUrl(reader.result); };
+      reader.readAsDataURL(file);
+    } else setCoverToCrop(file);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -639,13 +650,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     留空使用默认图片
                   </span>
                   <div className="flex items-center gap-3">
-                    {imageUrl && coverSource && (
+                    {imageUrl && coverSource && !coverAnimated && (
                       <button type="button" onClick={() => setCoverToCrop(coverSource)} className="text-xs text-[#004E98] font-bold hover:underline cursor-pointer">重新裁剪</button>
                     )}
                     {imageUrl && (
                       <button
                         type="button"
-                        onClick={() => { setImageUrl(''); setCoverSource(null); }}
+                        onClick={() => { setImageUrl(''); setCoverSource(null); setCoverAnimated(false); }}
                         className="text-xs text-[#D62828] font-bold flex items-center gap-1 hover:underline cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -659,7 +670,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/gif,image/webp,.gif,.png,.jpg,.jpeg,.webp"
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -692,7 +703,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         单击上传或拖拽图片至此，随后可裁剪和移动
                       </span>
                       <span className="text-[10px] text-[#888888]">
-                        支持 PNG、JPG、GIF、WebP（原图小于 20MB）
+                        支持 PNG、JPG、GIF、WebP · 动图保留动画、不裁剪（小于 8MB）
                       </span>
                     </div>
                   )}
