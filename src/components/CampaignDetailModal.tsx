@@ -174,7 +174,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 {campaign.customTags?.map((tag) => <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">#{tag}</span>)}
                 {!campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '展示中' : '招募中'}</span>}
                 {campaign.kind !== 'promo' && campaign.hasEnded && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已结团</span>}
-                {!campaign.hasEnded && campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '已封车' : '已锁车'}</span>}
+                {!campaign.hasEnded && campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '已结束宣发' : '已锁车'}</span>}
                 {campaign.kind !== 'promo' && <span className="px-2.5 py-0.5 bg-[#F4A261] text-xs font-bold border border-[#121212] flex items-center gap-1"><Users className="w-3.5 h-3.5" />{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>}
               </div>
               {campaign.kind === 'offline' && campaign.address && <p className="mb-2 text-xs font-bold text-[#555] break-all">完整地址：{campaign.address}</p>}
@@ -191,7 +191,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                     >
                       {campaign.slots.map((slot) => (
                         <option key={slot.id} value={slot.id}>
-                          {`${formatDisplayTime(slot.timeSchedule)}${campaign.kind === 'promo' ? (slot.isClosed ? ' 已封车' : '') : ` · ${slot.currentPlayers}/${slot.maxPlayers}${slot.hasEnded ? ' 已结团' : slot.isClosed ? ' 已锁车' : slot.isFull ? ' 已满' : ''}${slot.isSignedUp ? ' 已报名' : ''}`}`}
+                          {`${formatDisplayTime(slot.timeSchedule)}${campaign.kind === 'promo' ? (slot.isClosed ? ' 已结束宣发' : '') : ` · ${slot.currentPlayers}/${slot.maxPlayers}${slot.hasEnded ? ' 已结团' : slot.isClosed ? ' 已锁车' : slot.isFull ? ' 已满' : ''}${slot.isSignedUp ? ' 已报名' : ''}`}`}
                         </option>
                       ))}
                     </select>

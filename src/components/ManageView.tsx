@@ -29,7 +29,7 @@ interface Props {
   onReport: () => void;
 }
 
-const stateLabel = (campaign: Campaign) => campaign.kind === 'promo' ? (campaign.isClosed || campaign.hasExpired ? '已封车' : '展示中') : campaign.hasEnded ? '已结团' : campaign.hasExpired ? '已到期锁车' : campaign.isClosed ? '已锁车' : campaign.isFull ? '已满员' : '招募中';
+const stateLabel = (campaign: Campaign) => campaign.kind === 'promo' ? (campaign.isClosed ? '已结束宣发' : campaign.hasExpired ? '已过期' : '展示中') : campaign.hasEnded ? '已结团' : campaign.hasExpired ? '已到期锁车' : campaign.isClosed ? '已锁车' : campaign.isFull ? '已满员' : '招募中';
 
 export const ManageView: React.FC<Props> = ({
   hostedCampaigns,
@@ -89,12 +89,18 @@ export const ManageView: React.FC<Props> = ({
     });
     if (ok) onCancelSignup(campaign.id);
   };
+  // 宣群不再「封车」留记录：二次确认后直接物理删除，后台不保留。
+  const handleEndPromo = async (campaign: Campaign) => {
+    const ok = await showConfirm({
+      title: '结束宣发',
+      message: `确定结束「${campaign.title}」的宣发吗？确认后这条宣群记录将被永久删除，后台不再保留，且无法恢复。`,
+      confirmText: '确定结束宣发',
+      type: 'danger',
+    });
+    if (ok) onDeleteCampaign(campaign.id);
+  };
   const handleClosure = async (campaign: Campaign) => {
     const closed = !campaign.isClosed;
-    if (campaign.kind === 'promo') {
-      if (await showConfirm({ title: '封车', message: `确定封车「${campaign.title}」吗？封车后将从公开宣群列表隐藏，不能重新开放。`, confirmText: '确定封车', type: 'warning' })) onSetCampaignClosed(campaign.id, true);
-      return;
-    }
     const ok = await showConfirm({ title: closed ? '锁车' : '重新开放报名', message: `确定${closed ? '锁车' : '重新开放'}「${campaign.title}」在 ${formatDisplayTime(campaign.timeSchedule)} 的报名吗？${closed ? '锁车后玩家不能取消报名。' : ''}`, confirmText: closed ? '确定锁车' : '重新开放', type: closed ? 'warning' : 'info' });
     if (ok) onSetCampaignClosed(campaign.id, closed);
   };
@@ -144,9 +150,13 @@ export const ManageView: React.FC<Props> = ({
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
               {!campaign.batchId && !campaign.hasEnded && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
-              {!campaign.hasEnded && !campaign.hasExpired && (campaign.kind !== 'promo' || !campaign.isClosed) && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.kind === 'promo' ? '封车' : campaign.isClosed ? '重新开放' : '锁车'}</button>}
-              {!campaign.hasEnded && campaign.kind !== 'promo' && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}
-              {campaign.kind !== 'promo' && <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />弃团</button>}
+              {campaign.kind === 'promo' ? (
+                <button onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />结束宣发</button>
+              ) : <>
+                {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
+                {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}
+                <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />弃团</button>
+              </>}
             </> : campaign.kind !== 'promo' && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
           </div>
         </article>

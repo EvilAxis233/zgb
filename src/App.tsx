@@ -146,7 +146,7 @@ export function App() {
   };
 
   // Delete Campaign
-  const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已弃团');
+  const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), campaigns.find((campaign) => campaign.id === campaignId)?.kind === 'promo' ? '宣发已结束，记录已删除' : '战役已弃团');
   // 站长/管理员在主界面详情弹窗中直接编辑或删除任意团
   const handleAdminEditCampaign = (campaign: CampaignDetail) => setAdminEditingCampaign(campaign);
   const handleAdminEditSave = async (updated: Campaign) => {
@@ -162,7 +162,7 @@ export function App() {
     const ok = await run(() => api.deleteCampaign(campaignId), '该团已被删除');
     if (ok) setSelectedCampaign(null);
   };
-  const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), campaigns.find((campaign) => campaign.id === campaignId)?.kind === 'promo' ? '宣群已封车' : closed ? '本团已锁车' : '本团已重新开放报名');
+  const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), closed ? '本团已锁车' : '本团已重新开放报名');
   const handleFinishCampaign = (campaignId: string) => run(() => api.finishCampaign(campaignId), '本团已结团');
   const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
 

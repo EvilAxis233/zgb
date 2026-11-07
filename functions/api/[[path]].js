@@ -733,7 +733,8 @@ export async function onRequest(context) {
       if (path[2] === 'status' && path.length === 3 && method === 'PATCH') {
         const b = await body(request);
         if (typeof b.closed !== 'boolean') return fail('状态无效');
-        if (c.kind === 'promo' && !b.closed) return fail('宣群封车后不能重新开放', 409);
+        // 宣群不再封车留档：结束宣发由前端二次确认后走 DELETE 物理删除，任何状态接口都不再写入 closed_at。
+        if (c.kind === 'promo') return fail('宣群请使用「结束宣发」删除记录', 409);
         if (c.finished_at) return fail('已结团，不能重新开放', 409);
         if (!b.closed && campaignExpired(c)) return fail('预定时间已过，请先修改时间', 409);
         await db.prepare('UPDATE campaigns SET closed_at=? WHERE id=?').bind(b.closed ? new Date().toISOString() : null, cid).run();
