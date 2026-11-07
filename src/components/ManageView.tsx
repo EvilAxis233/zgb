@@ -52,6 +52,16 @@ export const ManageView: React.FC<Props> = ({
   const [newTimeSchedule, setNewTimeSchedule] = useState('');
   const [addingSlot, setAddingSlot] = useState(false);
 
+  const addTag = () => {
+    if (!editingCampaign) return;
+    const tag = customTagInput.trim();
+    if (!tag) return;
+    if (Array.from(tag).length > 6) { alert('自定义标签最多 6 个字'); return; }
+    if ((editingCampaign.customTags?.length || 0) >= 6 || editingCampaign.customTags?.includes(tag)) return;
+    setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), tag] });
+    setCustomTagInput('');
+  };
+
   const handleDelete = async (campaign: Campaign) => {
     const ok = await showConfirm({
       title: '弃团',
@@ -191,8 +201,8 @@ export const ManageView: React.FC<Props> = ({
           <p className="text-xs font-bold">{editingCampaign.title}</p>
           <p className="text-xs text-[#666]">保存后，简介和标签会同步到所有时段，也会用于之后新增的时段。</p>
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
-          <label className="block text-xs font-bold">自定义标签（最多 6 个，每个最多 6 字）<input maxLength={6} value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} className="bauhaus-input mt-1 w-full p-2" placeholder="输入标签后点击添加" /></label>
-          <button type="button" onClick={() => { const tag = customTagInput.trim(); if (tag && (editingCampaign.customTags?.length || 0) < 6 && !editingCampaign.customTags?.includes(tag)) { setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), tag] }); setCustomTagInput(''); } }} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
+          <label className="block text-xs font-bold">自定义标签（最多 6 个，每个最多 6 字）<input value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} className="bauhaus-input mt-1 w-full p-2" placeholder="输入标签后点击添加" /></label>
+          <button type="button" onClick={addTag} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
           <div className="flex flex-wrap gap-1">{editingCampaign.customTags?.map((tag) => <button type="button" key={tag} onClick={() => setEditingCampaign({ ...editingCampaign, customTags: editingCampaign.customTags?.filter((item) => item !== tag) })} className="border px-2 py-1 text-xs">#{tag} ×</button>)}</div>
           <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
         </> : <>
@@ -236,15 +246,17 @@ export const ManageView: React.FC<Props> = ({
           <div className="relative">
             <div className="flex justify-between text-xs font-bold mb-1"><span>自定义标签 (最多6个，每个最多6字)</span><span className="text-[#666]">{editingCampaign.customTags?.length || 0}/6</span></div>
             <div className="relative">
-              <input maxLength={6} value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value.slice(0, 6))} onKeyDown={(e) => {
+              <input value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const t = customTagInput.trim();
-                  if (!t || (editingCampaign.customTags || []).length >= 6 || (editingCampaign.customTags || []).includes(t)) return;
+                  if (!t) return;
+                  if (Array.from(t).length > 6) { alert('自定义标签最多 6 个字'); return; }
+                  if ((editingCampaign.customTags || []).length >= 6 || (editingCampaign.customTags || []).includes(t)) return;
                   setEditingCampaign({ ...editingCampaign, customTags: [...(editingCampaign.customTags || []), t] });
                   setCustomTagInput('');
                 }
-              }} disabled={(editingCampaign.customTags?.length || 0) >= 6} placeholder="回车添加标签" className="bauhaus-input w-full p-2 pr-7 text-xs disabled:bg-[#F2F0E8]" />
+              }} disabled={(editingCampaign.customTags?.length || 0) >= 6} placeholder="回车添加标签 (限6字)" className="bauhaus-input w-full p-2 pr-7 text-xs disabled:bg-[#F2F0E8]" />
               <button type="button" onClick={() => setShowCustomTagDropdown(!showCustomTagDropdown)} className="absolute right-1.5 top-2 text-[#004E98] hover:text-[#D62828]"><Sparkles className="w-4 h-4" /></button>
             </div>
             {showCustomTagDropdown && (

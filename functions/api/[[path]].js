@@ -669,6 +669,9 @@ export async function onRequest(context) {
       const createdAt = new Date().toISOString();
       const contact = c.contact || user.qq;
       const rawSlots = Array.isArray(b.timeSlots) ? b.timeSlots : [];
+      if (c.kind === 'promo' && rawSlots.length > 1) return fail('宣群只能选择一个时间');
+      // 防重复发车：同一账号 2 分钟内发布同名团直接拒绝（误触/网络卡顿导致的双发）。
+      if (await db.prepare('SELECT 1 FROM campaigns WHERE gm_qq=? AND title=? AND deleted_at IS NULL AND created_at>? LIMIT 1').bind(user.qq, c.title, new Date(Date.now() - 120000).toISOString()).first()) return fail('发布太快啦，同样的团刚刚已提交，请勿重复发布', 429);
       if (rawSlots.length > 96) return fail('一次最多选择 96 个时段');
       const slots = rawSlots.length > 1 ? rawSlots.map((raw) => { const slot = validateNewSlot(raw, c.kind !== 'online'); return { ...c, time: slot.time, scheduledDate: slot.date, period: slot.period }; }) : [c];
       const slotKeys = slots.map((slot) => `${slot.scheduledDate}:${slot.period}`);
@@ -735,7 +738,7 @@ export async function onRequest(context) {
         const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(cid, target).run();
         return result.meta.changes ? json({ ok: true }) : fail('玩家不在本团', 404);
       }
-      if (c.gm_qq !== user.qq) return fail('只有主持人可以操作', 403);
+      if (c.gm_qq !== user.qq && !isSiteAdmin(user)) return fail('只有主持人可以操作', 403);
       if (path[2] === 'finish' && path.length === 3 && method === 'POST') {
         if (c.kind === 'promo') return fail('宣群不需要结团', 409);
         const result = await db.prepare('UPDATE campaigns SET finished_at=?,closed_at=COALESCE(closed_at,?) WHERE id=? AND finished_at IS NULL').bind(new Date().toISOString(), new Date().toISOString(), cid).run();
@@ -756,9 +759,12 @@ export async function onRequest(context) {
           if (!b || typeof b.description !== 'string' || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags'].includes(key))) return fail('批量团只允许修改简介和标签');
           const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, false);
           const presetTags = JSON.stringify(tags.presetTags), customTags = JSON.stringify(tags.customTags);
+          // 站长/管理员可代为修改任意批量团；主持人只能改自己的。
+          const ownerFilter = c.gm_qq === user.qq ? ' AND gm_qq=?' : '';
+          const ownerBinds = c.gm_qq === user.qq ? [user.qq] : [];
           await db.batch([
-            db.prepare('UPDATE campaign_batches SET description=?,preset_tags=?,custom_tags=? WHERE id=? AND gm_qq=?').bind(tags.description, presetTags, customTags, c.batch_id, user.qq),
-            db.prepare('UPDATE campaigns SET description=?,preset_tags=?,custom_tags=? WHERE batch_id=? AND gm_qq=? AND deleted_at IS NULL').bind(tags.description, presetTags, customTags, c.batch_id, user.qq)
+            db.prepare(`UPDATE campaign_batches SET description=?,preset_tags=?,custom_tags=? WHERE id=?${ownerFilter}`).bind(tags.description, presetTags, customTags, c.batch_id, ...ownerBinds),
+            db.prepare(`UPDATE campaigns SET description=?,preset_tags=?,custom_tags=? WHERE batch_id=? AND deleted_at IS NULL${ownerFilter}`).bind(tags.description, presetTags, customTags, c.batch_id, ...ownerBinds)
           ]);
           const nowIso = new Date().toISOString();
           for (const tag of tags.customTags) {

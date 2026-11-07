@@ -92,9 +92,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         src="/zgb-logo.png"
         alt=""
         aria-hidden="true"
-        className="h-9 w-9 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
+        className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
       />
-      <h1 className="text-2xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
+      <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
         诸告板
       </h1>
     </button>

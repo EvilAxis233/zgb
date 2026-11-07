@@ -74,43 +74,32 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
 
       {/* Main Content Area */}
       <div className="p-3.5 pt-8 flex-1 flex flex-col">
-        <div className="flex items-center justify-between gap-3 pb-3">
+        {/* 第一行：头像 + GM 名称，右侧为获赞徽章 */}
+        <div className="flex items-center justify-between gap-3 pb-2">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
             <span className="h-7 w-7 shrink-0 overflow-hidden border-2 border-[#121212] bg-[#D62828] text-white flex items-center justify-center text-sm" aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="w-full h-full object-cover" /> : campaign.gmName.charAt(0)}</span>
-            {campaign.gmNameplate ? (
-              <NameplateBadge nameplate={campaign.gmNameplate} />
-            ) : (
-              <span className="truncate">GM: {campaign.gmName}</span>
-            )}
-            {!!campaign.gmStickers?.length && (
-              <span className="flex shrink-0 items-center gap-1">
-                {campaign.gmStickers.slice(0, 2).map((src, index) => (
-                  <img key={`${src}-${index}`} src={src} alt="GM 贴纸" className="h-6 w-6 border-2 border-[#121212] bg-white object-cover" />
-                ))}
-              </span>
-            )}
+            <span className="truncate">GM: {campaign.gmName}</span>
           </div>
-            <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
-              <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
-            </span>
+          <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
+            <ThumbsUp className="h-3 w-3" />赞 {campaign.gmPraises ?? 0}
+          </span>
         </div>
 
-        {/* Two equal lower rows: row one is reserved for the GM label or future stickers. */}
-        <div className="grid flex-1 grid-rows-2">
-          <div className="flex min-h-[28px] min-w-0 items-center gap-1.5">
-            {campaign.gmNameplate && (
-              <span className="truncate text-base font-black text-[#121212]">GM: {campaign.gmName}</span>
-            )}
-            {/* GM 名称后面跟贴纸 (贴纸后续跟进) */}
+        {/* 头像与分割线之间的空白区：铭牌 + 贴纸 */}
+        <div className="flex min-h-[28px] flex-1 flex-wrap content-start items-start gap-1.5 pl-9">
+          {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} />}
+          {!!campaign.gmStickers?.length && campaign.gmStickers.slice(0, 2).map((src, index) => (
+            <img key={`${src}-${index}`} src={src} alt="GM 贴纸" className="h-6 w-6 border-2 border-[#121212] bg-white object-cover" />
+          ))}
+        </div>
+
+        <div className="border-t border-dashed border-[#D8D5CC] pt-2">
+          <div className="flex flex-wrap content-start items-start gap-2">
+            {campaign.customTags?.map((tag) => (
+              <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
+            ))}
           </div>
-          <div className="border-t border-dashed border-[#D8D5CC] pt-2">
-            <div className="flex flex-wrap content-start items-start gap-2">
-              {campaign.customTags?.map((tag) => (
-                <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
-              ))}
-            </div>
-            {campaign.kind === 'offline' && campaign.address && <p className="mt-2 flex items-start gap-1.5 text-xs font-bold text-[#555] break-all"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#004E98]" /><span>地址：{campaign.address}</span></p>}
-          </div>
+          {campaign.kind === 'offline' && campaign.address && <p className="mt-2 flex items-start gap-1.5 text-xs font-bold text-[#555] break-all"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#004E98]" /><span>地址：{campaign.address}</span></p>}
         </div>
       </div>
     </article>

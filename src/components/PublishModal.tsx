@@ -67,6 +67,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
   const [stickerKeys, setStickerKeys] = useState<string[]>(currentUser?.stickerKeys || []);
+  const [submitting, setSubmitting] = useState(false);
 
   // 规则系统与昵称同一套字数口径：中文/全角算 2，英文数字算 1，上限 20（即 10 个中文字符）。
   const textWeight = (value: string) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
@@ -141,8 +142,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     }
   };
 
+  // 宣群只能选一个时间；网团/面团可多时段。
+  const applyTimeSlots = (slots: string[]) => {
+    const next = kind === 'promo' ? slots.slice(-1) : slots;
+    setTimeSlots(next);
+    setTimeSchedule(next[0] || '');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!currentUser) {
       showAlert({ title: '提示', message: '请先登录后发布', type: 'warning' });
       return;
@@ -169,7 +178,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       return;
     }
 
-    const success = await onPublish({
+    if (kind === 'promo' && timeSlots.length > 1) {
+      showAlert({ title: '提示', message: '宣群只能选择一个时间', type: 'warning' });
+      return;
+    }
+
+    setSubmitting(true);
+    let success = false;
+    try {
+      success = await onPublish({
       kind,
       province: '',
       city: kind === 'offline' ? location.trim() : '',
@@ -197,6 +214,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       currentPlayers: 0,
     });
 
+    } finally { setSubmitting(false); }
     if (success) onClose();
   };
 
@@ -261,7 +279,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               multiple
               maxDaysAhead={kind === 'online' ? 31 : null}
               selectedSlots={timeSlots}
-              onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
+              onChangeSlots={applyTimeSlots}
               hideHeader={true}
               borderless={true}
             />
@@ -424,16 +442,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <div className="relative">
                       <input
                         type="text"
-                        maxLength={6}
                         value={customTagInput}
-                        onChange={(e) => setCustomTagInput(e.target.value.slice(0, 6))}
+                        onChange={(e) => setCustomTagInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             const tag = customTagInput.trim();
                             if (!tag) return;
-                            if (tag.length > 6) {
-                              showAlert('自定义标签最多 6 个字');
+                            if (Array.from(tag).length > 6) {
+                              showAlert({ title: '提示', message: '自定义标签最多 6 个字', type: 'warning' });
                               return;
                             }
                             if (selectedCustomTags.includes(tag)) {
@@ -441,7 +458,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                               return;
                             }
                             if (selectedCustomTags.length >= 6) {
-                              showAlert('最多添加 6 个自定义标签');
+                              showAlert({ title: '提示', message: '最多添加 6 个自定义标签', type: 'warning' });
                               return;
                             }
                             setSelectedCustomTags([...selectedCustomTags, tag]);
@@ -485,7 +502,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                                 onClick={() => {
                                   if (selectedCustomTags.includes(tag)) return;
                                   if (selectedCustomTags.length >= 6) {
-                                    showAlert('最多添加 6 个自定义标签');
+                                    showAlert({ title: '提示', message: '最多添加 6 个自定义标签', type: 'warning' });
                                     return;
                                   }
                                   setSelectedCustomTags([...selectedCustomTags, tag]);
@@ -536,9 +553,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <label className="block font-bold text-[#121212]">
                       开团时间 <span className="text-[#D62828]">*</span>
                     </label>
-                    <span className="hidden lg:inline text-xs font-bold text-[#004E98]">
-                      ← 请在左侧悬浮日历中选择
-                    </span>
+                    {kind === 'promo' ? (
+                      <span className="hidden sm:inline text-xs font-bold text-[#D62828]">宣群只能选择 1 个时间</span>
+                    ) : (
+                      <span className="hidden lg:inline text-xs font-bold text-[#004E98]">
+                        ← 请在左侧悬浮日历中选择
+                      </span>
+                    )}
                   </div>
 
                   <div
@@ -584,7 +605,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           multiple
                           maxDaysAhead={kind === 'online' ? 31 : null}
                           selectedSlots={timeSlots}
-                          onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
+                          onChangeSlots={applyTimeSlots}
                         />
                       </div>
                     )}
@@ -720,9 +741,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="bauhaus-btn bg-[#D62828] text-white px-6 py-2 text-xs font-black shadow-[3px_3px_0px_#121212]"
+                disabled={submitting}
+                className="bauhaus-btn bg-[#D62828] text-white px-6 py-2 text-xs font-black shadow-[3px_3px_0px_#121212] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                确认发布
+                {submitting ? '发布中…' : '确认发布'}
               </button>
             </div>
           </form>

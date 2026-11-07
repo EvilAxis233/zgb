@@ -1,4 +1,4 @@
-import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X } from 'lucide-react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2 } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -17,6 +17,8 @@ interface Props {
   onCancelSignup: (id: string) => void;
   onRemoveMember: (campaignId: string, qq: string) => void;
   onPraise: (campaignId: string, qq: string, type: 'gm' | 'player') => void;
+  onEditCampaign?: (campaign: CampaignDetail) => void;
+  onDeleteCampaign?: (campaignId: string) => void;
 }
 
 function Avatar({ member }: { member: CampaignMember }) {
@@ -29,13 +31,33 @@ function Avatar({ member }: { member: CampaignMember }) {
   );
 }
 
-export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise }) => {
+export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign }) => {
   const { showConfirm } = useDialog();
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
   const isMember = isGm || campaign.isSignedUp;
   const gm = campaign.members.find((member) => member.role === 'gm');
   const players = campaign.members.filter((member) => member.role === 'player');
+
+  // 站长/管理员在主界面直接处置违规团：编辑内容、删除（需二次确认）。
+  const isAdminModerator = !!currentUser?.isAdmin && !!onEditCampaign && !!onDeleteCampaign;
+  const handleAdminDelete = async () => {
+    if (!campaign) return;
+    const first = await showConfirm({
+      title: '删除违规团',
+      message: `确定删除《${campaign.title}》吗？团、成员记录和相关点赞将被删除。`,
+      confirmText: '继续删除',
+      type: 'danger',
+    });
+    if (!first) return;
+    const second = await showConfirm({
+      title: '最终确认',
+      message: `再次确认：《${campaign.title}》删除后无法恢复，确定执行吗？`,
+      confirmText: '确认删除',
+      type: 'danger',
+    });
+    if (second) onDeleteCampaign?.(campaign.id);
+  };
 
   const handleRemoveMember = async (member: CampaignMember) => {
     const ok = await showConfirm({
@@ -212,6 +234,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             {campaign.kind !== 'promo' && currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
             {campaign.kind !== 'promo' && (campaign.hasEnded || campaign.isClosed || campaign.isFull) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed ? '本团已锁车' : '报名人数已满'}</span>}
             {campaign.kind === 'promo' && !currentUser && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold">登录查看联系方式</button>}
+            {isAdminModerator && (
+              <>
+                <button type="button" onClick={() => onEditCampaign?.(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5"><Edit2 className="w-4 h-4" />编辑</button>
+                <button type="button" onClick={handleAdminDelete} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5"><Trash2 className="w-4 h-4" />删除</button>
+              </>
+            )}
             <button type="button" onClick={onClose} className="bauhaus-btn bg-white px-5 py-1.5 text-xs font-bold">关闭</button>
           </div>
         </footer>

@@ -15,6 +15,7 @@ import { ProfileView } from './components/ProfileView';
 import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
+import { CampaignEditModal } from './components/CampaignEditModal';
 import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
 import { TicketsModal } from './components/TicketsModal';
@@ -43,6 +44,7 @@ export function App() {
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
+  const [adminEditingCampaign, setAdminEditingCampaign] = useState<Campaign | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [submissionType, setSubmissionType] = useState<'feedback' | 'report' | null>(null);
@@ -142,6 +144,21 @@ export function App() {
 
   // Delete Campaign
   const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), '战役已弃团');
+  // 站长/管理员在主界面详情弹窗中直接编辑或删除任意团
+  const handleAdminEditCampaign = (campaign: CampaignDetail) => setAdminEditingCampaign(campaign);
+  const handleAdminEditSave = async (updated: Campaign) => {
+    const ok = await handleUpdateCampaign(updated);
+    if (ok) {
+      setAdminEditingCampaign(null);
+      try { const data = await api.campaign(updated.id); setSelectedCampaign(data.campaign); }
+      catch { setSelectedCampaign(null); }
+    }
+    return ok;
+  };
+  const handleAdminDeleteCampaign = async (campaignId: string) => {
+    const ok = await run(() => api.deleteCampaign(campaignId), '该团已被删除');
+    if (ok) setSelectedCampaign(null);
+  };
   const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), campaigns.find((campaign) => campaign.id === campaignId)?.kind === 'promo' ? '宣群已封车' : closed ? '本团已锁车' : '本团已重新开放报名');
   const handleFinishCampaign = (campaignId: string) => run(() => api.finishCampaign(campaignId), '本团已结团');
   const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
@@ -610,7 +627,20 @@ export function App() {
         onCancelSignup={handleCancelSignup}
         onRemoveMember={handleRemoveMember}
         onPraise={handleSendPraise}
+        onEditCampaign={currentUser?.isAdmin ? handleAdminEditCampaign : undefined}
+        onDeleteCampaign={currentUser?.isAdmin ? handleAdminDeleteCampaign : undefined}
       />
+
+      {/* 站长/管理员：主界面直接编辑团内容 */}
+      {adminEditingCampaign && (
+        <CampaignEditModal
+          campaign={adminEditingCampaign}
+          rules={rules}
+          popularCustomTags={popularCustomTags}
+          onSave={handleAdminEditSave}
+          onClose={() => setAdminEditingCampaign(null)}
+        />
+      )}
 
       {/* Publish Modal */}
       <PublishModal
