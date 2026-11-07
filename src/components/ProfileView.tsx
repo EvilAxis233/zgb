@@ -171,9 +171,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-[#121212] pb-6">
           <div className="flex items-center gap-4">
             {/* Bauhaus Avatar Icon */}
-            <label className="relative w-16 h-16 bg-[#121212] text-white font-black text-2xl flex items-center justify-center border-2 border-[#121212] shadow-[4px_4px_0px_#D62828] cursor-pointer overflow-hidden group" title="上传头像">
-              {currentUser.avatar ? <img src={currentUser.avatar} alt="我的头像" className="w-full h-full object-cover" /> : (name || currentUser.name || '?').charAt(0)}
-              <span className="absolute inset-x-0 bottom-0 py-1 bg-black/75 text-[10px] flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"><Upload className="w-3 h-3" />更换</span>
+            <label className={`relative w-16 h-16 bg-[#121212] text-white font-black text-2xl flex items-center justify-center cursor-pointer overflow-hidden group ${membershipActive || currentUser.membershipPermanent ? 'gilded-avatar' : 'border-2 border-[#121212] shadow-[4px_4px_0px_#D62828]'}`} title="上传头像">
+              {currentUser.avatar ? <img src={currentUser.avatar} alt="我的头像" className="w-full h-full object-cover" /> : <span className="relative z-[1]">{(name || currentUser.name || '?').charAt(0)}</span>}
+              <span className="absolute inset-x-0 bottom-0 z-[3] py-1 bg-black/75 text-[10px] flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"><Upload className="w-3 h-3" />更换</span>
               <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });

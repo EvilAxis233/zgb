@@ -58,6 +58,7 @@ export interface Campaign {
   gmPraises?: number;
   gmNameplate?: UserNameplate | null;
   gmStickers?: string[];
+  gmIsMember?: boolean; // GM 是否为会员（会员头像显示动态鎏金环）
   stickerKeys?: string[]; // 发布时本团临时选用的贴纸 key（不改默认佩戴）
   contact?: string;
   summary?: string;
@@ -115,6 +116,7 @@ export interface CampaignMember {
   receivedPraises: number;
   nameplate?: UserNameplate | null;
   stickers?: string[];
+  isMember?: boolean;
   bio?: string;
   preferences?: string[];
   taboos?: string[];

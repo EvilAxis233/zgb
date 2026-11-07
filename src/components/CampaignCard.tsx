@@ -77,7 +77,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         {/* 第一行：头像 + GM 名称，右侧为获赞徽章 */}
         <div className="flex items-center justify-between gap-3 pb-2">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
-            <span className="h-7 w-7 shrink-0 overflow-hidden border-2 border-[#121212] bg-[#D62828] text-white flex items-center justify-center text-sm" aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="w-full h-full object-cover" /> : campaign.gmName.charAt(0)}</span>
+            <span className={`h-7 w-7 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white ${campaign.gmIsMember ? 'gilded-avatar' : 'border-2 border-[#121212] bg-[#D62828]'}`} aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#D62828]">{campaign.gmName.charAt(0)}</span>}</span>
             <span className="truncate">GM: {campaign.gmName}</span>
           </div>
           <span title={`GM 获赞 ${campaign.gmPraises ?? 0}`} aria-label={`GM 获赞 ${campaign.gmPraises ?? 0}`} className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-[11px] font-black text-white shadow-[2px_2px_0px_#121212]">
