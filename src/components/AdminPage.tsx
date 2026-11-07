@@ -24,8 +24,9 @@ function MetricCard({ label, value, note, tone = 'blue' }: { label: string; valu
 function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: boolean }) {
   if (loading || !data) return <div className="bauhaus-card bg-white h-full flex items-center justify-center font-bold text-sm">正在汇总看板数据…</div>;
   // 补齐完整的 30 天时间轴，没有数据的日期也占位，图表不会有大片空洞。
-  const todayHK = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
-  const endDay = `${todayHK.getFullYear()}-${String(todayHK.getMonth() + 1).padStart(2, '0')}-${String(todayHK.getDate()).padStart(2, '0')}`;
+  const hkParts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const hkPart = (type: string) => hkParts.find((part) => part.type === type)?.value || '';
+  const endDay = `${hkPart('year')}-${hkPart('month')}-${hkPart('day')}`;
   const end = new Date(endDay + 'T00:00:00Z');
   const trends = Array.from({ length: 30 }, (_, i) => { const d = new Date(end); d.setUTCDate(end.getUTCDate() - (29 - i)); return d.toISOString().slice(0, 10); });
   const userMap = new Map(data.dailyUsers.map((item) => [item.day, Number(item.count)]));
