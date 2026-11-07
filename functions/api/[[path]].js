@@ -670,8 +670,9 @@ export async function onRequest(context) {
       const contact = c.contact || user.qq;
       const rawSlots = Array.isArray(b.timeSlots) ? b.timeSlots : [];
       if (c.kind === 'promo' && rawSlots.length > 1) return fail('宣群只能选择一个时间');
-      // 防重复发车：同一账号 2 分钟内发布同名团直接拒绝（误触/网络卡顿导致的双发）。
-      if (await db.prepare('SELECT 1 FROM campaigns WHERE gm_qq=? AND title=? AND deleted_at IS NULL AND created_at>? LIMIT 1').bind(user.qq, c.title, new Date(Date.now() - 120000).toISOString()).first()) return fail('发布太快啦，同样的团刚刚已提交，请勿重复发布', 429);
+      // 防重复发车：同一账号 2 分钟内的「同名 + 同开团时间」直接拒绝（误触/网络卡顿导致的双发）。
+      // 批量团一次请求插入全部时段，只在这里校验一次，不会被自身批次误伤；不同时间的同名团也不受影响。
+      if (await db.prepare('SELECT 1 FROM campaigns WHERE gm_qq=? AND title=? AND time_schedule=? AND deleted_at IS NULL AND created_at>? LIMIT 1').bind(user.qq, c.title, c.time, new Date(Date.now() - 120000).toISOString()).first()) return fail('发布太快啦，同样的团刚刚已提交，请勿重复发布', 429);
       if (rawSlots.length > 96) return fail('一次最多选择 96 个时段');
       const slots = rawSlots.length > 1 ? rawSlots.map((raw) => { const slot = validateNewSlot(raw, c.kind !== 'online'); return { ...c, time: slot.time, scheduledDate: slot.date, period: slot.period }; }) : [c];
       const slotKeys = slots.map((slot) => `${slot.scheduledDate}:${slot.period}`);

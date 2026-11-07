@@ -85,11 +85,13 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           </span>
         </div>
 
-        {/* 头像与分割线之间的空白区：铭牌 + 贴纸 */}
-        <div className="flex min-h-[28px] flex-1 flex-wrap content-start items-start gap-1.5 pl-9">
-          {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} />}
+        {/* 头像与分割线之间的空白区：铭牌 + 等高的长条贴纸，整行从头像右缘撑到赞徽章右缘 */}
+        <div className="flex min-h-[28px] flex-1 items-center gap-1.5 pl-9">
+          {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
           {!!campaign.gmStickers?.length && campaign.gmStickers.slice(0, 2).map((src, index) => (
-            <img key={`${src}-${index}`} src={src} alt="GM 贴纸" className="h-6 w-6 border-2 border-[#121212] bg-white object-cover" />
+            <span key={`${src}-${index}`} className="block h-6 min-w-0 flex-1 overflow-hidden border-2 border-[#121212] bg-white">
+              <img src={src} alt="GM 贴纸" className="h-full w-full object-cover" />
+            </span>
           ))}
         </div>
 
