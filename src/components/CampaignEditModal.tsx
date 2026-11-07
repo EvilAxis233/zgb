@@ -1,31 +1,45 @@
-import React, { useState } from 'react';
-import { Edit2, X, BookOpen, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Edit2, X, BookOpen, Sparkles, Upload, ImagePlus } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 import { locationLabel } from '../utils/location';
+import { ImageCropper } from './ImageCropper';
+import { StickerPicker } from './StickerLibrary';
 
 interface Props {
   campaign: Campaign;
   rules: string[];
   popularCustomTags?: string[];
+  stickerLibrary?: string[];
   onSave: (campaign: Campaign) => Promise<boolean>;
   onClose: () => void;
 }
 
 // 主界面直接编辑团内容（站长/管理员审核违规团时使用），字段与团务管理里的编辑一致。
-export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCustomTags = [], onSave, onClose }) => {
+export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCustomTags = [], stickerLibrary = [], onSave, onClose }) => {
   const [draft, setDraft] = useState<Campaign>(() => ({
     ...campaign,
     sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'),
     platforms: campaign.platforms || [],
     presetTags: campaign.presetTags || [],
     customTags: campaign.customTags || [],
+    stickerKeys: campaign.stickerKeys || [],
   }));
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
   const [customTagInput, setCustomTagInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
+  const [stickerTouched, setStickerTouched] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const pickCover = (file: File | undefined) => {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) { alert('请选择 PNG、JPG、GIF 或 WebP 图片'); return; }
+    if (file.size > 20 * 1024 * 1024) { alert('原图请小于 20MB'); return; }
+    setCoverToCrop(file);
+  };
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -33,11 +47,56 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
     if (!draft.title.trim() || !draft.rule.trim() || !draft.timeSchedule.trim()) return;
     setSaving(true);
     try {
-      if (await onSave(draft)) onClose();
+      // 没动贴纸就不提交这个字段，避免把「默认佩戴」固化成每个团的独立配置。
+      const payload: Campaign = { ...draft };
+      if (!stickerTouched) delete payload.stickerKeys;
+      if (await onSave(payload)) onClose();
     } finally {
       setSaving(false);
     }
   };
+
+  // 封面：编辑时可重新上传（裁剪成 16:9）或删除，保存时统一上传到图床。
+  const coverBlock = (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-bold">封面图</span>
+        {draft.imageUrl && <button type="button" onClick={() => setDraft({ ...draft, imageUrl: '', imageKey: null })} className="text-[11px] font-bold text-[#D62828]">删除封面</button>}
+      </div>
+      <button type="button" onClick={() => coverInputRef.current?.click()} className="relative w-full h-24 overflow-hidden border-2 border-dashed border-[#121212] bg-white flex items-center justify-center">
+        {draft.imageUrl ? (
+          <>
+            <img src={draft.imageUrl} alt="封面预览" className="h-full w-full object-cover" />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-bold text-white opacity-0 hover:opacity-100"><ImagePlus className="mr-1 h-3.5 w-3.5" />点击更换封面</span>
+          </>
+        ) : (
+          <span className="flex flex-col items-center gap-1 text-center text-[11px] font-bold text-[#121212]">
+            <Upload className="h-4 w-4 text-[#004E98]" />上传封面（自动裁剪为 16:9）
+            <span className="text-[10px] font-normal text-[#888]">PNG / JPG / GIF / WebP，原图小于 20MB</span>
+          </span>
+        )}
+      </button>
+      <input ref={coverInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(event) => { pickCover(event.target.files?.[0]); event.target.value = ''; }} />
+    </div>
+  );
+
+  // 贴纸：从自己的贴纸库补选，最多 2 张（不能现场上传）；全部取消等于用 GM 默认佩戴。
+  // 已挂在团上、但不在当前编辑者库里的贴纸也要显示出来，避免误以为被清空。
+  const pickerLibrary = [...new Set([...stickerLibrary, ...(draft.stickerKeys || [])])];
+  const stickerBlock = (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-bold">本团贴纸</span>
+        <span className="text-[11px] font-bold text-[#666]">{(draft.stickerKeys?.length || 0)}/2</span>
+      </div>
+      <StickerPicker
+        library={pickerLibrary}
+        value={draft.stickerKeys || []}
+        onChange={(keys) => { setStickerTouched(true); setDraft({ ...draft, stickerKeys: keys }); }}
+      />
+      <p className="mt-1 text-[10px] font-bold text-[#666]">从贴纸库补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/60 p-4 flex items-center justify-center overflow-y-auto">
@@ -45,10 +104,13 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black flex items-center gap-2"><Edit2 className="w-4 h-4 text-[#004E98]" />编辑团内容</h2><button type="button" onClick={onClose} aria-label="关闭"><X className="w-5 h-5" /></button></div>
         {draft.batchId ? <>
           <p className="text-xs font-bold">{draft.title}</p>
-          <p className="text-xs text-[#666]">保存后，简介和标签会同步到该主团的所有时段。</p>
+          <p className="text-xs text-[#666]">保存后，简介、标签、封面和贴纸会同步到该主团的所有时段（含之后新增的时段）。</p>
+          {coverBlock}
+          {stickerBlock}
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
         </> : <>
         <label className="block text-xs font-bold">团名<input required className="bauhaus-input mt-1 w-full p-2" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
+        {coverBlock}
 
         <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
           <div className="relative">
@@ -127,6 +189,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
           </div>
         </div>
 
+        {stickerBlock}
         <CalendarPicker value={draft.timeSchedule} onChange={(value) => setDraft({ ...draft, timeSchedule: value })} maxDaysAhead={draft.kind === 'online' ? 31 : null} />
         <label className="block text-xs font-bold">联系方式<input required className="bauhaus-input mt-1 w-full p-2" value={draft.contact || ''} onChange={(e) => setDraft({ ...draft, contact: e.target.value })} placeholder="默认填入你的 QQ 号" /></label>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
@@ -134,6 +197,12 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button disabled={saving} className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs disabled:opacity-50">{saving ? '保存中…' : '保存修改'}</button></div>
         </>}
       </form>
+      {coverToCrop && <ImageCropper file={coverToCrop} shape="cover" onClose={() => setCoverToCrop(null)} onConfirm={(file) => {
+        const reader = new FileReader();
+        reader.onload = () => { if (typeof reader.result === 'string') setDraft((previous) => ({ ...previous, imageUrl: reader.result as string })); };
+        reader.readAsDataURL(file);
+        setCoverToCrop(null);
+      }} />}
     </div>
   );
 };

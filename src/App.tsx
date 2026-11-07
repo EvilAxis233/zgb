@@ -164,7 +164,21 @@ export function App() {
   const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
 
   // Update existing campaign
-  const handleUpdateCampaign = (updated: Campaign) => run(async () => { await api.updateCampaign(updated.id, updated.batchId ? { description: updated.description, presetTags: updated.presetTags, customTags: updated.customTags } : await prepareCampaign(updated)); }, updated.batchId ? '所有时段的简介和标签已更新' : '战役信息已更新');
+  const handleUpdateCampaign = (updated: Campaign) => run(async () => {
+    if (updated.batchId) {
+      // 批量团：简介、标签、封面、贴纸都会同步到该主团的所有时段（含之后新增的时段）。
+      const prepared = await prepareCampaign(updated);
+      await api.updateCampaign(updated.id, {
+        description: prepared.description,
+        presetTags: prepared.presetTags,
+        customTags: prepared.customTags,
+        imageKey: prepared.imageKey ?? null,
+        ...(prepared.stickerKeys ? { stickerKeys: prepared.stickerKeys } : {}),
+      });
+      return;
+    }
+    await api.updateCampaign(updated.id, await prepareCampaign(updated));
+  }, updated.batchId ? '所有时段的信息已更新' : '战役信息已更新');
 
   // Update User Profile
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
@@ -610,6 +624,7 @@ export function App() {
               joinedCampaigns={myJoinedCampaigns}
               rules={rules}
               popularCustomTags={popularCustomTags}
+              stickerLibrary={currentUser?.stickerLibraryKeys || []}
               onDeleteCampaign={handleDeleteCampaign}
               onSetCampaignClosed={handleSetCampaignClosed}
               onFinishCampaign={handleFinishCampaign}
@@ -647,6 +662,7 @@ export function App() {
           campaign={adminEditingCampaign}
           rules={rules}
           popularCustomTags={popularCustomTags}
+          stickerLibrary={currentUser?.stickerLibraryKeys || []}
           onSave={handleAdminEditSave}
           onClose={() => setAdminEditingCampaign(null)}
         />
