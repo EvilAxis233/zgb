@@ -1,10 +1,21 @@
 import type { Campaign, CampaignDetail, UserProfile, UserNameplate } from '../types';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api/${path}`, { credentials: 'same-origin', ...options });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || '请求失败，请稍后重试');
-  return data as T;
+  // 弱网（如 4G）下 fetch 可能长时间挂起，统一加超时：普通请求 30s，文件上传 90s
+  const timeoutMs = options.body instanceof FormData ? 90000 : 30000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`/api/${path}`, { credentials: 'same-origin', signal: controller.signal, ...options });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || '请求失败，请稍后重试');
+    return data as T;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw new Error('网络响应超时，请检查网络后重试');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 const post = <T>(path: string, value?: unknown) => request<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value ?? {}) });
 const patch = <T>(path: string, value: unknown) => request<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });

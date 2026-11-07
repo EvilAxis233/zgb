@@ -66,7 +66,9 @@ export function App() {
   }, [boardView]);
 
   const refresh = async () => {
-    const { user } = await api.me();
+    // 弱网下降级：auth/me 失败时按未登录渲染公开内容，不阻塞首屏
+    let user: UserProfile | null = null;
+    try { user = (await api.me()).user; } catch { /* 登录状态获取失败，继续加载公开数据 */ }
     if (user) {
       const data = await api.bootstrap();
       setUsers([...data.users.filter((u) => u.id !== data.user.id), data.user]);
