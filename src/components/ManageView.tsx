@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, Plus } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, Plus, Upload, ImagePlus } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
@@ -7,12 +7,15 @@ import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
 import { AccountSideActions } from './AccountSideActions';
+import { ImageCropper } from './ImageCropper';
+import { StickerPicker } from './StickerLibrary';
 
 interface Props {
   hostedCampaigns: Campaign[];
   joinedCampaigns: Campaign[];
   rules: string[];
   popularCustomTags?: string[];
+  stickerLibrary?: string[];
   onDeleteCampaign: (id: string) => void;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
   onFinishCampaign: (id: string) => void;
@@ -32,6 +35,7 @@ export const ManageView: React.FC<Props> = ({
   joinedCampaigns,
   rules,
   popularCustomTags = [],
+  stickerLibrary = [],
   onDeleteCampaign,
   onSetCampaignClosed,
   onFinishCampaign,
@@ -51,6 +55,9 @@ export const ManageView: React.FC<Props> = ({
   const [addingBatchId, setAddingBatchId] = useState<string | null>(null);
   const [newTimeSchedule, setNewTimeSchedule] = useState('');
   const [addingSlot, setAddingSlot] = useState(false);
+  const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
+  const [stickerTouched, setStickerTouched] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const addTag = () => {
     if (!editingCampaign) return;
@@ -135,7 +142,7 @@ export const ManageView: React.FC<Props> = ({
           <div className="mt-3 pt-3 border-t border-[#D8D5CC] flex flex-wrap gap-2">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
-              {!campaign.batchId && !campaign.hasEnded && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
+              {!campaign.batchId && !campaign.hasEnded && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
               {!campaign.hasEnded && !campaign.hasExpired && (campaign.kind !== 'promo' || !campaign.isClosed) && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.kind === 'promo' ? '封车' : campaign.isClosed ? '重新开放' : '锁车'}</button>}
               {!campaign.hasEnded && campaign.kind !== 'promo' && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}
               {campaign.kind !== 'promo' && <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />弃团</button>}
@@ -164,7 +171,7 @@ export const ManageView: React.FC<Props> = ({
         {master.imageUrl && <img src={master.imageUrl} alt="主团封面" className="w-full max-h-40 object-cover border border-[#121212]" />}
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />添加时间点</button>
-          <button type="button" onClick={() => { setEditingCampaign({ ...items[0], description: master.description, presetTags: master.presetTags || [], customTags: master.customTags || [] }); setCustomTagInput(''); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
+          <button type="button" onClick={() => { setEditingCampaign({ ...items[0], description: master.description, presetTags: master.presetTags || [], customTags: master.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
         </div>
         <div className="space-y-3">{items.sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)).map((item) => campaignCard(item, true))}</div>
       </div>
@@ -176,8 +183,59 @@ export const ManageView: React.FC<Props> = ({
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingCampaign?.title.trim() || !editingCampaign?.rule.trim() || !editingCampaign?.timeSchedule.trim()) return;
-    if (await onUpdateCampaign(editingCampaign)) setEditingCampaign(null);
+    // 没动贴纸就不提交这个字段，避免把「默认佩戴」固化成每个团的独立配置。
+    const payload: Campaign = { ...editingCampaign };
+    if (!stickerTouched) delete payload.stickerKeys;
+    if (await onUpdateCampaign(payload)) { setEditingCampaign(null); setStickerTouched(false); }
   };
+
+  const pickCover = (file: File | undefined) => {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) { alert('请选择 PNG、JPG、GIF 或 WebP 图片'); return; }
+    if (file.size > 20 * 1024 * 1024) { alert('原图请小于 20MB'); return; }
+    setCoverToCrop(file);
+  };
+
+  // 团务管理里也能补封面、补贴纸（只影响已发布的这个团；批量团同步全部时段）。
+  const coverBlock = editingCampaign && (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-bold">封面图</span>
+        {editingCampaign.imageUrl && <button type="button" onClick={() => setEditingCampaign({ ...editingCampaign, imageUrl: '', imageKey: null })} className="text-[11px] font-bold text-[#D62828]">删除封面</button>}
+      </div>
+      <button type="button" onClick={() => coverInputRef.current?.click()} className="relative w-full h-24 overflow-hidden border-2 border-dashed border-[#121212] bg-white flex items-center justify-center">
+        {editingCampaign.imageUrl ? (
+          <>
+            <img src={editingCampaign.imageUrl} alt="封面预览" className="h-full w-full object-cover" />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-bold text-white opacity-0 hover:opacity-100"><ImagePlus className="mr-1 h-3.5 w-3.5" />点击更换封面</span>
+          </>
+        ) : (
+          <span className="flex flex-col items-center gap-1 text-center text-[11px] font-bold text-[#121212]">
+            <Upload className="h-4 w-4 text-[#004E98]" />上传封面（自动裁剪为 16:9）
+            <span className="text-[10px] font-normal text-[#888]">PNG / JPG / GIF / WebP，原图小于 20MB</span>
+          </span>
+        )}
+      </button>
+      <input ref={coverInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(event) => { pickCover(event.target.files?.[0]); event.target.value = ''; }} />
+    </div>
+  );
+
+  // 已挂在团上、但不在当前编辑者库里的贴纸也要显示出来，避免误以为被清空。
+  const pickerLibrary = editingCampaign ? [...new Set([...stickerLibrary, ...(editingCampaign.stickerKeys || [])])] : [];
+  const stickerBlock = editingCampaign && (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-bold">本团贴纸</span>
+        <span className="text-[11px] font-bold text-[#666]">{editingCampaign.stickerKeys?.length || 0}/2</span>
+      </div>
+      <StickerPicker
+        library={pickerLibrary}
+        value={editingCampaign.stickerKeys || []}
+        onChange={(keys) => { setStickerTouched(true); setEditingCampaign({ ...editingCampaign, stickerKeys: keys }); }}
+      />
+      <p className="mt-1 text-[10px] font-bold text-[#666]">从贴纸库补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
+    </div>
+  );
 
   return <div className="flex flex-col lg:flex-row gap-6 items-start">
     <AccountSideActions destination="profile" onNavigate={onOpenProfile} onFeedback={onFeedback} onReport={onReport} />
@@ -199,7 +257,9 @@ export const ManageView: React.FC<Props> = ({
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">修改战役</h2><button type="button" onClick={() => setEditingCampaign(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
         {editingCampaign.batchId ? <>
           <p className="text-xs font-bold">{editingCampaign.title}</p>
-          <p className="text-xs text-[#666]">保存后，简介和标签会同步到所有时段，也会用于之后新增的时段。</p>
+          <p className="text-xs text-[#666]">保存后，简介、标签、封面和贴纸会同步到所有时段，也会用于之后新增的时段。</p>
+          {coverBlock}
+          {stickerBlock}
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
           <label className="block text-xs font-bold">自定义标签（最多 6 个，每个最多 6 字）<input value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} className="bauhaus-input mt-1 w-full p-2" placeholder="输入标签后点击添加" /></label>
           <button type="button" onClick={addTag} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
@@ -207,6 +267,7 @@ export const ManageView: React.FC<Props> = ({
           <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
         </> : <>
         <label className="block text-xs font-bold">团名<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.title} onChange={(e) => setEditingCampaign({ ...editingCampaign, title: e.target.value })} /></label>
+        {coverBlock}
         
         {/* Rule, players, game type, and platforms */}
         <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
@@ -286,12 +347,19 @@ export const ManageView: React.FC<Props> = ({
           </div>
         </div>
 
+        {stickerBlock}
         <CalendarPicker value={editingCampaign.timeSchedule} onChange={(value) => setEditingCampaign({ ...editingCampaign, timeSchedule: value })} maxDaysAhead={editingCampaign.kind === 'online' ? 31 : null} />
         <label className="block text-xs font-bold">联系方式<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.contact || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, contact: e.target.value })} placeholder="默认填入你的 QQ 号" /></label>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
         </>}
       </form>
+      {coverToCrop && <ImageCropper file={coverToCrop} shape="cover" onClose={() => setCoverToCrop(null)} onConfirm={(file) => {
+        const reader = new FileReader();
+        reader.onload = () => { if (typeof reader.result === 'string') setEditingCampaign((previous) => previous ? { ...previous, imageUrl: reader.result as string } : previous); };
+        reader.readAsDataURL(file);
+        setCoverToCrop(null);
+      }} />}
     </div>}
     </div>
   </div>;
