@@ -75,6 +75,8 @@ export interface Campaign {
   isSignedUp: boolean;
   createdAt: string;
   imageKey?: string | null;
+  // 站主全量编辑：批量团各时段可单独改期（只在提交编辑时携带）。
+  slotTimes?: Array<{ id: string; timeSchedule: string }>;
 }
 
 export interface CampaignBatchMaster {

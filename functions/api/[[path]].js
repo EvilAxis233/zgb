@@ -123,6 +123,8 @@ function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const address = kind === 'offline' ? clean(b.address, 200) : '';
   if (kind === 'offline' && requireLocation && (!(province || city) || Array.from(province + city).length > 8)) throw new Error('请填写省份和城市，合计最多八个字');
   if (kind === 'promo' && (!sessionType || !platforms.length)) throw new Error('请填写宣群方式和平台');
+  // 宣群平台自填最多 10 个中文字符（英文按半宽，可 20 个）；后端同样校验，防止绕过前端。
+  if (kind === 'promo' && platforms.some((item) => nicknameLength(item) > 20)) throw new Error('宣群平台最多 10 个中文字符或 20 个英文字符');
   const presetTags = [];
   if (!Array.isArray(b.customTags ?? [])) throw new Error('自定义标签格式无效');
   const customTags = [...new Set((b.customTags || []).map((tag) => typeof tag === 'string' ? tag.trim() : '').filter(Boolean))];
@@ -746,7 +748,9 @@ export async function onRequest(context) {
       }
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request);
-        if (c.batch_id) {
+        const siteAdmin = isSiteAdmin(user);
+        // 普通主持人改批量团仍只同步简介/标签/封面/贴纸；站主/管理员走下方的全量编辑。
+        if (c.batch_id && !siteAdmin) {
           if (!b || typeof b.description !== 'string' || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags','imageKey','stickerKeys'].includes(key))) return fail('批量团只允许修改简介、标签、封面和贴纸');
           const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, false);
           const presetTags = JSON.stringify(tags.presetTags), customTags = JSON.stringify(tags.customTags);
@@ -773,9 +777,19 @@ export async function onRequest(context) {
           }
           return json({ ok: true });
         }
-        if (c.finished_at) return fail('已结团，不能修改', 409);
-        const data = validateCampaign(b, c.kind), imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
-        if (data.scheduledDate < dateHK() && data.time !== c.time_schedule) return fail('开团日期不能早于今天');
+        // 站主/管理员在主页的全量编辑：所有内容字段都能改，批量团同步全部时段，已结团也不受限。
+        if (c.finished_at && !siteAdmin) return fail('已结团，不能修改', 409);
+        const nextKind = siteAdmin && ['online','offline','promo'].includes(b.kind) ? b.kind : c.kind;
+        if (nextKind !== c.kind && nextKind === 'promo') {
+          // 宣群不能报名，已有成员（含同一批量团的其它时段）时不允许切换，避免成员数据被隐藏。
+          const anyMember = c.batch_id
+            ? await db.prepare('SELECT 1 FROM campaign_memberships m JOIN campaigns x ON x.id=m.campaign_id WHERE x.batch_id=? LIMIT 1').bind(c.batch_id).first()
+            : await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? LIMIT 1').bind(cid).first();
+          if (anyMember) return fail('该团已有报名成员，不能改为宣群', 409);
+        }
+        const data = validateCampaign({ ...campDto(c), ...b, kind: nextKind }, nextKind);
+        const imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
+        if (data.scheduledDate < dateHK() && data.time !== c.time_schedule && !siteAdmin) return fail('开团日期不能早于今天');
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
         // 编辑时可补充/更换贴纸，也可清空恢复默认佩戴。
         const sticker = 'stickerKeys' in b
@@ -784,9 +798,30 @@ export async function onRequest(context) {
         if (sticker.error) return fail(sticker.error);
         const contact = data.contact || c.contact || user.qq;
         const nowIso = new Date().toISOString();
-        await db.batch([
-          db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,sticker_override=? WHERE id=?').bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, sticker.value, cid)
-        ]);
+        const common = [data.title, data.rule, data.summary || '', data.description, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address];
+        const statements = [];
+        if (c.batch_id) {
+          // 共享字段写回主团模板 + 该批次下所有时段，之后新增时段也会沿用新内容。
+          statements.push(
+            db.prepare('UPDATE campaign_batches SET title=?,rule=?,summary=?,description=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,kind=? WHERE id=?').bind(...common, nextKind, c.batch_id),
+            db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,sticker_override=?,kind=? WHERE batch_id=? AND deleted_at IS NULL').bind(...common, sticker.value, nextKind, c.batch_id)
+          );
+          // 各时段可单独改期，格式与发布时一致：2026-11-20（星期五）晚
+          if (siteAdmin && Array.isArray(b.slotTimes)) {
+            for (const raw of b.slotTimes) {
+              if (!raw || typeof raw.id !== 'string' || typeof raw.timeSchedule !== 'string') return fail('时段格式无效');
+              const matched = /^(\d{4}-\d{2}-\d{2})（星期[一二三四五六日]）(早|中|晚)$/.exec(raw.timeSchedule);
+              if (!matched) return fail('时段格式无效');
+              const exists = await db.prepare('SELECT 1 FROM campaigns WHERE id=? AND batch_id=? AND deleted_at IS NULL').bind(raw.id, c.batch_id).first();
+              if (!exists) return fail('时段不存在', 404);
+              statements.push(db.prepare('UPDATE campaigns SET time_schedule=?,scheduled_date=?,time_period=? WHERE id=? AND batch_id=?').bind(raw.timeSchedule, matched[1], matched[2], raw.id, c.batch_id));
+            }
+          }
+        } else {
+          statements.push(db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,sticker_override=?,kind=? WHERE id=?')
+            .bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, sticker.value, nextKind, cid));
+        }
+        await db.batch(statements);
         await touchRule(db, data.rule, nowIso);
         for (const tag of data.customTags) {
           await db.prepare('INSERT INTO custom_tags(name,use_count,last_used_at,created_at) VALUES(?,1,?,?) ON CONFLICT(name) DO UPDATE SET use_count=use_count+1,last_used_at=excluded.last_used_at').bind(tag, nowIso, nowIso).run();

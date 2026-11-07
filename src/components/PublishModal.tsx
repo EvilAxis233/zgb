@@ -7,6 +7,7 @@ import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
 import { ImageCropper } from './ImageCropper';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
+import { textWidth, clampByWidth, PROMO_PLATFORM_HINT, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ interface PublishModalProps {
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
 }
 
-const BAUHAUS_COLORS = [
+export const BAUHAUS_COLORS = [
   { name: '包豪斯红', hex: '#D62828' },
   { name: '包豪斯蓝', hex: '#004E98' },
   { name: '包豪斯黄', hex: '#F4A261' },
@@ -422,7 +423,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     </div>
                     <div className="relative">
                       <label className="block font-bold text-[#121212] mb-1">{kind === 'promo' ? '平台' : '游戏平台'}</label>
-                      {kind === 'promo' ? <input required maxLength={80} value={platforms[0] || ''} onChange={(e) => setPlatforms(e.target.value ? [e.target.value] : [])} placeholder="自填平台" className="bauhaus-input w-full px-3 py-2 text-sm" /> : <>
+                      {kind === 'promo' ? <div><input required value={platforms[0] || ''} onChange={(e) => { const value = clampByWidth(e.target.value); setPlatforms(value ? [value] : []); }} placeholder="自填平台" className="bauhaus-input w-full px-3 py-2 text-sm" /><p className="mt-1 text-[11px] font-bold text-[#666]">{PROMO_PLATFORM_HINT} · {textWidth(platforms[0] || '')}/{PROMO_PLATFORM_MAX_WIDTH}</p></div> : <>
                         <button type="button" onClick={() => setShowPlatformDropdown(!showPlatformDropdown)} aria-expanded={showPlatformDropdown} className="bauhaus-input w-full px-2 py-2 text-sm text-left cursor-pointer flex items-center justify-between gap-1">
                           <span className="truncate">{platforms.length ? `已选 ${platforms.length} 个平台` : '选择平台'}</span><span aria-hidden="true" className="shrink-0 text-xs">▾</span>
                         </button>

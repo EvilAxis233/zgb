@@ -150,7 +150,7 @@ export function App() {
   // 站长/管理员在主界面详情弹窗中直接编辑或删除任意团
   const handleAdminEditCampaign = (campaign: CampaignDetail) => setAdminEditingCampaign(campaign);
   const handleAdminEditSave = async (updated: Campaign) => {
-    const ok = await handleUpdateCampaign(updated);
+    const ok = await handleUpdateCampaign(updated, true);
     if (ok) {
       setAdminEditingCampaign(null);
       try { const data = await api.campaign(updated.id); setSelectedCampaign(data.campaign); }
@@ -167,9 +167,9 @@ export function App() {
   const handleAddBatchSlot = (batchId: string, timeSchedule: string) => run(() => api.addBatchSlot(batchId, timeSchedule), '新时段已加入主团');
 
   // Update existing campaign
-  const handleUpdateCampaign = (updated: Campaign) => run(async () => {
-    if (updated.batchId) {
-      // 批量团：简介、标签、封面、贴纸都会同步到该主团的所有时段（含之后新增的时段）。
+  const handleUpdateCampaign = (updated: Campaign, fullEdit = false) => run(async () => {
+    if (updated.batchId && !fullEdit) {
+      // 团务管理里普通 GM 改批量团：只同步简介、标签、封面和贴纸。
       const prepared = await prepareCampaign(updated);
       await api.updateCampaign(updated.id, {
         description: prepared.description,
@@ -180,6 +180,7 @@ export function App() {
       });
       return;
     }
+    // 站主在主页的全量编辑：所有字段（含团类型、简介、封面颜色、各时段时间）一次提交。
     await api.updateCampaign(updated.id, await prepareCampaign(updated));
   }, updated.batchId ? '所有时段的信息已更新' : '战役信息已更新');
 
