@@ -75,7 +75,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       {/* Main Content Area */}
       <div className="p-3.5 pt-8 flex-1 flex flex-col">
         {/* 第一行：头像 + GM 名称，右侧为获赞徽章 */}
-        <div className="flex items-center justify-between gap-3 pb-1">
+        <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
             <span className={`h-7 w-7 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white ${campaign.gmIsMember ? 'gilded-avatar' : 'border-2 border-[#121212] bg-[#D62828]'}`} aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#D62828]">{campaign.gmName.charAt(0)}</span>}</span>
             <span className="truncate">GM: {campaign.gmName}</span>
@@ -86,8 +86,8 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         </div>
 
         {/* 头像与分割线之间的空白区：铭牌 + 等高的长条贴纸，整行从头像右缘撑到赞徽章右缘。
-            内容靠上对齐，避免 flex-1 把这一行垂直居中、和 GM 名字行之间拉出大空隙。 */}
-        <div className="flex min-h-[28px] flex-1 items-start gap-1.5">
+            上下间距都用固定值，避免 flex-1 把剩余空间自动分配、改动一处就挤动另一处。 */}
+        <div className="flex h-6 shrink-0 items-center gap-1.5">
           {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
           {!!campaign.gmStickers?.length && campaign.gmStickers.slice(0, 2).map((src, index) => (
             <span key={`${src}-${index}`} className="block h-6 min-w-0 flex-1 overflow-hidden">
@@ -96,7 +96,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           ))}
         </div>
 
-        <div className="border-t border-dashed border-[#D8D5CC] pt-2">
+        <div className="mt-[38px] border-t border-dashed border-[#D8D5CC] pt-2">
           <div className="flex flex-wrap content-start items-start gap-2">
             {campaign.customTags?.map((tag) => (
               <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
