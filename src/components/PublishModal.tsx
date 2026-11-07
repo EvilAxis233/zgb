@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Campaign, CampaignKind, UserProfile, GAME_PLATFORMS } from '../types';
 import { CampaignCard } from './CampaignCard';
-import { StickerManager } from './StickerManager';
+import { StickerPicker } from './StickerLibrary';
 import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
@@ -15,7 +15,6 @@ interface PublishModalProps {
   rules: string[];
   popularCustomTags?: string[];
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
-  onUpdateStickers?: (keys: string[]) => Promise<boolean>;
 }
 
 const BAUHAUS_COLORS = [
@@ -41,7 +40,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   rules,
   popularCustomTags = [],
   onPublish,
-  onUpdateStickers,
 }) => {
   const { showAlert } = useDialog();
   const [title, setTitle] = useState('');
@@ -72,16 +70,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   // 规则系统与昵称同一套字数口径：中文/全角算 2，英文数字算 1，上限 20（即 10 个中文字符）。
   const textWeight = (value: string) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
   const ruleLength = textWeight(rule);
-  const memberActive = !!currentUser && (currentUser.membershipPermanent || (currentUser.membershipExpiresAt ?? 0) * 1000 > Date.now());
 
   const changeRule = (value: string) => {
     if (textWeight(value) > 20) return;
     setRule(value);
-  };
-
-  const changeStickers = async (keys: string[]) => {
-    setStickerKeys(keys);
-    if (onUpdateStickers) await onUpdateStickers(keys);
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -204,6 +196,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       description: description.trim() || '暂无详细简介。',
       timeSchedule: timeSlots[0],
       timeSlots,
+      stickerKeys,
       imageUrl: imageUrl.trim() || undefined,
       bannerColor,
       isFull: false,
@@ -630,17 +623,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </p>
                 </div>
 
-              {/* Stickers: 会员贴在铭牌右侧的方形图片（原简介位置） */}
+              {/* 贴纸：只能从个人贴纸库里挑，本团临时生效，不改默认佩戴 */}
               <div>
                 <label className="block font-bold text-[#121212] mb-1">
                   贴纸
+                  <span className="ml-1 text-[11px] font-normal text-[#666]">从贴纸库选择，最多 2 张</span>
                 </label>
-                <StickerManager
-                  isMember={memberActive}
-                  keys={stickerKeys}
-                  onChange={changeStickers}
-                  hint="会员可佩戴 2 张贴纸，显示在名字与铭牌旁；静图可裁剪，GIF 保留动画"
-                />
+                <StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} />
               </div>
 
               {/* Cover Image: Drag & Drop / Click upload big rectangle */}
