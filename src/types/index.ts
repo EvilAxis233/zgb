@@ -19,9 +19,13 @@ export interface UserProfile {
   };
   lastCheckInDate?: string; // 签到日期 YYYY-MM-DD
   isAdmin?: boolean;
+  isOwner?: boolean;
+  role?: 'owner' | 'admin' | null;
   membershipPermanent?: boolean;
   membershipExpiresAt: number | null; // Unix seconds
   nameplate?: UserNameplate | null;
+  stickers?: string[]; // 会员贴纸（最多 2 张图片地址）
+  stickerKeys?: string[]; // 贴纸在存储中的 key，用于编辑时回填
 }
 
 export type SessionType = '语音' | '文字' | '其他游戏形式';
@@ -51,6 +55,7 @@ export interface Campaign {
   gmQq?: string;
   gmPraises?: number;
   gmNameplate?: UserNameplate | null;
+  gmStickers?: string[];
   contact?: string;
   summary?: string;
   description: string;
@@ -106,6 +111,7 @@ export interface CampaignMember {
   role: 'gm' | 'player';
   receivedPraises: number;
   nameplate?: UserNameplate | null;
+  stickers?: string[];
   bio?: string;
   preferences?: string[];
   taboos?: string[];

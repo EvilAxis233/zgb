@@ -3,12 +3,13 @@ import { Minus, Move, Plus, RotateCcw, X } from 'lucide-react';
 
 interface Props {
   file: File;
-  shape: 'avatar' | 'cover';
+  shape: 'avatar' | 'cover' | 'sticker';
   onClose: () => void;
   onConfirm: (file: File) => void;
 }
 
-const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 } };
+const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 }, sticker: { width: 256, height: 256 } };
+const titles = { avatar: '裁剪头像', cover: '裁剪团封面', sticker: '裁剪贴纸' };
 
 export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,14 +83,15 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
     setError('');
     try {
       let blob: Blob | null = null;
+      const outputType = shape === 'sticker' ? 'image/png' : 'image/jpeg';
       for (const quality of [0.85, 0.7, 0.55]) {
         blob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob((result) => result ? resolve(result) : reject(new Error('图片处理失败')), 'image/jpeg', quality);
+          canvas.toBlob((result) => result ? resolve(result) : reject(new Error('图片处理失败')), outputType, quality);
         });
         if (blob.size <= 2 * 1024 * 1024) break;
       }
       if (!blob || blob.size > 2 * 1024 * 1024) throw new Error('裁剪后的图片超过 2MB，请换一张图片');
-      onConfirm(new File([blob], `${shape}-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+      onConfirm(new File([blob], `${shape}-${Date.now()}.${shape === 'sticker' ? 'png' : 'jpg'}`, { type: outputType }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '图片处理失败');
     } finally {
@@ -98,10 +100,10 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={shape === 'avatar' ? '裁剪头像' : '裁剪团封面'}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={titles[shape]}>
       <div className="w-full max-w-xl max-h-[95vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212]">
         <div className="bg-[#121212] text-white px-4 py-3 flex items-center justify-between">
-          <strong>{shape === 'avatar' ? '裁剪头像' : '裁剪团封面'}</strong>
+          <strong>{titles[shape]}</strong>
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
@@ -113,7 +115,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
             tabIndex={0}
             role="img"
             aria-label="图片裁剪区域，可拖动或使用方向键调整位置"
-            className={`block mx-auto max-w-full bg-[#EAE8E0] border-2 border-[#121212] cursor-grab active:cursor-grabbing select-none focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#004E98] ${shape === 'avatar' ? 'w-72' : 'w-full'}`}
+            className={`block mx-auto max-w-full bg-[#EAE8E0] border-2 border-[#121212] cursor-grab active:cursor-grabbing select-none focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#004E98] ${shape === 'cover' ? 'w-full' : shape === 'sticker' ? 'w-56' : 'w-72'}`}
             style={{ touchAction: 'none' }}
             onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { x: event.clientX, y: event.clientY }; }}
             onPointerMove={(event) => {

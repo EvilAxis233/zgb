@@ -7,6 +7,7 @@ import { AccountSideActions } from './AccountSideActions';
 import { MembershipModal } from './MembershipModal';
 import { NameplateModal } from './NameplateModal';
 import { NameplateBadge } from './NameplateBadge';
+import { StickerManager } from './StickerManager';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -14,6 +15,7 @@ interface ProfileViewProps {
   myJoinedCampaigns: Campaign[];
   onUpdateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   onUpdateNameplate: (nameplate: UserNameplate | null) => Promise<boolean>;
+  onUpdateStickers: (keys: string[]) => Promise<boolean>;
   onSelectCampaign: (campaign: Campaign) => void;
   onUploadAvatar: (file: File) => void;
   onOpenManage: () => void;
@@ -37,6 +39,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onFeedback,
   onReport,
   onUpdateNameplate,
+  onUpdateStickers,
 }) => {
   const { showAlert } = useDialog();
   const [isEditing, setIsEditing] = useState(false);
@@ -44,6 +47,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [avatarToCrop, setAvatarToCrop] = useState<File | null>(null);
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [nameplateOpen, setNameplateOpen] = useState(false);
+  const [stickerOpen, setStickerOpen] = useState(false);
   const [membershipNow, setMembershipNow] = useState(() => Date.now());
   const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
   React.useEffect(() => {
@@ -126,7 +130,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {membershipActive && (
           <div className="space-y-3">
             <p className="text-xs font-bold text-[#5C4300]">
-              {currentUser.membershipPermanent ? '管理员权益 · 永久有效' : `到期：${new Date(currentUser.membershipExpiresAt! * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}`}
+              {currentUser.membershipPermanent ? '永久会员 · 长期有效' : `到期：${new Date(currentUser.membershipExpiresAt! * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}`}
             </p>
             <div className="border-t-2 border-[#121212] pt-3 space-y-2">
               <div className="flex gap-2">
@@ -141,11 +145,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => showAlert({ title: '贴纸功能', message: '贴纸功能即将上线，若有其他需求也可以提交反馈，我们会尽快受理', type: 'info' })}
-                  className="bauhaus-btn flex-1 bg-[#FAF9F5] text-[#888888] px-3 py-2 text-xs font-black gap-1.5 hover:bg-[#F0EFEA] shadow-[2px_2px_0px_#121212] cursor-pointer"
-                  title="即将推出"
+                  onClick={() => setStickerOpen(true)}
+                  className="bauhaus-btn flex-1 bg-white px-3 py-2 text-xs font-black gap-1.5 hover:bg-[#FAF9F5] shadow-[2px_2px_0px_#121212] cursor-pointer"
+                  title="管理我的贴纸"
                 >
-                  <Sparkles size={14} />
+                  <Sparkles size={14} className="text-[#D62828]" />
                   贴纸
                 </button>
               </div>
@@ -172,6 +176,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 const file = event.target.files?.[0];
                 if (file && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) showAlert({ title: '图片格式错误', message: '请选择 PNG、JPG、GIF 或 WebP 图片', type: 'warning' });
                 else if (file && file.size > 20 * 1024 * 1024) showAlert({ title: '图片过大', message: '原图请小于 20MB', type: 'warning' });
+                else if (file && file.type === 'image/gif') onUploadAvatar(file);
                 else if (file) setAvatarToCrop(file);
                 event.target.value = '';
               }} />
@@ -197,6 +202,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-black text-[#121212]">{currentUser.name}</h1>
                   {currentUser.nameplate && <NameplateBadge nameplate={currentUser.nameplate} />}
+                  {!!currentUser.stickers?.length && (
+                    <span className="flex items-center gap-1">
+                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-7 w-7 border-2 border-[#121212] bg-white object-cover" />)}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -363,7 +373,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {/* 红框处：GM点赞券数量 */}
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：普通用户连续签到每满七天得1张；会员累计签到每满七次得2张，可在团详情给GM点赞"
+                title="GM点赞券：普通用户连续签到每满七天得1张；会员累计签到每满七次得3张，可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
                 <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
@@ -456,6 +466,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
+      {stickerOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setStickerOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="w-full max-w-sm border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
+            <header className="flex items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
+              <h2 className="font-black text-sm">我的贴纸</h2>
+              <button type="button" onClick={() => setStickerOpen(false)} className="text-xs font-bold cursor-pointer">关闭</button>
+            </header>
+            <div className="p-4">
+              <StickerManager
+                isMember={membershipActive || !!currentUser.membershipPermanent}
+                keys={currentUser.stickerKeys || []}
+                onChange={onUpdateStickers}
+                hint="佩戴后显示在名字与铭牌旁；两张会保持同样大小"
+              />
+            </div>
+          </section>
+        </div>
+      )}
       {membershipOpen && <MembershipModal active={membershipActive} onClose={() => setMembershipOpen(false)} />}
       {nameplateOpen && (
         <NameplateModal

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Campaign, CampaignKind, UserProfile, GAME_PLATFORMS } from '../types';
 import { CampaignCard } from './CampaignCard';
-import { MarkdownView } from './MarkdownView';
+import { StickerManager } from './StickerManager';
 import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
@@ -15,6 +15,7 @@ interface PublishModalProps {
   rules: string[];
   popularCustomTags?: string[];
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
+  onUpdateStickers?: (keys: string[]) => Promise<boolean>;
 }
 
 const BAUHAUS_COLORS = [
@@ -40,6 +41,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   rules,
   popularCustomTags = [],
   onPublish,
+  onUpdateStickers,
 }) => {
   const { showAlert } = useDialog();
   const [title, setTitle] = useState('');
@@ -64,6 +66,23 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [bannerColor, setBannerColor] = useState(BAUHAUS_COLORS[0].hex);
   const [isDragging, setIsDragging] = useState(false);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
+  const [stickerKeys, setStickerKeys] = useState<string[]>(currentUser?.stickerKeys || []);
+  const [submitting, setSubmitting] = useState(false);
+
+  // 规则系统与昵称同一套字数口径：中文/全角算 2，英文数字算 1，上限 20（即 10 个中文字符）。
+  const textWeight = (value: string) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
+  const ruleLength = textWeight(rule);
+  const memberActive = !!currentUser && (currentUser.membershipPermanent || (currentUser.membershipExpiresAt ?? 0) * 1000 > Date.now());
+
+  const changeRule = (value: string) => {
+    if (textWeight(value) > 20) return;
+    setRule(value);
+  };
+
+  const changeStickers = async (keys: string[]) => {
+    setStickerKeys(keys);
+    if (onUpdateStickers) await onUpdateStickers(keys);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,6 +99,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     setAddress('');
     setTimeSlots([]);
     setTimeSchedule('');
+    setStickerKeys(currentUser?.stickerKeys || []);
   }, [isOpen, kind]);
 
   const processFile = (file: File) => {
@@ -122,8 +142,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     }
   };
 
+  // 宣群只能选一个时间；网团/面团可多时段。
+  const applyTimeSlots = (slots: string[]) => {
+    const next = kind === 'promo' ? slots.slice(-1) : slots;
+    setTimeSlots(next);
+    setTimeSchedule(next[0] || '');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!currentUser) {
       showAlert({ title: '提示', message: '请先登录后发布', type: 'warning' });
       return;
@@ -150,7 +178,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       return;
     }
 
-    const success = await onPublish({
+    if (kind === 'promo' && timeSlots.length > 1) {
+      showAlert({ title: '提示', message: '宣群只能选择一个时间', type: 'warning' });
+      return;
+    }
+
+    setSubmitting(true);
+    let success = false;
+    try {
+      success = await onPublish({
       kind,
       province: '',
       city: kind === 'offline' ? location.trim() : '',
@@ -178,6 +214,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       currentPlayers: 0,
     });
 
+    } finally { setSubmitting(false); }
     if (success) onClose();
   };
 
@@ -198,6 +235,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     gmId: currentUser?.id || 'current-user',
     gmName: currentUser?.name || '当前主持',
     gmPraises: currentUser?.receivedGmPraises ?? 0,
+    gmNameplate: currentUser?.nameplate ?? null,
+    gmStickers: stickerKeys.map((key) => `/api/images/${key}`),
     contact: contact.trim() || currentUser?.qq,
     summary: '',
     description: description.trim() || '暂无详细简介',
@@ -240,7 +279,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               multiple
               maxDaysAhead={kind === 'online' ? 31 : null}
               selectedSlots={timeSlots}
-              onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
+              onChangeSlots={applyTimeSlots}
               hideHeader={true}
               borderless={true}
             />
@@ -292,15 +331,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_3.5rem_minmax(0,1fr)_minmax(0,1.1fr)] gap-3">
                   {/* Rule with dynamic input and popup */}
                   <div className="relative">
-                    <label className="block font-bold text-[#121212] mb-1">
-                      规则系统 <span className="text-[#D62828]">*</span>
+                    <label className="block font-bold text-[#121212] mb-1 flex items-center justify-between gap-2">
+                      <span>规则系统 <span className="text-[#D62828]">*</span></span>
+                      <span className={`text-[10px] font-bold ${ruleLength > 20 ? 'text-[#D62828]' : 'text-[#888]'}`}>{ruleLength}/20</span>
                     </label>
                     <div className="relative">
                       <input
                         type="text"
                         required
                         value={rule}
-                        onChange={(e) => setRule(e.target.value)}
+                        onChange={(e) => changeRule(e.target.value)}
                         placeholder="输入或点击右侧选择"
                         className="bauhaus-input w-full pl-3 pr-10 py-2 text-sm"
                       />
@@ -382,7 +422,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         <button type="button" onClick={() => setShowPlatformDropdown(!showPlatformDropdown)} aria-expanded={showPlatformDropdown} className="bauhaus-input w-full px-2 py-2 text-sm text-left cursor-pointer flex items-center justify-between gap-1">
                           <span className="truncate">{platforms.length ? `已选 ${platforms.length} 个平台` : '选择平台'}</span><span aria-hidden="true" className="shrink-0 text-xs">▾</span>
                         </button>
-                        {showPlatformDropdown && <div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">{GAME_PLATFORMS.map((platform) => <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold cursor-pointer hover:bg-white"><input type="checkbox" checked={platforms.includes(platform)} onChange={() => setPlatforms((current) => current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform])} className="accent-[#004E98]" />{platform}</label>)}<button type="button" onClick={() => setShowPlatformDropdown(false)} className="w-full text-xs font-bold border border-[#121212] bg-white py-1">完成</button></div>}
+                        {showPlatformDropdown && <div className="absolute right-0 top-full mt-1 w-40 bg-[#FAF9F5] border-2 border-[#121212] shadow-[3px_3px_0px_#121212] p-2 z-30 space-y-1">{GAME_PLATFORMS.map((platform) => <label key={platform} className="flex items-center gap-2 px-1 py-1 text-xs font-bold cursor-pointer hover:bg-white"><input type="checkbox" checked={platforms.includes(platform)} onChange={() => setPlatforms((current) => current.includes(platform) ? current.filter((item) => item !== platform) : current.length >= 3 ? current : [...current, platform])} className="accent-[#004E98]" />{platform}</label>)}{platforms.length >= 3 && <p className="px-1 text-[10px] font-bold text-[#D62828]">最多选择 3 个平台</p>}<button type="button" onClick={() => setShowPlatformDropdown(false)} className="w-full text-xs font-bold border border-[#121212] bg-white py-1">完成</button></div>}
                       </>}
                     </div>
                   </>}
@@ -402,16 +442,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <div className="relative">
                       <input
                         type="text"
-                        maxLength={6}
                         value={customTagInput}
-                        onChange={(e) => setCustomTagInput(e.target.value.slice(0, 6))}
+                        onChange={(e) => setCustomTagInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             const tag = customTagInput.trim();
                             if (!tag) return;
-                            if (tag.length > 6) {
-                              showAlert('自定义标签最多 6 个字');
+                            if (Array.from(tag).length > 6) {
+                              showAlert({ title: '提示', message: '自定义标签最多 6 个字', type: 'warning' });
                               return;
                             }
                             if (selectedCustomTags.includes(tag)) {
@@ -419,7 +458,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                               return;
                             }
                             if (selectedCustomTags.length >= 6) {
-                              showAlert('最多添加 6 个自定义标签');
+                              showAlert({ title: '提示', message: '最多添加 6 个自定义标签', type: 'warning' });
                               return;
                             }
                             setSelectedCustomTags([...selectedCustomTags, tag]);
@@ -463,7 +502,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                                 onClick={() => {
                                   if (selectedCustomTags.includes(tag)) return;
                                   if (selectedCustomTags.length >= 6) {
-                                    showAlert('最多添加 6 个自定义标签');
+                                    showAlert({ title: '提示', message: '最多添加 6 个自定义标签', type: 'warning' });
                                     return;
                                   }
                                   setSelectedCustomTags([...selectedCustomTags, tag]);
@@ -514,9 +553,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <label className="block font-bold text-[#121212]">
                       开团时间 <span className="text-[#D62828]">*</span>
                     </label>
-                    <span className="hidden lg:inline text-xs font-bold text-[#004E98]">
-                      ← 请在左侧悬浮日历中选择
-                    </span>
+                    {kind === 'promo' ? (
+                      <span className="hidden sm:inline text-xs font-bold text-[#D62828]">宣群只能选择 1 个时间</span>
+                    ) : (
+                      <span className="hidden lg:inline text-xs font-bold text-[#004E98]">
+                        ← 请在左侧悬浮日历中选择
+                      </span>
+                    )}
                   </div>
 
                   <div
@@ -562,7 +605,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           multiple
                           maxDaysAhead={kind === 'online' ? 31 : null}
                           selectedSlots={timeSlots}
-                          onChangeSlots={(slots) => { setTimeSlots(slots); setTimeSchedule(slots[0] || ''); }}
+                          onChangeSlots={applyTimeSlots}
                         />
                       </div>
                     )}
@@ -587,17 +630,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </p>
                 </div>
 
-              {/* Detailed Description */}
+              {/* Stickers: 会员贴在铭牌右侧的方形图片（原简介位置） */}
               <div>
                 <label className="block font-bold text-[#121212] mb-1">
-                  简介
+                  贴纸
                 </label>
-                <textarea
-                  rows={4}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={MARKDOWN_SUPPORT_HINT}
-                  className="bauhaus-input w-full px-3 py-2 text-sm font-mono resize-none leading-relaxed"
+                <StickerManager
+                  isMember={memberActive}
+                  keys={stickerKeys}
+                  onChange={changeStickers}
+                  hint="会员可佩戴 2 张贴纸，显示在名字与铭牌旁；静图可裁剪，GIF 保留动画"
                 />
               </div>
 
@@ -699,9 +741,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="bauhaus-btn bg-[#D62828] text-white px-6 py-2 text-xs font-black shadow-[3px_3px_0px_#121212]"
+                disabled={submitting}
+                className="bauhaus-btn bg-[#D62828] text-white px-6 py-2 text-xs font-black shadow-[3px_3px_0px_#121212] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                确认发布
+                {submitting ? '发布中…' : '确认发布'}
               </button>
             </div>
           </form>
@@ -720,19 +763,19 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </div>
             </div>
 
-            {/* Bottom Half: Markdown Description Preview */}
+            {/* Bottom Half: 简介填写（原有的简介预览已移除，输入框移到这里） */}
             <div className="flex-1 flex flex-col overflow-hidden bg-white">
               <div className="bg-[#121212] text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shrink-0">
-                <span>简介预览</span>
+                <span>简介</span>
+                <span className="text-[10px] font-normal opacity-80">支持 Markdown</span>
               </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                {description.trim() ? (
-                  <MarkdownView content={description} />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-[#AAAAAA] italic">
-                    输入简介内容即在此处实时渲染
-                  </div>
-                )}
+              <div className="flex-1 overflow-hidden p-3">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={MARKDOWN_SUPPORT_HINT}
+                  className="bauhaus-input w-full h-full px-3 py-2 text-sm font-mono resize-none leading-relaxed"
+                />
               </div>
             </div>
           </div>

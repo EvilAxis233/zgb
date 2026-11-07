@@ -18,7 +18,7 @@ export const api = {
   logout: () => post('auth/logout'),
   profile: (value: Partial<UserProfile>) => patch<{ user: UserProfile }>('profile', value),
   updateNameplate: (nameplate: UserNameplate | null) => patch<{ user: UserProfile }>('profile/nameplate', { nameplate }),
-  redeemMembership: (key: string) => post<{ membershipExpiresAt: number }>('membership/redeem', { key }),
+  updateStickers: (stickers: string[]) => patch<{ user: UserProfile }>('profile/stickers', { stickers }),
   checkin: () => post<{ ok: boolean; streak: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),
@@ -52,6 +52,8 @@ export const api = {
 
 export interface AdminUser {
   isAdmin: boolean;
+  isOwner: boolean;
+  role: 'owner' | 'admin' | null;
   membershipPermanent: boolean;
   qq: string;
   name: string;
@@ -69,10 +71,13 @@ export interface AdminUser {
   membership_expires_at: number | null;
 }
 
-export interface MembershipRedemption {
-  key_code: string;
-  redeemed_at: number;
+export interface MembershipGrant {
+  id: string;
+  months: number;
+  days: number;
+  granted_by: string;
   expires_at: number;
+  created_at: string;
 }
 
 export interface GiftRecord {
@@ -116,7 +121,7 @@ export interface AdminSubmission {
 }
 
 export const adminApi = {
-  me: () => request<{ authenticated: boolean }>('admin/me'),
+  me: () => request<{ authenticated: boolean; role: 'owner' | 'admin' | null; name: string; passwordFallbackAvailable: boolean }>('admin/me'),
   login: (password: string) => post<{ ok: boolean }>('admin/login', { password }),
   logout: () => post('admin/logout'),
   dashboard: () => request<AdminDashboard>('admin/dashboard'),
@@ -124,8 +129,9 @@ export const adminApi = {
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
   users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
-  gifts: (qq: string, offset: number) => request<{ records: GiftRecord[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/gifts?offset=${offset}`),
-  membershipRedemptions: (qq: string, offset: number) => request<{ records: MembershipRedemption[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/membership-redemptions?offset=${offset}`),
+  grantMembership: (qq: string, months: number) => post<{ ok: boolean; months: number; days: number; membershipExpiresAt: number }>(`admin/users/${encodeURIComponent(qq)}/membership`, { months }),
+  grants: (qq: string, offset: number) => request<{ records: MembershipGrant[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/grants?offset=${offset}`),
+  setRole: (qq: string, role: 'admin' | '') => patch<{ ok: boolean; role: 'admin' | null }>(`admin/users/${encodeURIComponent(qq)}/role`, { role }),
   blacklist: (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent') => post<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { duration }),
   unblacklist: (qq: string) => request<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { method: 'DELETE' }),
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),

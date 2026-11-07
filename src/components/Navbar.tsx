@@ -92,9 +92,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         src="/zgb-logo.png"
         alt=""
         aria-hidden="true"
-        className="h-9 w-9 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
+        className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
       />
-      <h1 className="text-2xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
+      <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
         诸告板
       </h1>
     </button>
@@ -116,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           alreadyCheckedIn
             ? '今日已完成签到'
             : currentUser?.membershipExpiresAt && currentUser.membershipExpiresAt > Date.now() / 1000
-              ? '签到获得 1 张玩家点赞券；会员累计签到每满 7 次获得 2 张 GM 点赞券'
+              ? '签到获得 1 张玩家点赞券；会员累计签到每满 7 次获得 3 张 GM 点赞券'
               : '签到获得 1 张玩家点赞券；连续签到每满 7 天获得 1 张 GM 点赞券'
         }
       >
