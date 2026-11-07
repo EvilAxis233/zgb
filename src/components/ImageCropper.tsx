@@ -8,10 +8,10 @@ interface Props {
   onConfirm: (file: File) => void;
 }
 
-// 贴纸在团卡片上是「与铭牌同高、撑满整行」的长条，按 5:1 裁剪才不会
+// 贴纸在团卡片上是「与铭牌同高、撑满整行」的长条，实测外框 112x24 = 14:3，按同一比例裁剪才不会
 // 让正方形图片在发团后被压成一条（缩略图与发团预览也都用这个比例）。
-export const STICKER_ASPECT = 5;
-const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 }, sticker: { width: 750, height: 750 / STICKER_ASPECT } };
+export const STICKER_ASPECT = 14 / 3;
+const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 }, sticker: { width: 700, height: Math.round(700 / STICKER_ASPECT) } };
 const titles = { avatar: '裁剪头像', cover: '裁剪团封面', sticker: '裁剪贴纸' };
 
 export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
@@ -112,7 +112,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
-          <p className="flex items-center gap-2 text-xs text-[#555]"><Move className="h-4 w-4 shrink-0 text-[#004E98]" />{shape === 'sticker' ? '贴纸在发团卡片上是长条形（宽:高 5:1），这里按同样比例裁剪。拖动图片调整取景位置，下方滑块缩放，下面可预览发团后的实际效果。' : '拖动图片调整取景位置，使用下方滑块缩放；也可聚焦图片后用方向键微调。'}</p>
+          <p className="flex items-center gap-2 text-xs text-[#555]"><Move className="h-4 w-4 shrink-0 text-[#004E98]" />{shape === 'sticker' ? '贴纸在发团卡片上是 112×24 的长条（宽:高 14:3），这里按同样比例裁剪，剪出来的图正好铺满那个位置。拖动图片调整取景位置，下方滑块缩放，下面可预览发团后的实际效果。' : '拖动图片调整取景位置，使用下方滑块缩放；也可聚焦图片后用方向键微调。'}</p>
           <canvas
             ref={canvasRef}
             width={width}
@@ -145,20 +145,21 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           />
           {shape === 'sticker' && (
             <div className="border-2 border-dashed border-[#121212] bg-[#FAF9F5] p-2">
-              <p className="mb-2 text-[10px] font-black text-[#666]">发团卡片上的实际效果（贴纸与铭牌同高，整行撑到赞徽章）</p>
+              <p className="mb-2 text-[10px] font-black text-[#666]">发团卡片上的实际效果（按主界面卡片实际宽度模拟，贴纸无边框）</p>
               {[1, 2].map((count) => (
-                <div key={count} className="mb-1.5 flex items-center gap-1.5 last:mb-0">
+                <div key={count} className="mb-1.5 flex items-center gap-2 last:mb-0">
                   <span className="w-7 shrink-0 text-[10px] font-bold text-[#666]">{count} 张</span>
-                  <span className="flex h-6 w-[84px] shrink-0 items-center justify-center border-2 border-[#121212] bg-white text-[10px] font-black text-[#121212]">铭牌</span>
-                  {Array.from({ length: count }, (_, index) => (
-                    <span key={index} className="block h-6 min-w-0 flex-1 overflow-hidden border-2 border-[#121212] bg-white">
-                      {stickerPreview && <img src={stickerPreview} alt="" className="h-full w-full object-contain" />}
-                    </span>
-                  ))}
-                  <span className="shrink-0 border-2 border-[#121212] bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black text-white">赞 0</span>
+                  <div className="flex w-[338px] max-w-full items-center gap-1.5">
+                    <span className="flex h-6 w-[100px] shrink-0 items-center justify-center border-2 border-[#121212] bg-white text-[10px] font-black text-[#121212]">铭牌</span>
+                    {Array.from({ length: count }, (_, index) => (
+                      <span key={index} className="block h-6 min-w-0 flex-1 overflow-hidden">
+                        {stickerPreview && <img src={stickerPreview} alt="" className="h-full w-full object-cover" />}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ))}
-              <p className="mt-1.5 text-[10px] text-[#666]">图片始终按 5:1 完整显示，卡片上槽位宽度随屏幕变化时，多出的部分会留白；请把主要文字/图案放在中间。</p>
+              <p className="mt-1.5 text-[10px] text-[#666]">贴纸位置不再显示边框，图片直接铺满；屏幕变窄时会轻微裁掉两侧，主要文字/图案请放在中间。</p>
             </div>
           )}
           <div className="flex items-center gap-3">

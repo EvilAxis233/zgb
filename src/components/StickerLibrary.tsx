@@ -68,7 +68,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
         {library.map((key) => {
           const order = defaults.indexOf(key);
           return (
-            <div key={key} className={`relative aspect-[5/1] border-2 bg-white overflow-hidden ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212]'}`}>
+            <div key={key} className={`relative aspect-[14/3] border-2 bg-white overflow-hidden ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212]'}`}>
               <button
                 type="button"
                 onClick={() => toggleDefault(key)}
@@ -100,7 +100,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
             type="button"
             disabled={!isMember || busy}
             onClick={() => inputRef.current?.click()}
-            className="aspect-[5/1] border-2 border-dashed border-[#121212] bg-[#FAF9F5] flex flex-col items-center justify-center gap-0.5 text-[#666] cursor-pointer hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="aspect-[14/3] border-2 border-dashed border-[#121212] bg-[#FAF9F5] flex flex-col items-center justify-center gap-0.5 text-[#666] cursor-pointer hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="上传贴纸到贴纸库"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -110,7 +110,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
       </div>
       <p className="mt-2 text-[10px] text-[#666] leading-relaxed">
         {isMember
-          ? `最多预存 ${STICKER_LIBRARY_LIMIT} 张；点图片设为默认佩戴（最多 ${STICKER_DEFAULT_LIMIT} 张），发团时可以从库里临时改选，不影响默认。静图按发团长条比例（5:1）裁剪，GIF 保留动画但不会裁剪，请自行做成 5:1 长条。`
+          ? `最多预存 ${STICKER_LIBRARY_LIMIT} 张；点图片设为默认佩戴（最多 ${STICKER_DEFAULT_LIMIT} 张），发团时可以从库里临时改选，不影响默认。静图按发团卡片的贴纸尺寸（112×24、14:3）裁剪，GIF 保留动画但不会裁剪，请自行做成 14:3 长条。`
           : '会员专享：开通后可预存 10 张贴纸，并选 2 张默认佩戴'}
       </p>
       <input
@@ -157,7 +157,7 @@ export function StickerPicker({ library, value, onChange }: StickerPickerProps) 
               key={key}
               type="button"
               onClick={() => toggle(key)}
-              className={`relative aspect-[5/1] border-2 bg-white overflow-hidden cursor-pointer ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212] hover:border-[#004E98]'}`}
+              className={`relative aspect-[14/3] border-2 bg-white overflow-hidden cursor-pointer ${order >= 0 ? 'border-[#D62828]' : 'border-[#121212] hover:border-[#004E98]'}`}
               aria-pressed={order >= 0}
               aria-label={order >= 0 ? '取消本团使用' : '本团使用这张贴纸'}
               title={order >= 0 ? '点击取消' : '点击使用'}
