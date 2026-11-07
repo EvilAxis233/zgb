@@ -60,7 +60,7 @@ export function MembershipModal({ active, onClose }: Props) {
           </div>
         </div>
 
-        <p className="text-[11px] text-[#666] leading-relaxed">会员时长由站长或管理员在后台按整月发放，单月按 30 天计算，12 个月按 365 天计算；到期后权益自动停止，未用完的 GM 点赞券不受影响。动态头像与动态封面（GIF / APNG / 动态 WebP 保留动画）是全站基础功能，所有登录用户都可使用。</p>
+        <p className="text-[11px] text-[#666] leading-relaxed">动态头像与动态封面（GIF / APNG / 动态 WebP 保留动画）是全站基础功能，所有登录用户都可使用。</p>
       </div>
     </section>
   </div>;
