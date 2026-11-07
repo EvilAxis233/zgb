@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { NameplateBadge } from './NameplateBadge';
+import { useDialog } from './BauhausDialog';
 import {
   CalendarCheck,
   ChevronDown,
@@ -39,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenInstructions,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const { showConfirm } = useDialog();
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
   );
@@ -203,9 +205,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentUser ? (
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setIsDropdownOpen(false);
-                  onLogout();
+                  const confirmed = await showConfirm({
+                    title: '退出登录',
+                    message: '确定要退出当前账号吗？退出后需要重新用 QQ 邮箱验证码登录。',
+                    confirmText: '确定退出',
+                    cancelText: '取消',
+                    type: 'warning',
+                  });
+                  if (confirmed) onLogout();
                 }}
                 className="w-full px-4 py-2 text-left text-xs font-bold text-[#D62828] hover:bg-[#D62828] hover:text-white flex items-center gap-2.5 cursor-pointer transition-colors"
               >
