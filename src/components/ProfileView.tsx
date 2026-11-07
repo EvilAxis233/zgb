@@ -208,7 +208,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   {currentUser.nameplate && <NameplateBadge nameplate={currentUser.nameplate} />}
                   {!!currentUser.stickers?.length && (
                     <span className="flex items-center gap-1">
-                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-7 w-7 border-2 border-[#121212] bg-white object-cover" />)}
+                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-6 w-[120px] border-2 border-[#121212] bg-white object-cover" />)}
                     </span>
                   )}
                 </div>

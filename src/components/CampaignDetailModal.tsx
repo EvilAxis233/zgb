@@ -119,7 +119,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <>
               <div className="flex min-h-5 flex-wrap items-center gap-2">
                 {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
-                {!!member.stickers?.length && <span className="flex items-center gap-1">{member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-5 w-5 border border-[#121212] bg-white object-cover" />)}</span>}
+                {!!member.stickers?.length && <span className="flex items-center gap-1">{member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-4 w-20 border border-[#121212] bg-white object-cover" />)}</span>}
                 {receivedPraiseBadge}
               </div>
               <strong className="mt-1.5 block text-sm break-all">{member.name}</strong>
@@ -133,7 +133,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               {(member.nameplate || !!member.stickers?.length) && (
                 <div className="mt-1.5 flex items-center gap-1.5">
                   {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
-                  {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-5 w-5 border border-[#121212] bg-white object-cover" />)}
+                  {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-4 w-20 border border-[#121212] bg-white object-cover" />)}
                 </div>
               )}
             </>

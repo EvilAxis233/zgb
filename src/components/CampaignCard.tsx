@@ -90,7 +90,17 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
           {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
           {!!campaign.gmStickers?.length && campaign.gmStickers.slice(0, 2).map((src, index) => (
             <span key={`${src}-${index}`} className="block h-6 min-w-0 flex-1 overflow-hidden border-2 border-[#121212] bg-white">
-              <img src={src} alt="GM 贴纸" className="h-full w-full object-cover" />
+              <img
+                src={src}
+                alt="GM 贴纸"
+                className="h-full w-full object-contain"
+                onLoad={(event) => {
+                  // 新版长条贴纸（≥3:1）按原比例完整显示；早期正方形贴纸仍铺满长条槽，避免突然缩成小方块
+                  const img = event.currentTarget;
+                  const ratio = img.naturalWidth / Math.max(1, img.naturalHeight);
+                  img.style.objectFit = ratio >= 3 ? 'contain' : 'cover';
+                }}
+              />
             </span>
           ))}
         </div>
