@@ -9,6 +9,8 @@ import {
   Shield,
   LogOut,
   LogIn,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -37,7 +39,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenInstructions,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // 单击切换日间/夜间；<html data-theme> 由 index.html 里的脚本提前恢复，避免刷新白闪
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    const root = document.documentElement;
+    root.classList.add('zgb-theme-anim');
+    window.setTimeout(() => root.classList.remove('zgb-theme-anim'), 320);
+    if (next === 'dark') root.setAttribute('data-theme', 'dark');
+    else root.removeAttribute('data-theme');
+    try { localStorage.setItem('zgb-theme', next); } catch { /* 隐私模式下忽略 */ }
+    setTheme(next);
+  };
   // 会员的头像用动态鎏金环，非会员保持纯黑描边。
   const selfIsMember = !!currentUser && (!!currentUser.membershipPermanent || (currentUser.membershipExpiresAt ?? 0) * 1000 > Date.now());
 
@@ -169,6 +185,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button type="button" onClick={() => { setIsDropdownOpen(false); onOpenTickets(); }} className="w-full px-4 py-2 text-left text-xs font-bold hover:bg-[#121212] hover:text-white flex items-center gap-2.5 cursor-pointer"><Ticket size={16} />工单</button>
             {/* 分隔线 */}
+            <div className="border-t border-[#121212] my-1" />
+
+            {/* 日间 / 夜间：单击直接切换 */}
+            <button
+              type="button"
+              onClick={() => { setIsDropdownOpen(false); toggleTheme(); }}
+              title={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
+              className="w-full px-4 py-2 text-left text-xs font-bold text-[#121212] hover:bg-[#121212] hover:text-white flex items-center gap-2.5 cursor-pointer transition-colors"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-current" /> : <Moon className="w-4 h-4 text-current" />}
+              <span>{theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}</span>
+            </button>
             <div className="border-t border-[#121212] my-1" />
 
             {/* 退出登录 / 登录 */}

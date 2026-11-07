@@ -204,3 +204,208 @@ html {
     animation: none;
   }
 }
+/* ===== ZGB_DARK_THEME_START ===== */
+/* 夜间模式：由右上角名字下拉里的单个按钮切换，<html data-theme="dark"> 生效。
+   用 [class~="..."] 属性选择器匹配 Tailwind 任意值类名，避免 #/[] 的 CSS 转义。 */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --zgb-bg: #12141A;
+  --zgb-surface: #1E232C;
+  --zgb-surface2: #272E39;
+  --zgb-raised: #2A303B;
+  --zgb-text: #F1EEE6;
+  --zgb-muted: #A7AFBD;
+  --zgb-line: #4B5566;
+  --zgb-shadow: #080A0E;
+  --zgb-gold: #E9C46A;
+  --zgb-blue: #8CBEFF;
+  --zgb-blue-line: #5B9BFF;
+  --zgb-red: #FF8B8B;
+  --zgb-red-line: #FF6B6B;
+}
+
+/* --- 页面底 / 面板 / 次级面 --- */
+html[data-theme="dark"] body,
+html[data-theme="dark"] [class~="bg-[#F6F5F0]"] {
+  background-color: var(--zgb-bg) !important;
+}
+html[data-theme="dark"] [class~="bg-white"],
+html[data-theme="dark"] [class~="bg-[#FFFFFF]"],
+html[data-theme="dark"] [class~="bg-[#FAF9F5]"] {
+  background-color: var(--zgb-surface) !important;
+}
+html[data-theme="dark"] [class~="bg-white/95"],
+html[data-theme="dark"] [class~="bg-[#FFFFFF]/95"] {
+  background-color: rgba(30, 35, 44, .95) !important;
+}
+html[data-theme="dark"] [class~="bg-[#F2F0E8]"],
+html[data-theme="dark"] [class~="bg-[#EAE8E0]"],
+html[data-theme="dark"] [class~="bg-[#EEE]"],
+html[data-theme="dark"] [class~="bg-[#E0DED7]"] {
+  background-color: var(--zgb-surface2) !important;
+}
+html[data-theme="dark"] [class~="bg-[#F0F5FA]"],
+html[data-theme="dark"] [class~="bg-[#EAF3FB]"],
+html[data-theme="dark"] [class~="bg-[#D9EAF8]"] {
+  background-color: #202F42 !important;
+}
+html[data-theme="dark"] [class~="bg-[#FAF0F0]"],
+html[data-theme="dark"] [class~="bg-[#FFF9F9]"],
+html[data-theme="dark"] [class~="bg-[#FFF0F0]"],
+html[data-theme="dark"] [class~="bg-[#F7DDDD]"] {
+  background-color: #382327 !important;
+}
+html[data-theme="dark"] [class~="bg-[#FFF4DA]"],
+html[data-theme="dark"] [class~="bg-[#FFF9E9]"],
+html[data-theme="dark"] [class~="bg-[#FAF0E6]"] {
+  background-color: #3A3020 !important;
+}
+/* 原来的黑底元素（弹窗标题栏、头像底、选中块）改成比面板略亮的深面 */
+html[data-theme="dark"] [class~="bg-[#121212]"],
+html[data-theme="dark"] [class~="bg-[#222]"],
+html[data-theme="dark"] [class~="bg-[#121316]"] {
+  background-color: var(--zgb-raised) !important;
+}
+/* 板块导航选中态：金底深字，和会员鎏金环呼应 */
+html[data-theme="dark"] header nav [class~="bg-[#121212]"] {
+  background-color: var(--zgb-gold) !important;
+  color: #121212 !important;
+}
+
+/* --- 文字 --- */
+html[data-theme="dark"] [class~="text-[#121212]"],
+html[data-theme="dark"] [class~="text-[#222222]"],
+html[data-theme="dark"] [class~="text-[#222]"],
+html[data-theme="dark"] [class~="text-[#333333]"],
+html[data-theme="dark"] [class~="text-[#444]"] {
+  color: var(--zgb-text) !important;
+}
+html[data-theme="dark"] [class~="text-[#555]"],
+html[data-theme="dark"] [class~="text-[#666]"],
+html[data-theme="dark"] [class~="text-[#666666]"],
+html[data-theme="dark"] [class~="text-[#777]"],
+html[data-theme="dark"] [class~="text-[#777777]"],
+html[data-theme="dark"] [class~="text-[#888]"],
+html[data-theme="dark"] [class~="text-[#888888]"],
+html[data-theme="dark"] [class~="text-[#BBBBBB]"] {
+  color: var(--zgb-muted) !important;
+}
+html[data-theme="dark"] [class~="text-[#D62828]"] { color: var(--zgb-red) !important; }
+html[data-theme="dark"] [class~="text-[#B51F1F]"] { color: #FFAAAA !important; }
+html[data-theme="dark"] [class~="text-[#004E98]"] { color: var(--zgb-blue) !important; }
+html[data-theme="dark"] [class~="text-[#5C4300]"],
+html[data-theme="dark"] [class~="text-[#7A4B00]"] { color: var(--zgb-gold) !important; }
+
+/* --- 边框 --- */
+html[data-theme="dark"] [class~="border-[#121212]"],
+html[data-theme="dark"] [class~="border-[#CCC]"],
+html[data-theme="dark"] [class~="border-[#CCCCCC]"],
+html[data-theme="dark"] [class~="border-[#AAA]"],
+html[data-theme="dark"] [class~="border-[#DDD]"],
+html[data-theme="dark"] [class~="border-[#D8D5CC]"],
+html[data-theme="dark"] [class~="border-[#D8D6CC]"],
+html[data-theme="dark"] [class~="border-[#E5E5E0]"],
+html[data-theme="dark"] [class~="border-[#E0DED7]"],
+html[data-theme="dark"] [class~="border-[#777]"],
+html[data-theme="dark"] [class~="border-[#444]"],
+html[data-theme="dark"] [class~="border-[#E5B5B5]"],
+html[data-theme="dark"] [class~="border-[#DEDCD2]"] {
+  border-color: var(--zgb-line) !important;
+}
+html[data-theme="dark"] [class~="border-[#004E98]"],
+html[data-theme="dark"] [class~="border-l-[#004E98]"] { border-color: var(--zgb-blue-line) !important; }
+html[data-theme="dark"] [class~="border-[#D62828]"],
+html[data-theme="dark"] [class~="border-l-[#D62828]"] { border-color: var(--zgb-red-line) !important; }
+
+/* --- 硬阴影 --- */
+html[data-theme="dark"] [class~="shadow-[1px_1px_0px_#121212]"] { box-shadow: 1px 1px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] [class~="shadow-[2px_2px_0px_#121212]"] { box-shadow: 2px 2px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] [class~="shadow-[3px_3px_0px_#121212]"] { box-shadow: 3px 3px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] [class~="shadow-[4px_4px_0px_#121212]"] { box-shadow: 4px 4px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] [class~="shadow-[8px_8px_0px_#121212]"] { box-shadow: 8px 8px 0 var(--zgb-shadow) !important; }
+
+/* --- hover 态 --- */
+html[data-theme="dark"] [class~="hover:bg-[#121212]"]:hover {
+  background-color: var(--zgb-gold) !important;
+  color: #121212 !important;
+}
+html[data-theme="dark"] [class~="hover:bg-[#FAF9F5]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#F2F0E8]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-white"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#EEE]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#F6F5F0]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#DEDCD2]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#F0EFEA]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#FFF0F0]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#FAF0E6]"]:hover {
+  background-color: var(--zgb-surface2) !important;
+}
+html[data-theme="dark"] [class~="hover:border-[#121212]"]:hover { border-color: var(--zgb-line) !important; }
+html[data-theme="dark"] [class~="hover:border-[#004E98]"]:hover { border-color: var(--zgb-blue-line) !important; }
+html[data-theme="dark"] [class~="hover:shadow-[3px_3px_0px_#121212]"]:hover { box-shadow: 3px 3px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] [class~="hover:shadow-[7px_7px_0px_#121212]"]:hover { box-shadow: 7px 7px 0 var(--zgb-shadow) !important; }
+
+/* --- 包豪斯组件本体 --- */
+html[data-theme="dark"] .bauhaus-card {
+  background-color: var(--zgb-surface) !important;
+  border-color: var(--zgb-line) !important;
+  box-shadow: 4px 4px 0 var(--zgb-shadow) !important;
+}
+html[data-theme="dark"] .bauhaus-card-interactive:hover { box-shadow: 6px 6px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] .bauhaus-card-interactive:active { box-shadow: 2px 2px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] .bauhaus-btn {
+  border-color: var(--zgb-line) !important;
+  box-shadow: 3px 3px 0 var(--zgb-shadow) !important;
+}
+html[data-theme="dark"] .bauhaus-btn:hover:not(:disabled) { box-shadow: 4px 4px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] .bauhaus-btn:active:not(:disabled) { box-shadow: 1px 1px 0 var(--zgb-shadow) !important; }
+html[data-theme="dark"] .bauhaus-input {
+  background-color: var(--zgb-surface) !important;
+  border-color: var(--zgb-line) !important;
+  color: var(--zgb-text) !important;
+}
+html[data-theme="dark"] .bauhaus-input:focus { background-color: var(--zgb-surface2) !important; border-color: var(--zgb-blue-line) !important; }
+html[data-theme="dark"] .gilded-avatar { background-color: var(--zgb-raised) !important; }
+
+/* --- 滚动条 / 表单细节 --- */
+html[data-theme="dark"] .bauhaus-scrollbar { scrollbar-color: var(--zgb-blue-line) var(--zgb-surface2); }
+html[data-theme="dark"] .bauhaus-scrollbar::-webkit-scrollbar-track { background: var(--zgb-surface2); }
+html[data-theme="dark"] .bauhaus-scrollbar::-webkit-scrollbar-thumb { background: var(--zgb-blue-line); }
+html[data-theme="dark"] .instructions-scrollbar { scrollbar-color: var(--zgb-red-line) var(--zgb-surface2); }
+html[data-theme="dark"] .instructions-scrollbar::-webkit-scrollbar-track { background: var(--zgb-surface2); border-left-color: var(--zgb-line); }
+html[data-theme="dark"] .instructions-scrollbar::-webkit-scrollbar-thumb { border-color: var(--zgb-line); }
+html[data-theme="dark"] ::placeholder { color: #7D8697 !important; opacity: 1; }
+html[data-theme="dark"] option { background: var(--zgb-surface); color: var(--zgb-text); }
+html[data-theme="dark"] [class~="accent-[#004E98]"] { accent-color: var(--zgb-blue-line); }
+html[data-theme="dark"] [class~="fill-[#004E98]"] { fill: var(--zgb-blue); }
+html[data-theme="dark"] [class~="fill-[#D62828]"] { fill: var(--zgb-red); }
+html[data-theme="dark"] ::selection { background: #8C4A4A; color: #FFFFFF; }
+
+/* --- 补充：说明页 / 提示条 / 状态色 --- */
+html[data-theme="dark"] [class~="bg-[#E5E5E0]"],
+html[data-theme="dark"] [class~="bg-[#EEEEEE]"],
+html[data-theme="dark"] [class~="bg-[#EBF7EE]"],
+html[data-theme="dark"] [class~="bg-[#E8F5E9]"],
+html[data-theme="dark"] [class~="bg-[#E3F2FD]"] {
+  background-color: var(--zgb-surface2) !important;
+}
+html[data-theme="dark"] [class~="bg-[#FFEBEE]"],
+html[data-theme="dark"] [class~="bg-[#FCE4EC]"] { background-color: #382327 !important; }
+html[data-theme="dark"] [class~="bg-[#FFF9E6]"],
+html[data-theme="dark"] [class~="bg-[#FFF3E0]"] { background-color: #3A3020 !important; }
+html[data-theme="dark"] [class~="text-[#AAAAAA]"] { color: var(--zgb-muted) !important; }
+html[data-theme="dark"] [class~="text-[#1E6B60]"],
+html[data-theme="dark"] [class~="text-[#2E7D32]"] { color: #7FD8B0 !important; }
+html[data-theme="dark"] [class~="text-[#C62828]"] { color: var(--zgb-red) !important; }
+html[data-theme="dark"] [class~="text-[#0D47A1]"] { color: var(--zgb-blue) !important; }
+html[data-theme="dark"] [class~="text-[#880E4F]"] { color: #FF9EC4 !important; }
+html[data-theme="dark"] [class~="border-[#888]"] { border-color: var(--zgb-line) !important; }
+html[data-theme="dark"] [class~="hover:bg-[#D9EAF8]"]:hover,
+html[data-theme="dark"] [class~="hover:bg-[#F7DDDD]"]:hover { background-color: var(--zgb-surface2) !important; }
+
+/* 切换瞬间的一次性过渡，不影响组件原有的 hover 位移动画 */
+html.zgb-theme-anim * {
+  transition: background-color .22s ease, color .22s ease, border-color .22s ease, box-shadow .22s ease !important;
+}
+/* ===== ZGB_DARK_THEME_END ===== */

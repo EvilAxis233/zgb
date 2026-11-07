@@ -8,6 +8,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script>
+      // 在样式生效前恢复夜间模式，避免刷新时白屏闪烁；默认日间
+      (function () {
+        try {
+          if (localStorage.getItem('zgb-theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-[#F6F5F0] text-[#121212] antialiased selection:bg-[#E63946] selection:text-white">
     <div id="root"></div>
