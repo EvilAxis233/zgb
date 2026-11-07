@@ -22,12 +22,17 @@ interface Props {
 }
 
 function Avatar({ member }: { member: CampaignMember }) {
-  return member.avatar ? (
-    <img src={member.avatar} alt={`${member.name}的头像`} className="w-11 h-11 object-cover border-2 border-[#121212] bg-white" />
-  ) : (
-    <div className={`w-11 h-11 border-2 border-[#121212] text-white font-black text-lg flex items-center justify-center ${member.role === 'gm' ? 'bg-[#D62828]' : 'bg-[#004E98]'}`}>
-      {member.name.charAt(0)}
-    </div>
+  const tint = member.role === 'gm' ? 'bg-[#D62828]' : 'bg-[#004E98]';
+  return (
+    <span
+      className={`w-11 h-11 shrink-0 overflow-hidden flex items-center justify-center text-lg font-black text-white ${member.isMember ? 'gilded-avatar' : `border-2 border-[#121212] ${member.avatar ? 'bg-white' : tint}`}`}
+    >
+      {member.avatar ? (
+        <img src={member.avatar} alt={`${member.name}的头像`} className="h-full w-full object-cover bg-white" />
+      ) : (
+        <span className={`flex h-full w-full items-center justify-center ${tint}`}>{member.name.charAt(0)}</span>
+      )}
+    </span>
   );
 }
 

@@ -38,6 +38,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // 会员的头像用动态鎏金环，非会员保持纯黑描边。
+  const selfIsMember = !!currentUser && (!!currentUser.membershipPermanent || (currentUser.membershipExpiresAt ?? 0) * 1000 > Date.now());
 
   const hongKongDate = () => new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -204,7 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         type="button"
         onClick={() => { if (!currentUser) onOpenLogin(); }}
         title={currentUser ? `${currentUser.name} 的个人头像` : '点击登录'}
-        className={`w-8 h-8 bg-[#121212] text-white font-black text-xs flex items-center justify-center border-2 border-[#121212] shadow-[2px_2px_0px_#121212] overflow-hidden shrink-0 ${currentUser ? '' : 'cursor-pointer'}`}
+        className={`w-8 h-8 text-white font-black text-xs flex items-center justify-center overflow-hidden shrink-0 ${selfIsMember ? 'gilded-avatar' : 'bg-[#121212] border-2 border-[#121212] shadow-[2px_2px_0px_#121212]'} ${currentUser ? '' : 'cursor-pointer'}`}
       >
         {currentUser?.avatar ? (
           <img
@@ -213,7 +215,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="w-full h-full object-cover"
           />
         ) : (
-          (currentUser?.name || '?').charAt(0)
+          <span className="relative z-[1]">{(currentUser?.name || '?').charAt(0)}</span>
         )}
       </button>
     </div>
