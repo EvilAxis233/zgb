@@ -751,8 +751,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
           {/* RIGHT: Live Preview (与左侧时间弹窗等宽 440px) */}
           <div className="w-full lg:w-[440px] shrink-0 h-[680px] lg:h-full flex flex-col border-t-4 lg:border-t-0 lg:border-l-4 border-[#121212] bg-[#FAF9F5] overflow-hidden">
-            {/* Top Half: Card Preview (fits complete card without scrollbar) */}
-            <div className="flex-[1.4] min-h-[380px] flex flex-col border-b-4 border-[#121212] overflow-hidden">
+            {/* Top Half: Card Preview (fits complete card without scrollbar)；移动端排到最下面 */}
+            <div className="order-2 lg:order-1 flex-[1.4] min-h-[380px] flex flex-col border-t-4 lg:border-t-0 lg:border-b-4 border-[#121212] overflow-hidden">
               <div className="bg-[#121212] text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shrink-0">
                 <span>卡片预览</span>
               </div>
@@ -763,8 +763,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </div>
             </div>
 
-            {/* Bottom Half: 简介填写（原有的简介预览已移除，输入框移到这里） */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-white">
+            {/* Bottom Half: 简介填写（移动端排在预览上方，桌面端在预览下方） */}
+            <div className="order-1 lg:order-2 flex-1 flex flex-col overflow-hidden bg-white">
               <div className="bg-[#121212] text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shrink-0">
                 <span>简介</span>
                 <span className="text-[10px] font-normal opacity-80">支持 Markdown</span>
