@@ -354,12 +354,16 @@ export async function onRequest(context) {
       }
       if (path[1] === 'submissions' && path.length === 2 && method === 'GET') {
         const type = ['feedback','report'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : '';
-        const status = ['pending','processing','resolved','rejected'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
+        const rawStatus = url.searchParams.get('status');
+        const status = ['pending','processing','resolved','rejected','open','done'].includes(rawStatus) ? rawStatus : '';
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
-        const where = `WHERE (?='' OR s.type=?) AND (?='' OR s.status=?)`;
+        // open = 未处理（待受理 + 处理中），done = 已处理（已解决 + 已驳回）；后台默认只拉 open，done 折叠后再看。
+        const statusClause = status === 'open' ? ` AND s.status IN ('pending','processing')` : status === 'done' ? ` AND s.status IN ('resolved','rejected')` : status ? ' AND s.status=?' : '';
+        const binds = [type, type, ...(status && status !== 'open' && status !== 'done' ? [status] : [])];
+        const where = `WHERE (?='' OR s.type=?)` + statusClause;
         const [count, rows] = await db.batch([
-          db.prepare(`SELECT COUNT(*) n FROM submissions s ${where}`).bind(type, type, status, status),
-          db.prepare(`SELECT s.*,u.name user_name,r.name reported_name FROM submissions s JOIN users u ON u.qq=s.user_qq LEFT JOIN users r ON r.qq=s.reported_qq ${where} ORDER BY CASE s.status WHEN 'pending' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END,s.created_at DESC LIMIT 30 OFFSET ?`).bind(type, type, status, status, offset)
+          db.prepare(`SELECT COUNT(*) n FROM submissions s ${where}`).bind(...binds),
+          db.prepare(`SELECT s.*,u.name user_name,r.name reported_name FROM submissions s JOIN users u ON u.qq=s.user_qq LEFT JOIN users r ON r.qq=s.reported_qq ${where} ORDER BY CASE s.status WHEN 'pending' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END,s.created_at DESC LIMIT 30 OFFSET ?`).bind(...binds, offset)
         ]);
         const items = await Promise.all(rows.results.map(async (item) => {
           const images = await db.prepare('SELECT image_key FROM submission_images WHERE submission_id=? ORDER BY sort_order,id').bind(item.id).all();
