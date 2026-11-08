@@ -147,7 +147,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   title="点击复制玩家 QQ 号"
                   className="mt-1 inline-flex items-center gap-1 border border-[#BFD3EE] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-mono font-bold text-[#004E98] hover:bg-[#E1ECFA] cursor-pointer"
                 >
-                  QQ {member.qq || member.id}
+                  {member.qq || member.id}
                   {copiedQq === (member.qq || member.id) ? <span className="text-[#176B57]">已复制</span> : <Copy className="w-3 h-3" />}
                 </button>
               )}
