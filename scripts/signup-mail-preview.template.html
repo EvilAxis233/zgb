@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>诸告板 · 报名通知邮件预览</title>
+<style>
+  :root { --ink:#121212; --red:#D62828; --blue:#004E98; --paper:#FAF9F5; --line:#DFDCD3; --muted:#6B6B6B; --qq:#0052D9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#EFEDE6; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  .topbar { background:var(--ink); color:#fff; padding:16px 28px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; border-bottom:5px solid var(--red); }
+  .brand { display:flex; align-items:baseline; gap:9px; }
+  .brand b { font-size:22px; letter-spacing:2px; }
+  .brand span { font-size:10px; color:#F4A261; font-weight:800; letter-spacing:2px; }
+  .topbar .divider { width:1px; height:22px; background:#444; }
+  .topbar h1 { font-size:15px; margin:0; font-weight:800; letter-spacing:1px; }
+  .badge { margin-left:auto; font-size:11px; font-weight:800; color:#121212; background:#F4A261; border:2px solid #fff; padding:5px 10px; }
+  main { max-width:1360px; margin:0 auto; padding:22px 24px 60px; }
+  .flow { display:flex; align-items:stretch; gap:8px; background:#fff; border:2px solid var(--ink); box-shadow:4px 4px 0 var(--ink); padding:14px 16px; margin-bottom:20px; flex-wrap:wrap; }
+  .flow-step { flex:1; min-width:180px; display:flex; align-items:center; gap:10px; }
+  .flow-step b { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:none; background:var(--ink); color:#fff; font-size:12px; }
+  .flow-step:nth-child(3) b, .flow-step:nth-child(5) b { background:var(--blue); }
+  .flow-step:nth-child(7) b { background:var(--red); }
+  .flow-step span { font-size:12px; font-weight:800; line-height:1.5; }
+  .flow-arrow { align-self:center; color:#999; font-size:17px; font-weight:900; }
+  .workspace { display:grid; grid-template-columns:270px minmax(0,1fr); gap:18px; align-items:start; }
+  @media (max-width:980px) { .workspace { grid-template-columns:1fr; } }
+  .side { background:#fff; border:2px solid var(--ink); box-shadow:4px 4px 0 var(--ink); padding:18px; }
+  .side h3 { margin:0 0 11px; font-size:12px; font-weight:900; letter-spacing:1px; display:flex; align-items:center; gap:7px; }
+  .side h3::before { content:""; width:10px; height:10px; background:var(--red); display:inline-block; }
+  .side h3.blue::before { background:var(--blue); }
+  .side ul { margin:0 0 22px; padding-left:17px; }
+  .side li { font-size:12px; line-height:1.9; color:#444; }
+  .side dl { margin:0 0 20px; }
+  .side dt { font-size:11px; font-weight:900; color:var(--blue); margin-top:11px; }
+  .side dd { margin:3px 0 0; font-size:11px; line-height:1.75; color:#555; }
+  .side .hint { background:#F6F5F0; border-left:4px solid var(--blue); padding:10px 12px; font-size:11px; line-height:1.8; color:#444; }
+  .client { background:#fff; border:2px solid var(--ink); box-shadow:4px 4px 0 var(--ink); overflow:hidden; }
+  .client-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:11px 14px; background:#F7F6F1; border-bottom:2px solid var(--ink); }
+  .toolbar-label { font-size:11px; font-weight:900; color:#777; margin-right:2px; }
+  .seg { display:inline-flex; border:2px solid var(--ink); }
+  .seg button { border:0; background:#fff; padding:6px 13px; font-size:11px; font-weight:800; cursor:pointer; font-family:inherit; color:var(--ink); }
+  .seg button + button { border-left:2px solid var(--ink); }
+  .seg button.on { background:var(--ink); color:#fff; }
+  .tool-btn { margin-left:auto; border:2px solid var(--blue); background:#fff; color:var(--blue); padding:7px 12px; font-size:11px; font-weight:900; cursor:pointer; font-family:inherit; }
+  .tool-btn:hover { background:var(--blue); color:#fff; }
+  .client-body { display:flex; min-height:760px; }
+  .folder { width:248px; flex:none; background:#F4F7FF; border-right:1px solid #D9E2F5; }
+  .folder-head { padding:12px 14px; font-size:12px; font-weight:900; color:#fff; background:var(--qq); }
+  .mail-item { display:block; width:100%; text-align:left; border:0; border-bottom:1px solid #DCE5F5; border-left:3px solid transparent; background:transparent; padding:12px 13px; cursor:pointer; font-family:inherit; }
+  .mail-item:hover { background:#EAF1FF; }
+  .mail-item.on { background:#fff; border-left-color:var(--qq); }
+  .mi-top { display:flex; justify-content:space-between; gap:6px; font-size:11px; }
+  .mi-from { font-weight:900; color:#222; }
+  .mi-time { color:#999; }
+  .mi-subject { font-size:12px; font-weight:800; margin-top:5px; line-height:1.45; color:#222; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  .mi-preview { font-size:11px; color:#8A8A8A; margin-top:4px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .reader { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .reader-head { padding:18px 22px 15px; border-bottom:1px solid #E6E4DD; }
+  .reader-head h2 { margin:0 0 12px; font-size:18px; line-height:1.4; font-weight:900; }
+  .meta { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:11px; color:#666; line-height:1.7; }
+  .meta b { color:#222; }
+  .meta .tag { display:inline-block; background:#EAF1FF; color:var(--qq); font-weight:900; padding:1px 7px; margin-right:6px; }
+  .reader-content { flex:1; background:#F4F3EE; padding:18px; min-width:0; }
+  .reader-content iframe { display:block; width:100%; border:0; background:#F4F3EE; }
+  .reader-content pre { display:none; margin:0 auto; max-width:640px; background:#fff; border:2px solid var(--ink); padding:22px; font-family:Consolas,"Microsoft YaHei",monospace; font-size:12px; line-height:1.9; white-space:pre-wrap; word-break:break-word; color:#222; }
+  .client-body.mobile .folder { display:none; }
+  .client-body.mobile .reader-content { display:flex; justify-content:center; padding:22px 10px; background:#E6E3DA; }
+  .client-body.mobile .reader-content iframe { width:375px; max-width:100%; height:640px; border:9px solid var(--ink); border-radius:20px; background:#F4F3EE; }
+  .client-body.mobile .reader-content pre { width:375px; max-width:100%; }
+  .client-body.text .reader-content iframe { display:none; }
+  .client-body.text .reader-content pre { display:block; }
+  .client-body.mobile.text .reader-content pre { display:block; }
+  .notes { margin-top:20px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media (max-width:860px) { .notes { grid-template-columns:1fr; } }
+  .note-card { background:#fff; border:2px solid var(--ink); padding:15px 16px; }
+  .note-card h4 { margin:0 0 8px; font-size:12px; font-weight:900; display:flex; align-items:center; gap:7px; }
+  .note-card h4::before { content:""; width:9px; height:9px; background:var(--blue); display:inline-block; }
+  .note-card:nth-child(2) h4::before { background:var(--red); }
+  .note-card:nth-child(3) h4::before { background:#F4A261; }
+  .note-card p { margin:0; font-size:11px; line-height:1.85; color:#555; }
+  .foot { margin-top:22px; font-size:11px; color:#888; line-height:1.8; text-align:center; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><b>诸告板</b><span>PIGBEE.FUN</span></div>
+  <div class="divider"></div>
+  <h1>报名通知邮件 · 效果预览</h1>
+  <div class="badge">正文由线上模板实时生成</div>
+</header>
+
+<main>
+  <section class="flow">
+    <div class="flow-step"><b>01</b><span>玩家在团卡片点击「报名」</span></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><b>02</b><span>报名写入数据库，立即返回成功</span></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><b>03</b><span>后台异步给该团 GM 发信</span></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><b>04</b><span>GM 的 QQ 邮箱收到提醒</span></div>
+  </section>
+
+  <div class="workspace">
+    <aside class="side">
+      <h3>邮件里有什么</h3>
+      <ul>
+        <li>团名、规则、形式、开团时间</li>
+        <li>面团额外显示省市与详细地点</li>
+        <li>报名玩家昵称与 QQ 号</li>
+        <li>报名发生的香港时间</li>
+        <li>当前报名人数 / 上限与满员提示</li>
+        <li>一键直达「团务管理」按钮</li>
+      </ul>
+      <h3 class="blue">触发与投递</h3>
+      <dl>
+        <dt>触发时机</dt><dd>玩家报名成功、玩家取消报名成功，各一封。重复点击不会重复发信。</dd>
+        <dt>收件人</dt><dd>默认 <b>&lt;GM 的 QQ&gt;@qq.com</b>，与登录验证码同一邮箱。GM 可在个人档案改成任意邮箱或关闭通知。</dd>
+        <dt>发件人</dt><dd>诸告板 &lt;login@mail.dhvault.top&gt;，复用站点现有的 Resend 通道，无需新增密钥。</dd>
+        <dt>失败处理</dt><dd>邮件发送失败只写日志，绝不会让玩家的报名失败或变慢。</dd>
+      </dl>
+      <div class="hint">下面是模拟 QQ 邮箱收件箱的阅读效果。切换「手机」可看窄屏排版，切换「纯文本」可看不支持 HTML 的客户端收到的版本。</div>
+    </aside>
+
+    <section class="client">
+      <div class="client-toolbar">
+        <span class="toolbar-label">视图</span>
+        <div class="seg" id="viewSeg">
+          <button class="on" data-view="desktop">桌面</button><button data-view="mobile">手机</button>
+        </div>
+        <span class="toolbar-label">格式</span>
+        <div class="seg" id="fmtSeg">
+          <button class="on" data-fmt="html">HTML 邮件</button><button data-fmt="text">纯文本</button>
+        </div>
+        <button class="tool-btn" id="openBtn">在新窗口打开邮件 ↗</button>
+      </div>
+      <div class="client-body" id="clientBody">
+        <div class="folder">
+          <div class="folder-head">收件箱 · 3 封未读</div>
+          <div id="mailList"></div>
+        </div>
+        <div class="reader">
+          <div class="reader-head">
+            <h2 id="subject"></h2>
+            <div class="meta">
+              <div><span class="tag">发件人</span><b id="from"></b></div>
+              <div><span class="tag">收件人</span><b id="to"></b></div>
+              <div><span class="tag">时间</span><b id="date"></b></div>
+            </div>
+          </div>
+          <div class="reader-content">
+            <iframe id="mailFrame" title="邮件正文"></iframe>
+            <pre id="textFrame"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="notes">
+    <div class="note-card">
+      <h4>不打扰、可关闭</h4>
+      <p>每位 GM 在「个人档案 → 报名邮件通知」里可以改收件邮箱，或直接关掉提醒。关闭后系统只记一条 skipped 日志，不再发信。</p>
+    </div>
+    <div class="note-card">
+      <h4>隐私与留痕</h4>
+      <p>邮件只发给该团对应的 GM，不会群发；通知邮箱不会出现在公开用户列表里。每封信的收件地址、主题、成功/失败都会记入后台日志表，方便排查「没收到」。</p>
+    </div>
+    <div class="note-card">
+      <h4>上线前请确认</h4>
+      <p>① 邮件文案与配色是否可用；② 是否也需要「取消报名」通知（当前已做）；③ 是否要把提醒改成合并摘要而非逐封发送。确认后部署即可生效。</p>
+    </div>
+  </section>
+
+  <p class="foot">示例数据仅用于预览；真实发送时团次信息、GM 邮箱、玩家 QQ 与时间均由系统自动填入。邮件正文宽 600px，全部内联样式，兼容 QQ 邮箱与手机客户端。</p>
+</main>
+
+<script>
+const MAILS = /*__MAILS__*/;
+const qs = new URLSearchParams(location.search);
+let current = qs.get('mail') && MAILS.some((m) => m.key === qs.get('mail')) ? qs.get('mail') : MAILS[0].key;
+let view = qs.get('view') === 'mobile' ? 'mobile' : 'desktop';
+let format = qs.get('fmt') === 'text' ? 'text' : 'html';
+const $ = (id) => document.getElementById(id);
+const frame = $('mailFrame');
+
+// 预览 iframe 用 srcdoc 加载真实邮件；仅在预览页内注入一段测高脚本，实际发出的邮件不含它。
+window.addEventListener('message', (event) => {
+  if (event.source !== frame.contentWindow || !event.data || event.data.type !== 'mail-height') return;
+  if (view === 'desktop' && format === 'html') frame.style.height = Number(event.data.h) + 'px';
+});
+// 量最外层表格的真实高度（scrollHeight 会被 iframe 视口高度撑满，量不出内容高度）。
+const measureScript = `<script>(function(){function h(){var t=document.body&&document.body.querySelector('table');var v=t?Math.ceil(t.getBoundingClientRect().height)+48:document.documentElement.scrollHeight;parent.postMessage({type:'mail-height',h:v},'*')}h();window.addEventListener('load',h);setTimeout(h,300)})();<\/script>`;
+function syncSegs() {
+  document.querySelectorAll('#viewSeg button').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
+  document.querySelectorAll('#fmtSeg button').forEach((b) => b.classList.toggle('on', b.dataset.fmt === format));
+}
+
+function renderList() {
+  $('mailList').innerHTML = MAILS.map((m) => `<button class="mail-item ${m.key === current ? 'on' : ''}" data-key="${m.key}">
+    <div class="mi-top"><span class="mi-from">诸告板</span><span class="mi-time">${m.time}</span></div>
+    <div class="mi-subject">${m.subject}</div>
+    <div class="mi-preview">${m.preview}</div>
+  </button>`).join('');
+  document.querySelectorAll('.mail-item').forEach((button) => {
+    button.addEventListener('click', () => { current = button.dataset.key; render(); });
+  });
+}
+function resizeFrame() {
+  if (view !== 'desktop' || format !== 'html') return;
+  try {
+    const doc = frame.contentDocument;
+    if (doc) frame.style.height = (doc.documentElement.scrollHeight + 30) + 'px';
+  } catch (e) { /* 跨域兜底 */ }
+}
+function render() {
+  const m = MAILS.find((item) => item.key === current);
+  renderList();
+  $('subject').textContent = m.subject;
+  $('from').textContent = m.from;
+  $('to').textContent = m.to;
+  $('date').textContent = m.date;
+  $('textFrame').textContent = m.text;
+  frame.srcdoc = m.html.replace('</body>', measureScript + '</body>');
+  frame.style.height = view === 'mobile' ? '640px' : '780px';
+  $('clientBody').className = 'client-body' + (view === 'mobile' ? ' mobile' : '') + (format === 'text' ? ' text' : '');
+  syncSegs();
+}
+frame.addEventListener('load', resizeFrame);
+document.querySelectorAll('#viewSeg button').forEach((button) => button.addEventListener('click', () => {
+  view = button.dataset.view;
+  document.querySelectorAll('#viewSeg button').forEach((b) => b.classList.toggle('on', b === button));
+  render();
+}));
+document.querySelectorAll('#fmtSeg button').forEach((button) => button.addEventListener('click', () => {
+  format = button.dataset.fmt;
+  document.querySelectorAll('#fmtSeg button').forEach((b) => b.classList.toggle('on', b === button));
+  $('clientBody').className = 'client-body' + (view === 'mobile' ? ' mobile' : '') + (format === 'text' ? ' text' : '');
+}));
+$('openBtn').addEventListener('click', () => {
+  const m = MAILS.find((item) => item.key === current);
+  const blob = new Blob([format === 'text' ? m.text : m.html], { type: format === 'text' ? 'text/plain;charset=utf-8' : 'text/html;charset=utf-8' });
+  window.open(URL.createObjectURL(blob), '_blank');
+});
+render();
+</script>
+</body>
+</html>

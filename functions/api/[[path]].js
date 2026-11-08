@@ -59,9 +59,10 @@ async function touchRule(db, name, iso) {
 const userDto = (u) => {
   const role = roleOf(u);
   const permanent = role === 'owner' || u.membership_expires_at === PERMANENT_MEMBERSHIP;
-  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers), stickerLibrary: parseTags(u.sticker_library).map((key) => assetUrl(key)).filter(Boolean), stickerLibraryKeys: parseTags(u.sticker_library) };
+  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers), stickerLibrary: parseTags(u.sticker_library).map((key) => assetUrl(key)).filter(Boolean), stickerLibraryKeys: parseTags(u.sticker_library), notifyEmail: u.notify_email || '', signupNotifyEnabled: u.signup_notify_enabled !== 0 };
 };
-const publicUserDto = (u) => ({ ...userDto(u), role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [], stickerLibrary: [], stickerLibraryKeys: [] });
+// 通知邮箱属于隐私，公开用户列表里不带出这两个字段。
+const publicUserDto = (u) => { const { notifyEmail, signupNotifyEnabled, ...rest } = userDto(u); return { ...rest, role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [], stickerLibrary: [], stickerLibraryKeys: [] }; };
 const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
@@ -112,6 +113,180 @@ async function sendCode(env, qq, code) {
   if (response.ok) return { ok: true };
   const error = await response.json().catch(() => ({}));
   return { ok: false, status: response.status, reason: typeof error.name === 'string' ? error.name.slice(0, 80) : 'unknown' };
+}
+
+// === SIGNUP_MAIL_TEMPLATE_START ===
+// 报名通知邮件的唯一真源：线上发送与本地预览（scripts/gen-signup-mail-preview.mjs）都调用这个函数。
+// 全部内联样式 + table 布局，兼容 QQ 邮箱与手机客户端；不加载任何外部字体、图片或脚本。
+const mailEsc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+function buildSignupMail(d) {
+  const isSignup = d.event === 'signup';
+  const accent = isSignup ? '#D62828' : '#004E98';
+  const title = String(d.title || '未命名团');
+  const subject = `【诸告板】${isSignup ? '新玩家报名' : '玩家取消报名'} · ${title.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, ' ').slice(0, 30)}`;
+  const remaining = Math.max(0, Number(d.maxPlayers) - Number(d.currentPlayers));
+  const countNote = remaining === 0
+    ? (isSignup ? '已经满员，可以准备封车了' : '当前仍然满员')
+    : `还差 ${remaining} 人满员`;
+  const rows = [
+    ['团名', title],
+    ['规则', d.rule || '—'],
+    ['形式', d.modeLine || '—'],
+    ['开团时间', d.timeSchedule || '—'],
+    ...(d.location ? [['地点', d.location]] : []),
+  ];
+  const infoRows = rows.map(([label, value]) => `<tr>
+    <td style="padding:7px 0;font-size:13px;color:#777;font-weight:bold;width:76px;vertical-align:top;white-space:nowrap;">${mailEsc(label)}</td>
+    <td style="padding:7px 0;font-size:13px;color:#121212;font-weight:bold;word-break:break-all;">${mailEsc(value)}</td>
+  </tr>`).join('');
+  const playerRows = [
+    ['玩家昵称', d.playerName || '—'],
+    ['玩家 QQ', d.playerQq || '—'],
+    ['时间', d.happenedAt || '—'],
+  ].map(([label, value]) => `<tr>
+    <td style="padding:6px 0;font-size:13px;color:#555;font-weight:bold;width:76px;vertical-align:top;white-space:nowrap;">${mailEsc(label)}</td>
+    <td style="padding:6px 0;font-size:13px;color:#121212;font-weight:bold;word-break:break-all;">${mailEsc(value)}</td>
+  </tr>`).join('');
+  const headline = isSignup ? '有新玩家报名了' : '有玩家取消了报名';
+  const lead = isSignup
+    ? `你发布的团「${mailEsc(title)}」刚刚收到一位新玩家。`
+    : `你发布的团「${mailEsc(title)}」有一位玩家取消了报名。`;
+  const actionNote = isSignup
+    ? '请尽快通过 QQ 联系玩家确认，并在团务管理里查看完整成员名单。'
+    : '名额已释放，如有候补玩家可及时联系。';
+  const html = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${mailEsc(subject)}</title></head>
+<body style="margin:0;padding:0;background:#F4F3EE;-webkit-text-size-adjust:100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F3EE;"><tr><td align="center" style="padding:24px 10px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:2px solid #121212;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',Arial,sans-serif;">
+  <tr><td style="background:#121212;padding:18px 26px;">
+    <span style="color:#FFFFFF;font-size:20px;font-weight:900;letter-spacing:2px;">诸告板</span>
+    <span style="color:#F4A261;font-size:11px;font-weight:bold;letter-spacing:1px;">&nbsp;&nbsp;PIGBEE.FUN</span>
+    <span style="float:right;color:#9A9A9A;font-size:11px;font-weight:bold;line-height:26px;">报名通知</span>
+  </td></tr>
+  <tr><td style="height:6px;line-height:6px;font-size:0;background:${accent};">&nbsp;</td></tr>
+  <tr><td style="padding:28px 26px 10px 26px;">
+    <div style="display:inline-block;background:${accent};color:#FFFFFF;font-size:11px;font-weight:900;padding:5px 10px;letter-spacing:1px;">${isSignup ? 'NEW SIGNUP' : 'SIGNUP CANCELLED'}</div>
+    <div style="margin-top:14px;font-size:23px;line-height:1.35;font-weight:900;color:#121212;">${headline}</div>
+    <div style="margin-top:8px;font-size:13px;line-height:1.7;color:#666666;">${lead}</div>
+  </td></tr>
+  <tr><td style="padding:14px 26px 0 26px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F6F5F0;border-left:4px solid #121212;"><tr><td style="padding:14px 16px;">
+      <div style="font-size:11px;font-weight:900;color:#121212;letter-spacing:1px;margin-bottom:6px;">团次信息</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${infoRows}</table>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="padding:12px 26px 0 26px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F0F5FA;border-left:4px solid #004E98;"><tr><td style="padding:14px 16px;">
+      <div style="font-size:11px;font-weight:900;color:#004E98;letter-spacing:1px;margin-bottom:6px;">${isSignup ? '本次报名玩家' : '取消报名的玩家'}</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${playerRows}</table>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="padding:16px 26px 0 26px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:2px solid #121212;"><tr>
+      <td width="96" align="center" style="padding:12px 6px;background:#121212;"><span style="color:#FFFFFF;font-size:22px;font-weight:900;">${mailEsc(d.currentPlayers)}<span style="color:#9A9A9A;font-size:14px;">/${mailEsc(d.maxPlayers)}</span></span></td>
+      <td style="padding:12px 14px;"><div style="font-size:13px;font-weight:900;color:#121212;">当前报名人数</div><div style="font-size:12px;color:#666666;margin-top:3px;">${mailEsc(countNote)}</div></td>
+    </tr></table>
+  </td></tr>
+  <tr><td align="center" style="padding:24px 26px 6px 26px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#004E98" style="border:2px solid #121212;">
+      <a href="${mailEsc(d.manageUrl)}" target="_blank" style="display:inline-block;padding:13px 30px;color:#FFFFFF;font-size:14px;font-weight:900;text-decoration:none;letter-spacing:1px;">查看团务管理 &rarr;</a>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="padding:10px 26px 26px 26px;">
+    <div style="font-size:12px;line-height:1.8;color:#666666;">${mailEsc(actionNote)}</div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #E4E2DB;font-size:11px;line-height:1.8;color:#999999;">本邮件由诸告板系统自动发送，请勿直接回复。<br>不想再收到此类通知，可在「个人档案 → 报名邮件通知」中关闭。</div>
+  </td></tr>
+  <tr><td style="background:#121212;padding:14px 26px;color:#9A9A9A;font-size:11px;line-height:1.6;">诸告板 · pigbee.fun&nbsp;&nbsp;|&nbsp;&nbsp;${mailEsc(d.happenedAt)}</td></tr>
+</table>
+<div style="max-width:600px;margin:14px auto 0 auto;padding:0 6px;font-size:11px;line-height:1.7;color:#9A9A9A;">如果按钮无法打开，请复制此链接到浏览器：${mailEsc(d.manageUrl)}</div>
+</td></tr></table>
+</body></html>`;
+  const text = [
+    `【诸告板】${isSignup ? '新玩家报名通知' : '玩家取消报名通知'}`,
+    '',
+    `${d.gmName || '主持人'} 你好：`,
+    isSignup ? `你发布的团「${title}」刚刚收到一位新玩家报名。` : `你发布的团「${title}」有一位玩家取消了报名。`,
+    '',
+    ...rows.map(([label, value]) => `${label}：${value}`),
+    '',
+    `玩家昵称：${d.playerName || '—'}`,
+    `玩家 QQ：${d.playerQq || '—'}`,
+    `时间：${d.happenedAt || '—'}`,
+    `当前报名人数：${d.currentPlayers}/${d.maxPlayers}（${countNote}）`,
+    '',
+    actionNote,
+    `团务管理：${d.manageUrl}`,
+    '',
+    '本邮件由系统自动发送，请勿直接回复。可在「个人档案 → 报名邮件通知」中关闭。',
+  ].join('\n');
+  return { subject, html, text };
+}
+// === SIGNUP_MAIL_TEMPLATE_END ===
+
+// 报名/取消成功后异步发信：整段放进 waitUntil，不占用报名接口的响应时间；任何失败都不影响报名结果。
+const MAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+const hkStamp = (iso) => {
+  const value = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+  return `${value}（香港时间）`;
+};
+async function writeSignupMailLog(db, entry) {
+  await db.prepare('INSERT INTO signup_mail_log(id,campaign_id,gm_qq,player_qq,event_type,recipient,subject,status,error,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .bind(entry.id, entry.campaignId, entry.gmQq, entry.playerQq, entry.event, entry.recipient, entry.subject, entry.status, entry.error || null, entry.createdAt).run();
+}
+function queueSignupMail(context, { campaign, actor, event, siteUrl }) {
+  const { env } = context;
+  const db = env.DB;
+  const createdAt = new Date().toISOString();
+  const logId = id();
+  const task = (async () => {
+    const gm = await db.prepare('SELECT qq,name,notify_email,signup_notify_enabled FROM users WHERE qq=?').bind(campaign.gm_qq).first();
+    if (!gm) return;
+    const recipient = MAIL_RE.test(String(gm.notify_email || '')) ? String(gm.notify_email).trim() : `${gm.qq}@qq.com`;
+    const count = await db.prepare('SELECT COUNT(*) n FROM campaign_memberships WHERE campaign_id=?').bind(campaign.id).first();
+    const platforms = parseTags(campaign.platforms);
+    const modeLine = campaign.kind === 'offline'
+      ? `面团 · ${[campaign.province, campaign.city].filter(Boolean).join(' ')}`
+      : `网团 · ${campaign.session_type || '语音'}${platforms.length ? ' · ' + platforms.join('、') : ''}`;
+    const location = campaign.kind === 'offline' ? [campaign.province, campaign.city, campaign.address].filter(Boolean).join(' ') : '';
+    const mail = buildSignupMail({
+      event,
+      gmName: gm.name,
+      playerName: actor.name,
+      playerQq: actor.qq,
+      title: campaign.title,
+      rule: campaign.rule,
+      timeSchedule: campaign.time_schedule,
+      modeLine,
+      location,
+      currentPlayers: Number(count?.n ?? 0),
+      maxPlayers: campaign.max_players,
+      happenedAt: hkStamp(createdAt),
+      manageUrl: `${siteUrl}/?view=manage`,
+    });
+    const base = { id: logId, campaignId: campaign.id, gmQq: gm.qq, playerQq: actor.qq, event, recipient, subject: mail.subject, createdAt };
+    if (gm.signup_notify_enabled === 0) return void await writeSignupMailLog(db, { ...base, status: 'skipped' });
+    if (!env.RESEND_API_KEY) return void await writeSignupMailLog(db, { ...base, status: 'disabled' });
+    let status = 'sent', error = '';
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: env.RESEND_FROM || '诸告板 <login@mail.dhvault.top>', to: recipient, subject: mail.subject, html: mail.html, text: mail.text }),
+      });
+      if (!response.ok) {
+        status = 'failed';
+        const detail = await response.json().catch(() => ({}));
+        error = `${response.status}:${typeof detail.name === 'string' ? detail.name.slice(0, 80) : 'unknown'}`;
+      }
+    } catch (e) {
+      status = 'failed';
+      error = String(e?.message || e).slice(0, 120);
+    }
+    await writeSignupMailLog(db, { ...base, status, error });
+  })().catch((e) => console.error('signup mail task failed', e));
+  if (typeof context.waitUntil === 'function') context.waitUntil(task);
+  else task.catch(() => {});
 }
 function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const kind = fixedKind || (['online', 'offline', 'promo'].includes(b.kind) ? b.kind : 'online');
@@ -547,7 +722,15 @@ export async function onRequest(context) {
       if (nicknameLength(name) > 20) return fail('昵称最多 10 个中文字符或 20 个英文字符，中文及全角字符按 2 个计算');
       const duplicate = await db.prepare('SELECT 1 FROM users WHERE name=? COLLATE NOCASE AND qq!=?').bind(name, user.qq).first();
       if (duplicate) return fail('该昵称已被使用，请换一个昵称', 409);
-      await db.prepare('UPDATE users SET name=?,bio=?,preferences=?,taboos=? WHERE qq=?').bind(name, bio, JSON.stringify(tags(b.preferences)), JSON.stringify(tags(b.taboos)), user.qq).run();
+      // 报名通知邮箱：留空表示恢复默认的 QQ 邮箱；关闭开关后不再收到报名/取消报名邮件。
+      const requestedEmail = b.notifyEmail === undefined ? undefined : clean(b.notifyEmail, 120).toLowerCase();
+      if (requestedEmail && !MAIL_RE.test(requestedEmail)) return fail('通知邮箱格式不正确');
+      const requestedNotify = b.signupNotifyEnabled === undefined ? undefined : (b.signupNotifyEnabled ? 1 : 0);
+      const sets = ['name=?', 'bio=?', 'preferences=?', 'taboos=?'];
+      const binds = [name, bio, JSON.stringify(tags(b.preferences)), JSON.stringify(tags(b.taboos))];
+      if (requestedEmail !== undefined) { sets.push('notify_email=?'); binds.push(requestedEmail); }
+      if (requestedNotify !== undefined) { sets.push('signup_notify_enabled=?'); binds.push(requestedNotify); }
+      await db.prepare(`UPDATE users SET ${sets.join(',')} WHERE qq=?`).bind(...binds, user.qq).run();
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
     }
@@ -732,13 +915,18 @@ export async function onRequest(context) {
           SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?)
           AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)
           AND NOT EXISTS(SELECT 1 FROM user_blacklist WHERE qq=? AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at>?))`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players, cid, dateHK(), user.qq, now()).run();
-        return result.meta.changes ? json({ ok: true }, 201) : fail('你已经报名或该团已满员', 409);
+        if (!result.meta.changes) return fail('你已经报名或该团已满员', 409);
+        queueSignupMail(context, { campaign: c, actor: user, event: 'signup', siteUrl: url.origin });
+        return json({ ok: true }, 201);
       }
       if (path[2] === 'signup' && path.length === 3 && method === 'DELETE') {
         if (campaignExpired(c) || c.finished_at) return fail('开团日结束后不能取消报名');
         if (c.closed_at) return fail('本团已锁车，不能取消报名', 409);
         const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)').bind(cid, user.qq, cid, dateHK()).run();
-        if (result.meta.changes) return json({ ok: true });
+        if (result.meta.changes) {
+          queueSignupMail(context, { campaign: c, actor: user, event: 'cancel', siteUrl: url.origin });
+          return json({ ok: true });
+        }
         const current = await db.prepare('SELECT closed_at FROM campaigns WHERE id=?').bind(cid).first();
         return current?.closed_at ? fail('本团已锁车，不能取消报名', 409) : fail('你尚未报名', 404);
       }

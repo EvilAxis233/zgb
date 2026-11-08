@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, Campaign, UserNameplate } from '../types';
-import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles } from 'lucide-react';
+import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
 import { AccountSideActions } from './AccountSideActions';
@@ -63,6 +63,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [taboos, setTaboos] = useState<string[]>(currentUser.taboos || []);
   const [newPref, setNewPref] = useState('');
   const [newTaboo, setNewTaboo] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState(currentUser.notifyEmail || '');
+  const [signupNotifyEnabled, setSignupNotifyEnabled] = useState(currentUser.signupNotifyEnabled !== false);
   const nameLength = nicknameLength(name.trim());
 
   React.useEffect(() => {
@@ -70,6 +72,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setBio(currentUser.bio);
     setPreferences(currentUser.preferences || []);
     setTaboos(currentUser.taboos || []);
+    setNotifyEmail(currentUser.notifyEmail || '');
+    setSignupNotifyEnabled(currentUser.signupNotifyEnabled !== false);
   }, [currentUser]);
 
   const handleSave = async () => {
@@ -89,6 +93,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       });
       return;
     }
+    if (notifyEmail.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(notifyEmail.trim())) {
+      await showAlert({ title: '邮箱格式不正确', message: '请填写完整的邮箱地址，或留空使用登录的 QQ 邮箱。', type: 'warning' });
+      return;
+    }
     setIsSaving(true);
     try {
       const success = await onUpdateProfile({
@@ -96,6 +104,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         bio,
         preferences,
         taboos,
+        notifyEmail: notifyEmail.trim(),
+        signupNotifyEnabled,
       });
       if (success) setIsEditing(false);
     } finally {
@@ -370,6 +380,48 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* 报名邮件通知设置：默认发到登录用的 QQ 邮箱，可改地址或关闭 */}
+      <div className="bauhaus-card p-5 bg-white mt-6 flex flex-col md:flex-row md:items-center gap-5">
+        <div className="flex-1">
+          <h3 className="text-xs font-black tracking-wider text-[#004E98] mb-2 flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 bg-[#004E98]" />
+            <Mail className="w-3.5 h-3.5" />
+            报名邮件通知
+          </h3>
+          <p className="text-[11px] leading-relaxed text-[#666666]">
+            有玩家报名或取消报名你发布的团时，系统会自动给你的邮箱发一封提醒，包含玩家 QQ、团次信息和当前人数。默认发到登录用的 QQ 邮箱。
+          </p>
+        </div>
+        <div className="md:w-[290px] shrink-0 flex flex-col gap-2">
+          {isEditing ? (
+            <input
+              type="email"
+              value={notifyEmail}
+              onChange={(e) => setNotifyEmail(e.target.value)}
+              placeholder={`留空则用 ${currentUser.qq}@qq.com`}
+              className="bauhaus-input w-full px-3 py-2 text-xs"
+            />
+          ) : (
+            <div className="text-xs font-bold text-[#121212] bg-[#F6F5F0] border-l-4 border-[#004E98] px-3 py-2 break-all">
+              收件邮箱：{currentUser.notifyEmail || `${currentUser.qq}@qq.com`}
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-[11px] font-bold text-[#333333] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="accent-[#004E98] w-3.5 h-3.5"
+              checked={signupNotifyEnabled}
+              disabled={!isEditing}
+              onChange={(e) => setSignupNotifyEnabled(e.target.checked)}
+            />
+            接收报名 / 取消报名提醒
+          </label>
+          <p className="text-[10px] text-[#888888]">
+            {isEditing ? '留空邮箱＝恢复默认 QQ 邮箱，保存后生效' : '点右上角「编辑资料」可修改邮箱或关闭通知'}
+          </p>
         </div>
       </div>
 

@@ -39,7 +39,8 @@ export function App() {
   const [currentUserId, setUserIdState] = useState<string | null>(null);
 
   // UI States
-  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>('board');
+  // 报名通知邮件里的按钮带 ?view=manage，点开直接落在团务管理。
+  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>(() => new URLSearchParams(window.location.search).get('view') === 'manage' ? 'manage' : 'board');
   const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
