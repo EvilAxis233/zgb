@@ -90,6 +90,13 @@ export function App() {
     refresh().catch((error) => showToast(error.message, 'error')).finally(() => setLoading(false));
   }, []);
 
+  // 在线状态心跳：登录用户每 60 秒轻打一次，供后台统计「实时在线人数」，不刷新页面数据。
+  useEffect(() => {
+    if (!currentUserId) return;
+    const timer = window.setInterval(() => { api.me().catch(() => {}); }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [currentUserId]);
+
   // Toast Helper
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now();

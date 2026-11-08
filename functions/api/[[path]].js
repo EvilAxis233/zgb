@@ -98,7 +98,12 @@ const adminAuth = async (request, db) => isSiteAdmin(await auth(request, db));
 async function auth(request, db) {
   const token = /(?:^|;\s*)zgb_session=([^;]+)/.exec(request.headers.get('Cookie') || '')?.[1];
   if (!token) return null;
-  const user = await db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(await sha256(token), now()).first();
+  const hash = await sha256(token), t = now();
+  const user = await db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(hash, t).first();
+  if (user) {
+    // 在线心跳：同一会话每 60 秒最多写一次，未满足条件时 SQLite 不会产生写入。
+    await db.prepare('UPDATE sessions SET last_seen_at=? WHERE token_hash=? AND (last_seen_at IS NULL OR last_seen_at<?)').bind(t, hash, t - 60).run();
+  }
   return user;
 }
 async function sendCode(env, qq, code) {
@@ -219,20 +224,33 @@ export async function onRequest(context) {
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last7,
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last30
             FROM users`).bind(today, asDate(sevenDaysAgo), asDate(thirtyDaysAgo)),
-          db.prepare(`SELECT COUNT(*) total,
-            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (kind='promo' OR (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players) THEN 1 ELSE 0 END) recruiting,
-            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NOT NULL THEN 1 ELSE 0 END) finished,
-            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END) closed,
-            SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END) deleted,
-            COALESCE(SUM((SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)),0) members,
-            COALESCE(ROUND(AVG(CASE WHEN deleted_at IS NULL AND kind<>'promo' THEN 100.0*(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)/max_players END),1),0) avg_fill_rate
-            FROM campaigns`).bind(today),
+          // 宣群不算开团：全部团次 = 网团 + 面团；报名数与满员率同样排除宣群。
           db.prepare(`SELECT
-            (SELECT COUNT(*) FROM campaign_memberships) memberships,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind IN ('online','offline') THEN 1 ELSE 0 END),0) total,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind='online' THEN 1 ELSE 0 END),0) online_total,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind='offline' THEN 1 ELSE 0 END),0) offline_total,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind IN ('online','offline') AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players THEN 1 ELSE 0 END),0) recruiting,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind='online' AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players THEN 1 ELSE 0 END),0) online_recruiting,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind='offline' AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)<max_players THEN 1 ELSE 0 END),0) offline_recruiting,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind IN ('online','offline') AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END),0) closed,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind='online' AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END),0) online_closed,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind='offline' AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END),0) offline_closed,
+            COALESCE(SUM(CASE WHEN deleted_at IS NULL AND kind IN ('online','offline') AND finished_at IS NOT NULL THEN 1 ELSE 0 END),0) finished,
+            COALESCE(SUM(CASE WHEN kind IN ('online','offline') AND deleted_at IS NOT NULL THEN 1 ELSE 0 END),0) deleted,
+            COALESCE(SUM(CASE WHEN kind='promo' AND deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL THEN 1 ELSE 0 END),0) promo_live,
+            COALESCE(SUM(CASE WHEN kind='promo' AND (closed_at IS NOT NULL OR finished_at IS NOT NULL) THEN 1 ELSE 0 END),0) promo_history,
+            COALESCE(SUM(CASE WHEN kind='promo' THEN 1 ELSE 0 END),0) promo_total,
+            COALESCE(SUM(CASE WHEN kind IN ('online','offline') THEN (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id) ELSE 0 END),0) members,
+            COALESCE(ROUND(AVG(CASE WHEN deleted_at IS NULL AND kind IN ('online','offline') THEN 100.0*(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)/max_players END),1),0) avg_fill_rate
+            FROM campaigns`).bind(today, today, today),
+          db.prepare(`SELECT
+            (SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE c.kind IN ('online','offline')) memberships,
             (SELECT COUNT(*) FROM praises) praises,
             (SELECT COUNT(*) FROM praises WHERE type='gm') gm_praises,
             (SELECT COUNT(*) FROM praises WHERE type='player') player_praises,
-            (SELECT COUNT(*) FROM sessions WHERE expires_at>?) active_sessions`).bind(now()),
+            (SELECT COUNT(*) FROM sessions WHERE expires_at>?) active_sessions,
+            (SELECT COUNT(DISTINCT qq) FROM sessions WHERE expires_at>? AND last_seen_at>?) online_now`)
+            .bind(now(), now(), now() - 15 * 60),
           db.prepare(`SELECT COUNT(*) total,
             SUM(CASE WHEN type='feedback' THEN 1 ELSE 0 END) feedback,
             SUM(CASE WHEN type='report' THEN 1 ELSE 0 END) reports,
@@ -242,17 +260,19 @@ export async function onRequest(context) {
             SUM(CASE WHEN status='rejected' THEN 1 ELSE 0 END) rejected
             FROM submissions`),
           db.prepare(`SELECT kind,COUNT(*) total,
+            SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) alive,
             SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NULL AND scheduled_date>=? THEN 1 ELSE 0 END) active,
+            SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NULL AND closed_at IS NOT NULL THEN 1 ELSE 0 END) closed,
             SUM(CASE WHEN deleted_at IS NULL AND finished_at IS NOT NULL THEN 1 ELSE 0 END) finished
             FROM campaigns GROUP BY kind ORDER BY total DESC`).bind(today),
           db.prepare(`SELECT rule,COUNT(*) total FROM campaigns WHERE deleted_at IS NULL GROUP BY rule ORDER BY total DESC,rule LIMIT 8`),
           db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM users WHERE substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
-          db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo))
+          db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE kind IN ('online','offline') AND substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo))
         ]);
         return json({
           users: users.results[0], campaigns: campaigns.results[0], engagement: engagement.results[0], submissions: submissions.results[0],
           campaignKinds: campaignKinds.results, topRules: topRules.results, dailyUsers: dailyUsers.results, dailyCampaigns: dailyCampaigns.results,
-          generatedAt: new Date().toISOString()
+          onlineWindow: 15, generatedAt: new Date().toISOString()
         });
       }
       if (path[1] === 'rules' && path.length === 2) {

@@ -16,9 +16,13 @@ const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDash
 ];
 const number = (value: unknown) => Number(value || 0).toLocaleString('zh-CN');
 
-function MetricCard({ label, value, note, tone = 'blue' }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black' }) {
+function MetricCard({ label, value, note, tone = 'blue', live = false }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black'; live?: boolean }) {
   const color = { red: '#D62828', blue: '#004E98', yellow: '#C85C16', black: '#121212' }[tone];
-  return <article className="bauhaus-card bg-white px-4 py-2 relative overflow-hidden flex flex-col justify-center"><span className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }} /><p className="text-[11px] font-black text-[#666] leading-tight">{label}</p><strong className="block text-3xl font-black leading-tight" style={{ color }}>{number(value)}</strong><p className="text-[11px] text-[#777] leading-tight">{note}</p></article>;
+  return <article className="bauhaus-card bg-white px-4 py-2 relative overflow-hidden flex flex-col justify-center"><span className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }} /><p className="text-[11px] font-black text-[#666] leading-tight flex items-center gap-1.5">{live && <span className="w-2 h-2 bg-[#2E7D32] animate-pulse" />}{label}</p><strong className="block text-3xl font-black leading-tight" style={{ color }}>{number(value)}</strong><p className="text-[11px] text-[#777] leading-tight">{note}</p></article>;
+}
+
+function StatCell({ label, value, color }: { label: string; value: unknown; color?: string }) {
+  return <div><span className="block text-[10px] font-bold text-[#666]">{label}</span><strong className="text-xl font-black" style={color ? { color } : undefined}>{typeof value === 'string' ? value : number(value)}</strong></div>;
 }
 
 function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: boolean }) {
@@ -37,30 +41,48 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
   const peakUsers = Math.max(0, ...trends.map((day) => userMap.get(day) || 0));
   const peakCampaigns = Math.max(0, ...trends.map((day) => campaignMap.get(day) || 0));
   const kindNames = { online: '网团', offline: '面团', promo: '宣群' };
+  const c = data.campaigns, e = data.engagement, sub = data.submissions;
   return <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
-    <div className="flex items-center justify-between gap-3 shrink-0"><div className="flex items-baseline gap-2"><h3 className="text-base font-black">平台总览</h3><p className="text-[11px] text-[#666]">用户、团务、互动与受理队列实时汇总</p></div><time className="text-[11px] text-[#777] shrink-0">更新于 {new Date(data.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div>
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0"><MetricCard label="注册用户" value={data.users.total} note={`今日 +${number(data.users.today)} · 近 30 天 +${number(data.users.last30)}`} /><MetricCard label="全部团次" value={data.campaigns.total} note={`正在招募 ${number(data.campaigns.recruiting)} 个`} tone="red" /><MetricCard label="累计报名" value={data.engagement.memberships} note={`平均满员率 ${number(data.campaigns.avg_fill_rate)}%`} tone="yellow" /><MetricCard label="待办工单" value={Number(data.submissions.pending) + Number(data.submissions.processing)} note={`待受理 ${number(data.submissions.pending)} · 处理中 ${number(data.submissions.processing)}`} tone="black" /></section>
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0"><MetricCard label="近 7 天新增用户" value={data.users.last7} note="含今日" /><MetricCard label="已结团" value={data.campaigns.finished} note={`锁车 ${number(data.campaigns.closed)} · 删除 ${number(data.campaigns.deleted)}`} tone="red" /><MetricCard label="累计点赞" value={data.engagement.praises} note={`GM ${number(data.engagement.gm_praises)} · 玩家 ${number(data.engagement.player_praises)}`} tone="yellow" /><MetricCard label="当前登录会话" value={data.engagement.active_sessions} note="尚未过期的登录设备" tone="black" /></section>
+    <div className="flex items-center justify-between gap-3 shrink-0"><div className="flex items-baseline gap-2"><h3 className="text-base font-black">平台总览</h3><p className="text-[11px] text-[#666]">宣群不计入团次与报名率 · 每 30 秒自动刷新</p></div><time className="text-[11px] text-[#777] shrink-0">更新于 {new Date(data.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div>
+    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
+      <MetricCard label="注册用户" value={data.users.total} note={`今日 +${number(data.users.today)} · 近 30 天 +${number(data.users.last30)}`} />
+      <MetricCard label="全部团次" value={c.total} note={`网团 ${number(c.online_total)} + 面团 ${number(c.offline_total)} · 不含宣群`} tone="red" />
+      <MetricCard label="实时在线人数" value={e.online_now} note={`近 ${number(data.onlineWindow)} 分钟活跃 · 会话 ${number(e.active_sessions)}`} live />
+      <MetricCard label="待办工单" value={Number(sub.pending) + Number(sub.processing)} note={`待受理 ${number(sub.pending)} · 处理中 ${number(sub.processing)}`} tone="black" />
+    </section>
+    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
+      <MetricCard label="网团" value={c.online_total} note={`招募中 ${number(c.online_recruiting)} · 封车 ${number(c.online_closed)}`} />
+      <MetricCard label="面团" value={c.offline_total} note={`招募中 ${number(c.offline_recruiting)} · 封车 ${number(c.offline_closed)}`} tone="red" />
+      <MetricCard label="宣群（现存）" value={c.promo_live} note={`历史 ${number(c.promo_history)} · 共计 ${number(c.promo_total)} · 不算开团`} tone="yellow" />
+      <MetricCard label="累计点赞" value={e.praises} note={`GM ${number(e.gm_praises)} · 玩家 ${number(e.player_praises)}`} tone="yellow" />
+    </section>
     <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3 lg:flex-1 lg:min-h-0">
-      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[260px] lg:min-h-0">
-        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Activity size={16} className="text-[#004E98]" />近 30 天增长</h3><div className="flex gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#004E98]" />用户 +{number(sumUsers)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#D62828]" />团次 +{number(sumCampaigns)}</span></div></div>
-        <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 30 天用户与团次增长柱状图">
+      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[240px] lg:min-h-0">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Activity size={16} className="text-[#004E98]" />近 30 天增长</h3><div className="flex gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#004E98]" />用户 +{number(sumUsers)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#D62828]" />开团 +{number(sumCampaigns)}（不含宣群）</span></div></div>
+        <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 30 天用户与开团增长柱状图">
           <div className="absolute left-0 top-4 bottom-0 w-7 flex flex-col justify-between text-[10px] font-bold text-[#777] text-right pr-1 pointer-events-none"><span>{maxTrend}</span><span>{Math.round(maxTrend / 2)}</span><span>0</span></div>
           <div className="absolute left-8 right-1 top-5 bottom-0 flex flex-col justify-between pointer-events-none"><span className="block border-t border-dashed border-[#DDD]" /><span className="block border-t border-dashed border-[#DDD]" /><span className="block border-t border-dashed border-[#DDD]" /></div>
-          <div className="relative h-full flex items-end gap-px">{trends.map((day) => { const u = userMap.get(day) || 0, c = campaignMap.get(day) || 0; return <div key={day} className="flex-1 min-w-0 h-full flex items-end justify-center gap-px" title={`${day}：新增用户 ${u} · 新增团次 ${c}`}><div className="relative w-1/2 min-h-[2px] bg-[#004E98]" style={{ height: `${Math.max(2, (u / maxTrend) * 100)}%` }}>{u > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[9px] xl:text-[10px] leading-none font-black text-[#004E98]">{u}</span>}</div><div className="relative w-1/2 min-h-[2px] bg-[#D62828]" style={{ height: `${Math.max(2, (c / maxTrend) * 100)}%` }}>{c > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[9px] xl:text-[10px] leading-none font-black text-[#D62828]">{c}</span>}</div></div>; })}</div>
+          <div className="relative h-full flex items-end gap-px">{trends.map((day) => { const u = userMap.get(day) || 0, n = campaignMap.get(day) || 0; return <div key={day} className="flex-1 min-w-0 h-full flex items-end justify-center gap-px" title={`${day}：新增用户 ${u} · 新开团 ${n}（不含宣群）`}><div className="relative w-1/2 min-h-[2px] bg-[#004E98]" style={{ height: `${Math.max(2, (u / maxTrend) * 100)}%` }}>{u > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[9px] xl:text-[10px] leading-none font-black text-[#004E98]">{u}</span>}</div><div className="relative w-1/2 min-h-[2px] bg-[#D62828]" style={{ height: `${Math.max(2, (n / maxTrend) * 100)}%` }}>{n > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[9px] xl:text-[10px] leading-none font-black text-[#D62828]">{n}</span>}</div></div>; })}</div>
         </div>
-        <div className="flex justify-between text-[10px] text-[#777] mt-1 shrink-0"><span>{trends[0]}</span><span className="font-bold">单日峰值 用户 {number(peakUsers)} · 团次 {number(peakCampaigns)}</span><span>{endDay}</span></div>
+        <div className="flex justify-between text-[10px] text-[#777] mt-1 shrink-0"><span>{trends[0]}</span><span className="font-bold">单日峰值 用户 {number(peakUsers)} · 开团 {number(peakCampaigns)}</span><span>{endDay}</span></div>
       </section>
-      <div className="flex flex-col gap-3 min-h-0">
-        <section className="bauhaus-card bg-white p-3 min-w-0 flex-1 min-h-[150px] lg:min-h-0 flex flex-col">
-          <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><BarChart3 size={16} className="text-[#D62828]" />板块分布</h3><span className="text-[11px] font-bold">有效与历史</span></div>
-          <div className="flex-1 min-h-0 flex flex-col justify-around gap-2">{data.campaignKinds.map((item) => { const ratio = Number(item.total) ? Math.round(Number(item.active) / Number(item.total) * 100) : 0; return <div key={item.kind}><div className="flex justify-between text-[11px] font-bold mb-1"><span>{kindNames[item.kind]}</span><span>共 {number(item.total)} · 活跃 {number(item.active)} · 结团 {number(item.finished)}</span></div><div className="h-3.5 border border-[#121212] bg-[#EEE]"><div className="h-full bg-[#D62828]" style={{ width: `${ratio}%` }} /></div></div>; })}</div>
-        </section>
-        <section className="bauhaus-card bg-white px-3 py-2 shrink-0">
-          <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3><span className="text-[10px] font-bold text-[#777]">受理状态</span></div>
-          <div className="grid grid-cols-4 gap-2 text-center"><div><span className="block text-[10px] font-bold text-[#666]">反馈总数</span><strong className="text-xl font-black text-[#004E98]">{number(data.submissions.feedback)}</strong></div><div><span className="block text-[10px] font-bold text-[#666]">举报总数</span><strong className="text-xl font-black text-[#D62828]">{number(data.submissions.reports)}</strong></div><div><span className="block text-[10px] font-bold text-[#666]">已解决</span><strong className="text-xl font-black">{number(data.submissions.resolved)}</strong></div><div><span className="block text-[10px] font-bold text-[#666]">已驳回</span><strong className="text-xl font-black">{number(data.submissions.rejected)}</strong></div></div>
-        </section>
-      </div>
+      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[220px] lg:min-h-0">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><BarChart3 size={16} className="text-[#D62828]" />板块分布</h3><span className="text-[11px] font-bold">有效与历史</span></div>
+        <div className="flex-1 min-h-0 flex flex-col justify-around gap-2">{data.campaignKinds.map((item) => { const ratio = Number(item.alive) ? Math.round(Number(item.active) / Number(item.alive) * 100) : 0; const detail = item.kind === 'promo' ? `共 ${number(item.alive)} · 展示中 ${number(c.promo_live)} · 历史 ${number(c.promo_history)}` : `共 ${number(item.alive)} · 招募中 ${number(item.active)} · 封车 ${number(item.closed)} · 结团 ${number(item.finished)}`; return <div key={item.kind}><div className="flex justify-between text-[11px] font-bold mb-1"><span>{kindNames[item.kind]}</span><span>{detail}</span></div><div className="h-3.5 border border-[#121212] bg-[#EEE]"><div className="h-full bg-[#D62828]" style={{ width: `${ratio}%` }} /></div></div>; })}</div>
+        <p className="text-[10px] text-[#777] mt-1 shrink-0">宣群单独统计，不计入全部团次（{number(c.online_total)} + {number(c.offline_total)} = {number(c.total)}）</p>
+      </section>
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3 shrink-0">
+      <section className="bauhaus-card bg-white px-3 py-2">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">团务状态</h3><span className="text-[10px] font-bold text-[#777]">仅网团 / 面团 · 封车与结团各自独立统计</span></div>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center"><StatCell label="招募中" value={c.recruiting} color="#004E98" /><StatCell label="封车" value={c.closed} color="#C85C16" /><StatCell label="结团" value={c.finished} color="#D62828" /><StatCell label="累计报名" value={e.memberships} /><StatCell label="平均满员率" value={`${number(c.avg_fill_rate)}%`} /></div>
+        <p className="text-[10px] text-[#777] mt-1">已删除团 {number(c.deleted)} · 报名数与满员率均不含宣群</p>
+      </section>
+      <section className="bauhaus-card bg-white px-3 py-2">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3><span className="text-[10px] font-bold text-[#777]">受理状态</span></div>
+        <div className="grid grid-cols-4 gap-2 text-center"><StatCell label="反馈总数" value={sub.feedback} color="#004E98" /><StatCell label="举报总数" value={sub.reports} color="#D62828" /><StatCell label="已解决" value={sub.resolved} /><StatCell label="已驳回" value={sub.rejected} /></div>
+        <p className="text-[10px] text-[#777] mt-1">默认展开未处理工单，已处理记录折叠</p>
+      </section>
     </div>
   </div>;
 }
@@ -94,6 +116,18 @@ export function AdminPage() {
 
   useEffect(() => { adminApi.me().then((data) => { setAuthenticated(data.authenticated); setMyRole(data.role); }).catch(() => setAuthenticated(false)); }, []);
   useEffect(() => { if (authenticated && activeSection === 'dashboard') loadDashboard(); }, [authenticated, activeSection]);
+  // 实时在线：停留在看板时每 30 秒静默拉一次数据，不闪 loading。
+  useEffect(() => {
+    if (!authenticated || activeSection !== 'dashboard') return;
+    const timer = window.setInterval(() => { adminApi.dashboard().then(setDashboard).catch(() => {}); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [authenticated, activeSection]);
+  // 后台其它页面也要保持在线状态，避免切走后 15 分钟被判离线。
+  useEffect(() => {
+    if (!authenticated) return;
+    const timer = window.setInterval(() => { adminApi.me().catch(() => {}); }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [authenticated]);
   useEffect(() => { if (authenticated && activeSection === 'content') loadRules().catch(message); }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset).then((data) => { setUsers(data.users); setUserTotal(data.total); }).catch(message); }, [authenticated, activeSection, search, userOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.grants(selected.qq, grantOffset).then((data) => { setGrants(data.records); setGrantTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, grantOffset]);

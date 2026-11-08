@@ -94,13 +94,22 @@ export interface MembershipGrant {
 
 export interface AdminDashboard {
   users: { total: number; today: number; last7: number; last30: number };
-  campaigns: { total: number; recruiting: number; finished: number; closed: number; deleted: number; members: number; avg_fill_rate: number };
-  engagement: { memberships: number; praises: number; gm_praises: number; player_praises: number; active_sessions: number };
+  // 全部团次 = online_total + offline_total；宣群与报名/满员率完全分开统计。
+  campaigns: {
+    total: number; online_total: number; offline_total: number;
+    recruiting: number; online_recruiting: number; offline_recruiting: number;
+    closed: number; online_closed: number; offline_closed: number;
+    finished: number; deleted: number;
+    promo_live: number; promo_history: number; promo_total: number;
+    members: number; avg_fill_rate: number;
+  };
+  engagement: { memberships: number; praises: number; gm_praises: number; player_praises: number; active_sessions: number; online_now: number };
   submissions: { total: number; feedback: number; reports: number; pending: number; processing: number; resolved: number; rejected: number };
-  campaignKinds: Array<{ kind: 'online' | 'offline' | 'promo'; total: number; active: number; finished: number }>;
+  campaignKinds: Array<{ kind: 'online' | 'offline' | 'promo'; total: number; alive: number; active: number; closed: number; finished: number }>;
   topRules: Array<{ rule: string; total: number }>;
   dailyUsers: Array<{ day: string; count: number }>;
   dailyCampaigns: Array<{ day: string; count: number }>;
+  onlineWindow: number;
   generatedAt: string;
 }
 
