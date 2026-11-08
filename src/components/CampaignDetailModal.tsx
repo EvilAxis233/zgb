@@ -58,20 +58,27 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   const isAdminModerator = !!currentUser?.isAdmin && !!onEditCampaign && !!onDeleteCampaign;
   const handleAdminDelete = async () => {
     if (!campaign) return;
+    // 宣群等同于「结束宣发」，一次确认即删除；普通团删除违规内容仍保留双重确认。
+    const isPromo = campaign.kind === 'promo';
     const first = await showConfirm({
-      title: '删除违规团',
-      message: `确定删除《${campaign.title}》吗？团、成员记录和相关点赞将被删除。`,
-      confirmText: '继续删除',
+      title: isPromo ? '结束宣发' : '删除违规团',
+      message: isPromo
+        ? `确定结束「${campaign.title}」的宣发吗？确认后这条宣群记录将被永久删除，后台不再保留，且无法恢复。`
+        : `确定删除《${campaign.title}》吗？团、成员记录和相关点赞将被删除。`,
+      confirmText: isPromo ? '确定结束宣发' : '继续删除',
       type: 'danger',
     });
     if (!first) return;
-    const second = await showConfirm({
-      title: '最终确认',
-      message: `再次确认：《${campaign.title}》删除后无法恢复，确定执行吗？`,
-      confirmText: '确认删除',
-      type: 'danger',
-    });
-    if (second) onDeleteCampaign?.(campaign.id);
+    if (!isPromo) {
+      const second = await showConfirm({
+        title: '最终确认',
+        message: `再次确认：《${campaign.title}》删除后无法恢复，确定执行吗？`,
+        confirmText: '确认删除',
+        type: 'danger',
+      });
+      if (!second) return;
+    }
+    onDeleteCampaign?.(campaign.id);
   };
 
   const handleRemoveMember = async (member: CampaignMember) => {
@@ -263,7 +270,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             {isAdminModerator && (
               <>
                 <button type="button" onClick={() => onEditCampaign?.(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5"><Edit2 className="w-4 h-4" />编辑</button>
-                <button type="button" onClick={handleAdminDelete} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5"><Trash2 className="w-4 h-4" />删除</button>
+                <button type="button" onClick={handleAdminDelete} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5"><Trash2 className="w-4 h-4" />{campaign.kind === 'promo' ? '结束宣发' : '删除'}</button>
               </>
             )}
             <button type="button" onClick={onClose} className="bauhaus-btn bg-white px-5 py-1.5 text-xs font-bold">关闭</button>

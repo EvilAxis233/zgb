@@ -18,7 +18,7 @@ interface Props {
   rules: string[];
   popularCustomTags?: string[];
   stickerLibrary?: string[];
-  onDeleteCampaign: (id: string) => void;
+  onDeleteCampaign: (id: string) => void | Promise<unknown>;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
   onFinishCampaign: (id: string) => void;
   onAddBatchSlot: (batchId: string, timeSchedule: string) => Promise<boolean>;
@@ -59,6 +59,7 @@ export const ManageView: React.FC<Props> = ({
   const [addingSlot, setAddingSlot] = useState(false);
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
   const [stickerTouched, setStickerTouched] = useState(false);
+  const [endingPromoIds, setEndingPromoIds] = useState<string[]>([]);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const addTag = () => {
@@ -90,15 +91,20 @@ export const ManageView: React.FC<Props> = ({
     });
     if (ok) onCancelSignup(campaign.id);
   };
-  // 宣群不再「封车」留记录：二次确认后直接物理删除，后台不保留。
+  // 宣群不再「封车」留记录：一次确认后直接物理删除，后台不保留。
+  // 确认期间锁住该按钮，避免连点或等待网络时看起来「没反应」。
   const handleEndPromo = async (campaign: Campaign) => {
+    if (endingPromoIds.includes(campaign.id)) return;
     const ok = await showConfirm({
       title: '结束宣发',
       message: `确定结束「${campaign.title}」的宣发吗？确认后这条宣群记录将被永久删除，后台不再保留，且无法恢复。`,
       confirmText: '确定结束宣发',
       type: 'danger',
     });
-    if (ok) onDeleteCampaign(campaign.id);
+    if (!ok) return;
+    setEndingPromoIds((previous) => [...previous, campaign.id]);
+    try { await onDeleteCampaign(campaign.id); }
+    finally { setEndingPromoIds((previous) => previous.filter((item) => item !== campaign.id)); }
   };
   const handleClosure = async (campaign: Campaign) => {
     const closed = !campaign.isClosed;
@@ -152,7 +158,7 @@ export const ManageView: React.FC<Props> = ({
             {hosted ? <>
               {!campaign.batchId && !campaign.hasEnded && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
               {campaign.kind === 'promo' ? (
-                <button onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />结束宣发</button>
+                <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><Trash2 className="w-3.5 h-3.5" />{endingPromoIds.includes(campaign.id) ? '正在删除…' : '结束宣发'}</button>
               ) : <>
                 {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
                 {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}

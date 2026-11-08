@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Campaign,
   CampaignDetail,
@@ -53,6 +53,10 @@ export function App() {
   const [pendingActions, setPendingActions] = useState(0);
   const [loadingCampaignId, setLoadingCampaignId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastState[]>([]);
+  // 本次会话里已删除的团：即使后续某次刷新拿到删除前的旧快照，也不会让记录「复活」。
+  const removedIdsRef = useRef<Set<string>>(new Set());
+  // 正在删除中的团：防止确认框被连点或重复触发。
+  const deletingIdsRef = useRef<Set<string>>(new Set());
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,14 +77,14 @@ export function App() {
     if (user) {
       const data = await api.bootstrap();
       setUsers([...data.users.filter((u) => u.id !== data.user.id), data.user]);
-      setCampaigns(data.campaigns);
+      setCampaigns(data.campaigns.filter((c) => !removedIdsRef.current.has(c.id)));
       setRules(data.rules);
       setPopularCustomTags(data.popularCustomTags || []);
       setUserIdState(data.user.id);
     } else {
       const data = await api.campaigns();
       setUsers(data.users);
-      setCampaigns(data.campaigns);
+      setCampaigns(data.campaigns.filter((c) => !removedIdsRef.current.has(c.id)));
       setRules(data.rules);
       setPopularCustomTags(data.popularCustomTags || []);
       setUserIdState(null);
@@ -116,7 +120,13 @@ export function App() {
   // Daily Check-in
   const run = async (work: () => Promise<unknown>, message: string) => {
     setPendingActions((count) => count + 1);
-    try { await work(); await refresh(); showToast(message, 'success'); return true; }
+    try {
+      await work();
+      // 操作已经成功；全量刷新只是同步数据，弱网下失败不应把它误报成「操作失败」。
+      try { await refresh(); } catch { /* 下次操作或刷新会自行同步 */ }
+      showToast(message, 'success');
+      return true;
+    }
     catch (error) { showToast(error instanceof Error ? error.message : '操作失败', 'error'); return false; }
     finally { setPendingActions((count) => count - 1); }
   };
@@ -153,8 +163,36 @@ export function App() {
     return run(async () => { await api.createCampaign(await prepareCampaign(data)); }, `${data.kind === 'online' ? '网团' : data.kind === 'offline' ? '面团' : '宣群'}《${data.title}》发布成功`);
   };
 
-  // Delete Campaign
-  const handleDeleteCampaign = (campaignId: string) => run(() => api.deleteCampaign(campaignId), campaigns.find((campaign) => campaign.id === campaignId)?.kind === 'promo' ? '宣发已结束，记录已删除' : '战役已弃团');
+  // 删除 / 结束宣发：第一次确认后立即删除并立即从界面移除。
+  // 不再等全量刷新，避免弱网下刷新慢或失败时旧卡片仍挂在列表里，被误认为「没删掉」而再点一次。
+  const handleDeleteCampaign = async (campaignId: string, successMessage?: string) => {
+    if (deletingIdsRef.current.has(campaignId)) return true;
+    const target = campaigns.find((campaign) => campaign.id === campaignId);
+    const message = successMessage || (target?.kind === 'promo' ? '宣发已结束，记录已删除' : '战役已弃团');
+    deletingIdsRef.current.add(campaignId);
+    setPendingActions((count) => count + 1);
+    try {
+      await api.deleteCampaign(campaignId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : '操作失败';
+      // 服务端已经没有这个团（例如上一次点击其实删除成功了），按成功收敛，不再让用户重试。
+      if (!/团不存在|404/.test(reason)) {
+        showToast(reason, 'error');
+        return false;
+      }
+    } finally {
+      deletingIdsRef.current.delete(campaignId);
+      setPendingActions((count) => count - 1);
+    }
+    removedIdsRef.current.add(campaignId);
+    setCampaigns((previous) => previous.filter((campaign) => campaign.id !== campaignId));
+    setSelectedCampaign((previous) => (previous?.id === campaignId ? null : previous));
+    setAdminEditingCampaign((previous) => (previous?.id === campaignId ? null : previous));
+    showToast(message, 'success');
+    // 本地状态已精确移除，不再整页刷新：弱网下那次刷新失败会把登录态降级或读到旧快照，
+    // 反而制造「又回来了」的错觉。规则、点赞数等在下一次操作或重新进入页面时自然同步。
+    return true;
+  };
   // 站长/管理员在主界面详情弹窗中直接编辑或删除任意团
   const handleAdminEditCampaign = (campaign: CampaignDetail) => setAdminEditingCampaign(campaign);
   const handleAdminEditSave = async (updated: Campaign) => {
@@ -166,9 +204,8 @@ export function App() {
     }
     return ok;
   };
-  const handleAdminDeleteCampaign = async (campaignId: string) => {
-    const ok = await run(() => api.deleteCampaign(campaignId), '该团已被删除');
-    if (ok) setSelectedCampaign(null);
+  const handleAdminDeleteCampaign = (campaignId: string) => {
+    void handleDeleteCampaign(campaignId, '该团已被删除');
   };
   const handleSetCampaignClosed = (campaignId: string, closed: boolean) => run(() => api.setCampaignClosed(campaignId, closed), closed ? '本团已锁车' : '本团已重新开放报名');
   const handleFinishCampaign = (campaignId: string) => run(() => api.finishCampaign(campaignId), '本团已结团');

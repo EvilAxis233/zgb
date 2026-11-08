@@ -897,7 +897,11 @@ export async function onRequest(context) {
     }
     if (path[0] === 'campaigns' && path[1]) {
       const cid = path[1], c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(cid).first();
-      if (!c) return fail('团不存在', 404);
+      if (!c) {
+        // 删除是物理删除且幂等：用户重复点「结束宣发」时按成功返回，避免界面误报「团不存在」让人以为第一次没删掉。
+        if (path.length === 2 && method === 'DELETE') return json({ ok: true, alreadyDeleted: true });
+        return fail('团不存在', 404);
+      }
       if (path[2] === 'signup' && path.length === 3 && method === 'POST') {
         if (c.kind === 'promo') return fail('宣群无需报名，请登录后查看联系方式', 409);
         if (c.gm_qq === user.qq) return fail('主持人不能报名自己的团');
