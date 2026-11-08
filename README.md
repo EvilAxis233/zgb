@@ -28,6 +28,8 @@
 
 初始 D1 为空，不自动导入演示账号或团。登录时输入 QQ 号，后端向 `<QQ号>@qq.com` 发送六位验证码，十分钟有效；单号 60 秒内不可重发，每小时最多五次，同一 IP 每小时最多二十次；一个验证码最多尝试五次。登录成功后建立 30 天的 HttpOnly 会话。该流程验证 QQ 邮箱收件能力，不是腾讯 QQ OAuth。
 
+**报名邮件通知：**玩家报名成功后，用同一个 Resend 通道给该团 GM 发一封提醒（默认收件地址 `<GM的QQ>@qq.com`，GM 可在个人档案改邮箱或关闭）。逐次发送，每有一位玩家报名发一封；取消报名不通知。发信整段走 `context.waitUntil`，失败只写 `signup_mail_log`，不影响报名结果。`migrations/0025_signup_mail.sql` 添加 `users.notify_email`、`users.signup_notify_enabled` 与日志表，**部署代码前必须先应用该迁移**。邮件正文模板在 `functions/api/[[path]].js` 的 `SIGNUP_MAIL_TEMPLATE` 标记块内，改文案后运行 `node scripts/gen-signup-mail-preview.mjs` 重新生成预览页。
+
 主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`campaigns/:id/finish`、`profile`、`profile/avatar`、`membership/redeem`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回未锁车、未结团且未满员的团；其余团仅对 GM 和已报名玩家保留。弃团会删除该团、成员记录和团内点赞。
 
 `migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。只有主持手动结团后，该团才进入成员个人档案；每日签到按香港日期获得玩家点赞券，普通用户连续签到每满七天获得 1 张 GM 点赞券；有效会员累计签到每满七次获得 2 张，中断不清零。团内点赞必须绑定已结团的团，且只能由该团成员发出。举报须指定站内昵称或 QQ 号，后台按被举报账号统计次数；黑名单支持限时或永久生效，生效期间禁止报名，手动移出后再次加入会重新计时。预定日期过后自动锁车；修改单团时间到未来后，主持可手动重新开放。站点清空浏览器数据不影响这些服务器记录。

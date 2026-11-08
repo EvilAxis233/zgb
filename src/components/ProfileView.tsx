@@ -392,7 +392,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             报名邮件通知
           </h3>
           <p className="text-[11px] leading-relaxed text-[#666666]">
-            有玩家报名或取消报名你发布的团时，系统会自动给你的邮箱发一封提醒，包含玩家 QQ、团次信息和当前人数。默认发到登录用的 QQ 邮箱。
+            有玩家报名你发布的团时，系统会自动给你的邮箱发一封提醒，包含玩家 QQ、团次信息和当前人数。逐次发送，每有一位玩家报名发一封；取消报名不通知。默认发到登录用的 QQ 邮箱。
           </p>
         </div>
         <div className="md:w-[290px] shrink-0 flex flex-col gap-2">
@@ -417,7 +417,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               disabled={!isEditing}
               onChange={(e) => setSignupNotifyEnabled(e.target.checked)}
             />
-            接收报名 / 取消报名提醒
+            接收新玩家报名提醒
           </label>
           <p className="text-[10px] text-[#888888]">
             {isEditing ? '留空邮箱＝恢复默认 QQ 邮箱，保存后生效' : '点右上角「编辑资料」可修改邮箱或关闭通知'}

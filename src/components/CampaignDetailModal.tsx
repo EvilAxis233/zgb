@@ -1,4 +1,5 @@
-import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -38,8 +39,17 @@ function Avatar({ member }: { member: CampaignMember }) {
 
 export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign }) => {
   const { showConfirm } = useDialog();
+  const [copiedQq, setCopiedQq] = useState<string | null>(null);
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
+  // 玩家 QQ 只给该团主持人和站主/管理员看，普通访客与同团其他玩家看不到。
+  const canSeePlayerQq = isGm || !!currentUser?.isAdmin;
+  const copyQq = (qq: string) => {
+    navigator.clipboard?.writeText(qq).then(() => {
+      setCopiedQq(qq);
+      window.setTimeout(() => setCopiedQq(null), 1600);
+    }).catch(() => {});
+  };
   const isMember = isGm || campaign.isSignedUp;
   const gm = campaign.members.find((member) => member.role === 'gm');
   const players = campaign.members.filter((member) => member.role === 'player');
@@ -123,6 +133,17 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 {receivedPraiseBadge}
               </div>
               <strong className="mt-1.5 block text-sm break-all">{member.name}</strong>
+              {canSeePlayerQq && member.role === 'player' && (
+                <button
+                  type="button"
+                  onClick={() => copyQq(member.qq || member.id)}
+                  title="点击复制玩家 QQ 号"
+                  className="mt-1 inline-flex items-center gap-1 border border-[#BFD3EE] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-mono font-bold text-[#004E98] hover:bg-[#E1ECFA] cursor-pointer"
+                >
+                  QQ {member.qq || member.id}
+                  {copiedQq === (member.qq || member.id) ? <span className="text-[#176B57]">已复制</span> : <Copy className="w-3 h-3" />}
+                </button>
+              )}
             </>
           ) : (
             <>

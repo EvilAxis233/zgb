@@ -114,6 +114,7 @@ export interface CampaignSlot {
 
 export interface CampaignMember {
   id: string;
+  qq?: string; // 报名玩家的 QQ 号，仅该团 GM 与站主/管理员在成员名单里可见
   name: string;
   avatar?: string;
   role: 'gm' | 'player';

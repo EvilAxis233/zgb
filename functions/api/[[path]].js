@@ -90,7 +90,7 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
   return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
-const memberDto = (u, role) => ({ id: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
+const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
@@ -120,14 +120,12 @@ async function sendCode(env, qq, code) {
 // 全部内联样式 + table 布局，兼容 QQ 邮箱与手机客户端；不加载任何外部字体、图片或脚本。
 const mailEsc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 function buildSignupMail(d) {
-  const isSignup = d.event === 'signup';
-  const accent = isSignup ? '#D62828' : '#004E98';
+  // 只在「玩家报名成功」时发信；取消报名不通知（站主确认）。
+  const accent = '#D62828';
   const title = String(d.title || '未命名团');
-  const subject = `【诸告板】${isSignup ? '新玩家报名' : '玩家取消报名'} · ${title.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, ' ').slice(0, 30)}`;
+  const subject = `【诸告板】新玩家报名 · ${title.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, ' ').slice(0, 30)}`;
   const remaining = Math.max(0, Number(d.maxPlayers) - Number(d.currentPlayers));
-  const countNote = remaining === 0
-    ? (isSignup ? '已经满员，可以准备封车了' : '当前仍然满员')
-    : `还差 ${remaining} 人满员`;
+  const countNote = remaining === 0 ? '已经满员，可以准备封车了' : `还差 ${remaining} 人满员`;
   const rows = [
     ['团名', title],
     ['规则', d.rule || '—'],
@@ -147,13 +145,9 @@ function buildSignupMail(d) {
     <td style="padding:6px 0;font-size:13px;color:#555;font-weight:bold;width:76px;vertical-align:top;white-space:nowrap;">${mailEsc(label)}</td>
     <td style="padding:6px 0;font-size:13px;color:#121212;font-weight:bold;word-break:break-all;">${mailEsc(value)}</td>
   </tr>`).join('');
-  const headline = isSignup ? '有新玩家报名了' : '有玩家取消了报名';
-  const lead = isSignup
-    ? `你发布的团「${mailEsc(title)}」刚刚收到一位新玩家。`
-    : `你发布的团「${mailEsc(title)}」有一位玩家取消了报名。`;
-  const actionNote = isSignup
-    ? '请尽快通过 QQ 联系玩家确认，并在团务管理里查看完整成员名单。'
-    : '名额已释放，如有候补玩家可及时联系。';
+  const headline = '有新玩家报名了';
+  const lead = `你发布的团「${mailEsc(title)}」刚刚收到一位新玩家。`;
+  const actionNote = '请尽快通过 QQ 联系玩家确认，也可以在「团务管理 → 查看」里看到完整的成员名单和玩家 QQ 号。';
   const html = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${mailEsc(subject)}</title></head>
 <body style="margin:0;padding:0;background:#F4F3EE;-webkit-text-size-adjust:100%;">
@@ -166,7 +160,7 @@ function buildSignupMail(d) {
   </td></tr>
   <tr><td style="height:6px;line-height:6px;font-size:0;background:${accent};">&nbsp;</td></tr>
   <tr><td style="padding:28px 26px 10px 26px;">
-    <div style="display:inline-block;background:${accent};color:#FFFFFF;font-size:11px;font-weight:900;padding:5px 10px;letter-spacing:1px;">${isSignup ? 'NEW SIGNUP' : 'SIGNUP CANCELLED'}</div>
+    <div style="display:inline-block;background:${accent};color:#FFFFFF;font-size:11px;font-weight:900;padding:5px 10px;letter-spacing:1px;">NEW SIGNUP</div>
     <div style="margin-top:14px;font-size:23px;line-height:1.35;font-weight:900;color:#121212;">${headline}</div>
     <div style="margin-top:8px;font-size:13px;line-height:1.7;color:#666666;">${lead}</div>
   </td></tr>
@@ -178,7 +172,7 @@ function buildSignupMail(d) {
   </td></tr>
   <tr><td style="padding:12px 26px 0 26px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F0F5FA;border-left:4px solid #004E98;"><tr><td style="padding:14px 16px;">
-      <div style="font-size:11px;font-weight:900;color:#004E98;letter-spacing:1px;margin-bottom:6px;">${isSignup ? '本次报名玩家' : '取消报名的玩家'}</div>
+      <div style="font-size:11px;font-weight:900;color:#004E98;letter-spacing:1px;margin-bottom:6px;">本次报名玩家</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${playerRows}</table>
     </td></tr></table>
   </td></tr>
@@ -203,10 +197,10 @@ function buildSignupMail(d) {
 </td></tr></table>
 </body></html>`;
   const text = [
-    `【诸告板】${isSignup ? '新玩家报名通知' : '玩家取消报名通知'}`,
+    '【诸告板】新玩家报名通知',
     '',
     `${d.gmName || '主持人'} 你好：`,
-    isSignup ? `你发布的团「${title}」刚刚收到一位新玩家报名。` : `你发布的团「${title}」有一位玩家取消了报名。`,
+    `你发布的团「${title}」刚刚收到一位新玩家报名。`,
     '',
     ...rows.map(([label, value]) => `${label}：${value}`),
     '',
@@ -224,7 +218,7 @@ function buildSignupMail(d) {
 }
 // === SIGNUP_MAIL_TEMPLATE_END ===
 
-// 报名/取消成功后异步发信：整段放进 waitUntil，不占用报名接口的响应时间；任何失败都不影响报名结果。
+// 报名成功后异步发信（取消报名不通知）：整段放进 waitUntil，不占用报名接口的响应时间；任何失败都不影响报名结果。
 const MAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const hkStamp = (iso) => {
   const value = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
@@ -234,7 +228,7 @@ async function writeSignupMailLog(db, entry) {
   await db.prepare('INSERT INTO signup_mail_log(id,campaign_id,gm_qq,player_qq,event_type,recipient,subject,status,error,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
     .bind(entry.id, entry.campaignId, entry.gmQq, entry.playerQq, entry.event, entry.recipient, entry.subject, entry.status, entry.error || null, entry.createdAt).run();
 }
-function queueSignupMail(context, { campaign, actor, event, siteUrl }) {
+function queueSignupMail(context, { campaign, actor, siteUrl }) {
   const { env } = context;
   const db = env.DB;
   const createdAt = new Date().toISOString();
@@ -250,7 +244,6 @@ function queueSignupMail(context, { campaign, actor, event, siteUrl }) {
       : `网团 · ${campaign.session_type || '语音'}${platforms.length ? ' · ' + platforms.join('、') : ''}`;
     const location = campaign.kind === 'offline' ? [campaign.province, campaign.city, campaign.address].filter(Boolean).join(' ') : '';
     const mail = buildSignupMail({
-      event,
       gmName: gm.name,
       playerName: actor.name,
       playerQq: actor.qq,
@@ -264,7 +257,7 @@ function queueSignupMail(context, { campaign, actor, event, siteUrl }) {
       happenedAt: hkStamp(createdAt),
       manageUrl: `${siteUrl}/?view=manage`,
     });
-    const base = { id: logId, campaignId: campaign.id, gmQq: gm.qq, playerQq: actor.qq, event, recipient, subject: mail.subject, createdAt };
+    const base = { id: logId, campaignId: campaign.id, gmQq: gm.qq, playerQq: actor.qq, event: 'signup', recipient, subject: mail.subject, createdAt };
     if (gm.signup_notify_enabled === 0) return void await writeSignupMailLog(db, { ...base, status: 'skipped' });
     if (!env.RESEND_API_KEY) return void await writeSignupMailLog(db, { ...base, status: 'disabled' });
     let status = 'sent', error = '';
@@ -722,7 +715,7 @@ export async function onRequest(context) {
       if (nicknameLength(name) > 20) return fail('昵称最多 10 个中文字符或 20 个英文字符，中文及全角字符按 2 个计算');
       const duplicate = await db.prepare('SELECT 1 FROM users WHERE name=? COLLATE NOCASE AND qq!=?').bind(name, user.qq).first();
       if (duplicate) return fail('该昵称已被使用，请换一个昵称', 409);
-      // 报名通知邮箱：留空表示恢复默认的 QQ 邮箱；关闭开关后不再收到报名/取消报名邮件。
+      // 报名通知邮箱：留空表示恢复默认的 QQ 邮箱；关闭开关后不再收到新玩家报名邮件。
       const requestedEmail = b.notifyEmail === undefined ? undefined : clean(b.notifyEmail, 120).toLowerCase();
       if (requestedEmail && !MAIL_RE.test(requestedEmail)) return fail('通知邮箱格式不正确');
       const requestedNotify = b.signupNotifyEnabled === undefined ? undefined : (b.signupNotifyEnabled ? 1 : 0);
@@ -916,17 +909,15 @@ export async function onRequest(context) {
           AND (SELECT COUNT(*) FROM campaign_memberships WHERE campaign_id=?) < ? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)
           AND NOT EXISTS(SELECT 1 FROM user_blacklist WHERE qq=? AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at>?))`).bind(cid, user.qq, new Date().toISOString(), cid, user.qq, cid, c.max_players, cid, dateHK(), user.qq, now()).run();
         if (!result.meta.changes) return fail('你已经报名或该团已满员', 409);
-        queueSignupMail(context, { campaign: c, actor: user, event: 'signup', siteUrl: url.origin });
+        queueSignupMail(context, { campaign: c, actor: user, siteUrl: url.origin });
         return json({ ok: true }, 201);
       }
       if (path[2] === 'signup' && path.length === 3 && method === 'DELETE') {
         if (campaignExpired(c) || c.finished_at) return fail('开团日结束后不能取消报名');
         if (c.closed_at) return fail('本团已锁车，不能取消报名', 409);
         const result = await db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=? AND user_qq=? AND EXISTS(SELECT 1 FROM campaigns WHERE id=? AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date>=?)').bind(cid, user.qq, cid, dateHK()).run();
-        if (result.meta.changes) {
-          queueSignupMail(context, { campaign: c, actor: user, event: 'cancel', siteUrl: url.origin });
-          return json({ ok: true });
-        }
+        // 取消报名不发邮件（站主确认），只返回成功。
+        if (result.meta.changes) return json({ ok: true });
         const current = await db.prepare('SELECT closed_at FROM campaigns WHERE id=?').bind(cid).first();
         return current?.closed_at ? fail('本团已锁车，不能取消报名', 409) : fail('你尚未报名', 404);
       }
