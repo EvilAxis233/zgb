@@ -129,43 +129,31 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     );
     return (
     <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasColumnDivider ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
-      <div className={`flex items-center gap-3 ${playerGrid ? '' : 'px-4 py-3 justify-center'}`}>
-        <Avatar member={member} />
-        <div className={`min-w-0 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
-          {playerGrid ? (
-            <>
-              <div className="flex min-h-5 flex-wrap items-center gap-2">
-                {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
-                {!!member.stickers?.length && <span className="flex items-center gap-1">{member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-4 w-14 rounded-sm border border-[#121212] bg-white object-cover" />)}</span>}
-                {receivedPraiseBadge}
-              </div>
-              <strong className="mt-1.5 block text-sm break-all">{member.name}</strong>
-              {canSeePlayerQq && member.role === 'player' && (
-                <button
-                  type="button"
-                  onClick={() => copyQq(member.qq || member.id)}
-                  title="点击复制玩家 QQ 号"
-                  className="mt-1 inline-flex items-center gap-1 border border-[#BFD3EE] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-mono font-bold text-[#004E98] hover:bg-[#E1ECFA] cursor-pointer"
-                >
-                  {member.qq || member.id}
-                  {copiedQq === (member.qq || member.id) ? <span className="text-[#176B57]">已复制</span> : <Copy className="w-3 h-3" />}
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="flex min-w-0 flex-nowrap items-center gap-2">
-                <strong className="min-w-0 flex-1 truncate text-sm">{member.name}</strong>
-                {receivedPraiseBadge}
-              </div>
-              {(member.nameplate || !!member.stickers?.length) && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
-                  {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-4 w-14 rounded-sm border border-[#121212] bg-white object-cover" />)}
-                </div>
-              )}
-            </>
-          )}
+      <div className={`flex items-start gap-3 ${playerGrid ? '' : 'px-4 py-3 justify-center'}`}>
+        {/* 两列对齐：左列头像(跨 ID+铭牌两行) → 获赞点赞在头像正下方；右列 ID → 铭牌贴纸 → QQ 数字。第三行的点赞与 QQ 数字齐平。 */}
+        <div className={`grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
+          <div className="row-span-2 flex justify-center self-center"><Avatar member={member} /></div>
+          <div className="flex min-w-0 items-center">
+            <strong className="min-w-0 break-all text-sm">{member.name}</strong>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+            {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
+            {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-4 w-14 rounded-sm border border-[#121212] bg-white object-cover" />)}
+          </div>
+          <div className="flex justify-center">{receivedPraiseBadge}</div>
+          <div className="flex min-w-0 items-center">
+            {canSeePlayerQq && member.role === 'player' && (
+              <button
+                type="button"
+                onClick={() => copyQq(member.qq || member.id)}
+                title="点击复制玩家 QQ 号"
+                className="inline-flex items-center gap-1 border border-[#BFD3EE] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-mono font-bold text-[#004E98] hover:bg-[#E1ECFA] cursor-pointer"
+              >
+                {member.qq || member.id}
+                {copiedQq === (member.qq || member.id) ? <span className="text-[#176B57]">已复制</span> : <Copy className="w-3 h-3" />}
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {praiseButton(member)}
