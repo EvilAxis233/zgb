@@ -21,7 +21,7 @@ const hk = new Intl.DateTimeFormat('zh-CN', {
   hour: '2-digit', minute: '2-digit', hour12: false,
 });
 const parts = Object.fromEntries(hk.formatToParts(new Date()).map((p) => [p.type, p.value]));
-const stamp = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}（香港时间）`;
+const stamp = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 const shortTime = `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 const manageUrl = 'https://pigbee.fun/?view=manage';
 

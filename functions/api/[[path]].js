@@ -160,7 +160,7 @@ function buildSignupMail(d) {
   </td></tr>
   <tr><td style="height:6px;line-height:6px;font-size:0;background:${accent};">&nbsp;</td></tr>
   <tr><td style="padding:28px 26px 10px 26px;">
-    <div style="display:inline-block;background:${accent};color:#FFFFFF;font-size:11px;font-weight:900;padding:5px 10px;letter-spacing:1px;">NEW SIGNUP</div>
+    <div style="display:inline-block;background:${accent};color:#FFFFFF;font-size:11px;font-weight:900;padding:5px 10px;letter-spacing:1px;">NEW PLAYER COMING</div>
     <div style="margin-top:14px;font-size:23px;line-height:1.35;font-weight:900;color:#121212;">${headline}</div>
     <div style="margin-top:8px;font-size:13px;line-height:1.7;color:#666666;">${lead}</div>
   </td></tr>
@@ -222,7 +222,7 @@ function buildSignupMail(d) {
 const MAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const hkStamp = (iso) => {
   const value = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
-  return `${value}（香港时间）`;
+  return value;
 };
 async function writeSignupMailLog(db, entry) {
   await db.prepare('INSERT INTO signup_mail_log(id,campaign_id,gm_qq,player_qq,event_type,recipient,subject,status,error,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
