@@ -303,7 +303,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
         <div className="self-center lg:justify-self-center">{logoContent}</div>
-        <div className="min-w-0 max-w-full self-end lg:justify-self-end">{actionContent}</div>
+        <div className="min-w-0 max-w-full self-end lg:self-center lg:justify-self-end">{actionContent}</div>
       </div>
     </header>
   );
