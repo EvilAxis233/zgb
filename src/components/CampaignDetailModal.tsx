@@ -63,8 +63,10 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   const profileRoleLabel = profileMember
     ? (profileMember.role === 'gm' ? (campaign.kind === 'promo' ? '发布者' : 'GM') : '玩家')
     : '';
-  const profilePrefs = profileMember?.preferences ?? [];
-  const profileTaboos = profileMember?.taboos ?? [];
+  // GM / 发布者的喜好雷区已经在详情页的成员行里显示过了，档案弹窗只展示简介；报名玩家的档案才展示完整内容。
+  const profileIsPlayer = profileMember?.role === 'player';
+  const profilePrefs = profileIsPlayer ? (profileMember?.preferences ?? []) : [];
+  const profileTaboos = profileIsPlayer ? (profileMember?.taboos ?? []) : [];
   const handleAdminDelete = async () => {
     if (!campaign) return;
     // 宣群「结束宣发」是归档：记录保留为历史，一次确认即可；普通团删除违规内容仍保留双重确认。
@@ -374,24 +376,26 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#333]">{profileMember.bio}</p>
                   : <p className="text-xs font-bold text-[#888]">这位{profileRoleLabel}还没有填写个人简介。</p>}
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="border-2 border-[#121212] bg-white p-3">
-                  <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#004E98]">
-                    <span className="h-2.5 w-2.5 bg-[#004E98]" />喜好
-                  </h4>
-                  {profilePrefs.length
-                    ? <div className="flex flex-wrap gap-1">{profilePrefs.map((tag) => <span key={`pf-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98]">{tag}</span>)}</div>
-                    : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
+              {profileIsPlayer && (
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="border-2 border-[#121212] bg-white p-3">
+                    <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#004E98]">
+                      <span className="h-2.5 w-2.5 bg-[#004E98]" />喜好
+                    </h4>
+                    {profilePrefs.length
+                      ? <div className="flex flex-wrap gap-1">{profilePrefs.map((tag) => <span key={`pf-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98]">{tag}</span>)}</div>
+                      : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
+                  </div>
+                  <div className="border-2 border-[#121212] bg-white p-3">
+                    <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#D62828]">
+                      <span className="h-2.5 w-2.5 bg-[#D62828]" />雷区
+                    </h4>
+                    {profileTaboos.length
+                      ? <div className="flex flex-wrap gap-1">{profileTaboos.map((tag) => <span key={`pf-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828]">{tag}</span>)}</div>
+                      : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
+                  </div>
                 </div>
-                <div className="border-2 border-[#121212] bg-white p-3">
-                  <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#D62828]">
-                    <span className="h-2.5 w-2.5 bg-[#D62828]" />雷区
-                  </h4>
-                  {profileTaboos.length
-                    ? <div className="flex flex-wrap gap-1">{profileTaboos.map((tag) => <span key={`pf-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828]">{tag}</span>)}</div>
-                    : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
-                </div>
-              </div>
+              )}
             </div>
             <footer className="flex shrink-0 justify-end border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-2.5">
               <button type="button" onClick={() => setProfileMember(null)} className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-black">关闭</button>
