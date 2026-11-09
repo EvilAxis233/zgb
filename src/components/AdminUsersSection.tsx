@@ -52,6 +52,15 @@ export function AdminUsersSection(props: Props) {
   const [duration, setDuration] = useState<typeof durations[number][0]>('7d');
   const [months, setMonths] = useState(1);
   const selected = props.selected;
+  // 会员状态直接贴在「会员」标题右侧，不再单独占一行。
+  const membershipStatus = (() => {
+    if (!selected) return null;
+    if (selected.membershipPermanent) return { text: '长期有效', cls: 'border-[#C85C16] bg-[#FFF4DA] text-[#7A4B00]' };
+    const expiresAt = selected.membership_expires_at;
+    if (!expiresAt) return { text: '未开通', cls: 'border-[#121212] bg-white text-[#666]' };
+    const valid = expiresAt > Date.now() / 1000;
+    return { text: `${valid ? '有效' : '已到期'} · 到期 ${formatTime(expiresAt)}`, cls: valid ? 'border-[#2F7A44] bg-[#EDF7EF] text-[#2F7A44]' : 'border-[#B51F1F] bg-[#FAF0F0] text-[#B51F1F]' };
+  })();
 
   const changeBlacklist = async () => {
     if (!selected) return;
@@ -96,13 +105,19 @@ export function AdminUsersSection(props: Props) {
         {props.canManageAdmins && selected.role !== 'owner' && <button disabled={props.busy} onClick={toggleAdmin} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.role === 'admin' ? 'bg-white' : 'bg-[#004E98] text-white'}`}>{selected.role === 'admin' ? '取消管理员' : '任命为管理员'}</button>}
       </div>}</div>
       {!selected ? <div className="h-64 flex items-center justify-center text-sm text-[#666]">选择左侧账号查看数据</div> : <>
-        <div className="grid grid-cols-3 gap-2 mb-3">{[['GM 点赞', selected.received_gm], ['玩家点赞', selected.received_player], ['被举报', selected.report_count]].map(([label, value]) => <div key={String(label)} className="border border-[#121212] bg-[#FAF9F5] p-3"><span className="text-xs font-bold block">{label}</span><strong className="text-xl">{value}</strong></div>)}</div>
-        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs font-bold"><span className="border border-[#121212] bg-[#FAF9F5] px-2 py-1">带团 <strong className="text-base">{selected.hosted_count ?? 0}</strong> 次</span><span className="border border-[#121212] bg-[#FAF9F5] px-2 py-1">参团 <strong className="text-base">{selected.joined_count ?? 0}</strong> 次</span><span className="text-[11px] text-[#777]">不含宣群</span></div>
+        {/* 四项数据统一成一行：点赞用红/蓝，带团/参团用中性色，被举报只在左侧列表显示 */}
+        <div className="grid grid-cols-4 gap-2 mb-1.5">
+          <div className="border-2 border-[#D62828] bg-[#FAF0F0] px-1.5 py-2 text-center shadow-[2px_2px_0px_#D62828]"><span className="block text-[11px] font-bold text-[#666]">GM 点赞</span><strong className="block text-lg font-black text-[#D62828]">{selected.received_gm}</strong></div>
+          <div className="border-2 border-[#004E98] bg-[#F0F5FA] px-1.5 py-2 text-center shadow-[2px_2px_0px_#004E98]"><span className="block text-[11px] font-bold text-[#666]">玩家点赞</span><strong className="block text-lg font-black text-[#004E98]">{selected.received_player}</strong></div>
+          <div className="border-2 border-[#121212] bg-[#FAF9F5] px-1.5 py-2 text-center"><span className="block text-[11px] font-bold text-[#666]">带团次数</span><strong className="block text-lg font-black text-[#121212]">{selected.hosted_count ?? 0}</strong></div>
+          <div className="border-2 border-[#121212] bg-[#FAF9F5] px-1.5 py-2 text-center"><span className="block text-[11px] font-bold text-[#666]">参团次数</span><strong className="block text-lg font-black text-[#121212]">{selected.joined_count ?? 0}</strong></div>
+        </div>
+        <p className="mb-3 text-right text-[10px] font-bold text-[#888]">带团 / 参团不含宣群</p>
         {selected.blacklisted ? <p className="mb-3 text-xs font-bold text-[#B51F1F]">黑名单生效中 · {selected.blacklist_expires_at ? `截至 ${formatTime(selected.blacklist_expires_at)}` : '永久'}</p> : null}
 
         <section className="mb-5 border-2 border-[#121212] bg-[#FFF9E9] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2"><h4 className="font-black">会员</h4>{!!roleLabel(selected) && <span className="inline-flex items-center gap-1 border border-[#004E98] bg-white px-2 py-0.5 text-[11px] font-bold text-[#004E98]"><Shield size={12} />{roleLabel(selected)}</span>}</div>
+            <div className="flex flex-wrap items-center gap-2"><h4 className="font-black shrink-0">会员</h4>{membershipStatus && <span className={`inline-flex items-center whitespace-nowrap border px-2 py-0.5 text-[11px] font-bold ${membershipStatus.cls}`}>{membershipStatus.text}</span>}{!!roleLabel(selected) && <span className="inline-flex items-center gap-1 border border-[#004E98] bg-white px-2 py-0.5 text-[11px] font-bold text-[#004E98]"><Shield size={12} />{roleLabel(selected)}</span>}</div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold flex items-center gap-1">发放
                 <input type="number" min={1} max={12} value={months} onChange={(event) => setMonths(Math.max(1, Math.min(12, Number(event.target.value) || 1)))} className="bauhaus-input w-14 px-1.5 py-1 text-xs" aria-label="发放月数" />
@@ -111,8 +126,7 @@ export function AdminUsersSection(props: Props) {
               <button disabled={props.busy || selected.role === 'owner'} onClick={grant} className="bauhaus-btn bg-[#D62828] text-white px-3 py-1.5 text-xs font-bold disabled:opacity-40 inline-flex items-center gap-1"><Check size={13} />确认发放</button>
             </div>
           </div>
-          <p className="my-2 text-xs font-bold">{selected.membershipPermanent ? '长期有效' : selected.membership_expires_at ? `${selected.membership_expires_at > Date.now() / 1000 ? '有效' : '已到期'} · 到期 ${formatTime(selected.membership_expires_at)}` : '未开通'}</p>
-          <div className="border-t border-[#D8D6CC] pt-3">
+          <div className="border-t border-[#D8D6CC] mt-3 pt-3">
             <p className="text-xs font-black mb-2">发放记录</p>
             <div className="space-y-1.5 max-h-52 overflow-y-auto">{props.grants.map((record) => <div key={record.id} className="border border-[#121212] bg-white p-2 text-xs flex justify-between gap-2"><span><strong>{record.months} 个月</strong>（{record.days} 天） · 操作人 <span className="font-mono">{record.granted_by}</span></span><span className="text-[#666] shrink-0">{new Date(record.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}</span></div>)}{!props.grants.length && <p className="text-xs text-[#666]">暂无发放记录</p>}</div>
             <Pager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />

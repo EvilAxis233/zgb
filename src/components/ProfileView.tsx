@@ -231,14 +231,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   )}
                 </div>
               )}
-              <p className="mt-1 text-[11px] font-bold text-[#888]">点击头像更换 · 动图保留动画（不裁剪，请小于 8MB、尽量正方形）</p>
             </div>
           </div>
 
-          {/* Praise & Inventory Counter Badges */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* 点赞框与编辑资料按钮排成不换行的一行，高度与左侧头像一致 */}
+          <div className="flex flex-nowrap items-center gap-2 md:gap-3 shrink-0">
             {/* Received GM Praise */}
-            <div className="bg-[#FAF0F0] border-2 border-[#D62828] px-3.5 py-2 shadow-[2px_2px_0px_#D62828] text-center">
+            <div className="bg-[#FAF0F0] border-2 border-[#D62828] h-16 min-w-[80px] md:min-w-[92px] px-2 md:px-3.5 shadow-[2px_2px_0px_#D62828] flex flex-col items-center justify-center text-center">
               <span className="block text-xs font-bold text-[#666666]">获 GM点赞</span>
               <span className="text-lg font-black text-[#D62828] flex items-center justify-center gap-1">
                 <Flame className="w-4 h-4 fill-[#D62828]" />
@@ -247,7 +246,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             {/* Received Player Praise */}
-            <div className="bg-[#F0F5FA] border-2 border-[#004E98] px-3.5 py-2 shadow-[2px_2px_0px_#004E98] text-center">
+            <div className="bg-[#F0F5FA] border-2 border-[#004E98] h-16 min-w-[80px] md:min-w-[92px] px-2 md:px-3.5 shadow-[2px_2px_0px_#004E98] flex flex-col items-center justify-center text-center">
               <span className="block text-xs font-bold text-[#666666]">获 玩家点赞</span>
               <span className="text-lg font-black text-[#004E98] flex items-center justify-center gap-1">
                 <Star className="w-4 h-4 fill-[#004E98]" />
@@ -265,7 +264,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   setIsEditing(true);
                 }
               }}
-              className="bauhaus-btn bg-[#121212] text-white px-4 py-2 text-xs font-bold flex items-center gap-1.5"
+              className="bauhaus-btn bg-[#121212] text-white h-16 px-3 md:px-4 text-xs font-bold flex items-center justify-center gap-1.5 shrink-0"
             >
               {isEditing ? (
                 <>
