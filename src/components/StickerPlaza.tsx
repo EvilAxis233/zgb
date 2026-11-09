@@ -12,10 +12,29 @@ interface Props {
   onUserUpdate: (user: UserProfile) => void;
 }
 
+/** 贴纸右下角的收藏星：空心＝未加入库存，金黄实心＝已在库存。 */
+function StarMark({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-[18px] w-[18px]"
+      fill={filled ? '#FFC531' : 'none'}
+      stroke="#121212"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2.6 15.1 8.9 22 9.9 17 14.8 18.2 21.5 12 18.2 5.8 21.5 7 14.8 2 9.9 8.9 8.9Z" />
+    </svg>
+  );
+}
+
 /**
- * 贴纸广场：在「我的贴纸库」弹窗里展示其他会员公开的贴纸，点「加入我的库存」
+ * 贴纸广场：独立页面（由「我的贴纸」右上角按钮弹出）。
+ * 只按昵称展示其他会员的昵称与头像，不下发、不显示任何 QQ 号。
+ * 图片右下角的星标即「加入库存」：空心可点，加入后变黄心；库存满时先选一张替换。
  * 只复制图片引用到自己的库存，不改原作者库存、不自动默认佩戴、不影响已发团。
- * 库存满 10 张时先选一张自己的贴纸来替换；站主/管理员可下架违规贴纸。
  */
 export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
   const { showAlert } = useDialog();
@@ -55,11 +74,12 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
   const totalCopies = (member: StickerPlazaMember) => member.stickers.reduce((sum, item) => sum + item.copies, 0);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = members.filter((member) => !q || member.name.toLowerCase().includes(q) || member.qq.includes(q));
+    const list = members.filter((member) => !q || member.name.toLowerCase().includes(q));
     return [...list].sort((a, b) => sort === 'popular'
       ? (totalCopies(b) - totalCopies(a)) || (b.count - a.count) || a.name.localeCompare(b.name)
       : (b.createdAt || '').localeCompare(a.createdAt || '') || a.name.localeCompare(b.name));
   }, [members, query, sort]);
+  const totalStickers = members.reduce((sum, member) => sum + member.stickers.length, 0);
 
   const add = async (key: string, replaceKey?: string) => {
     if (busyKey) return;
@@ -98,23 +118,26 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
   };
 
   return (
-    <section className="mt-4 border-t-2 border-dashed border-[#D8D5CC] pt-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-black text-[#121212]">贴纸广场 · 其他会员的库存</h3>
-        <div className="flex items-center gap-1.5">
+    <div className="p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-bold leading-relaxed text-[#666]">
+          {members.length ? `${members.length} 位会员 · ${totalStickers} 张贴纸 · ` : ''}
+          点图片右下角 ☆ 加入我的库存，★ 表示已拥有；为保护隐私，广场不显示其他会员的 QQ 号。
+        </p>
+        <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#888]" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#888]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="按昵称 / QQ 搜索"
-              className="bauhaus-input w-[132px] py-1 pl-6 pr-1.5 text-[11px]"
+              placeholder="按昵称搜索"
+              className="bauhaus-input w-[150px] py-1.5 pl-7 pr-2 text-xs"
             />
           </div>
           <select
             value={sort}
             onChange={(event) => setSort(event.target.value as 'recent' | 'popular')}
-            className="bauhaus-input py-1 text-[11px]"
+            className="bauhaus-input py-1.5 text-xs"
             aria-label="贴纸广场排序"
           >
             <option value="recent">最新加入</option>
@@ -123,19 +146,19 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
         </div>
       </div>
 
-      {!isMember && <p className="border-2 border-dashed border-[#121212] bg-[#FAF9F5] px-3 py-2 text-[11px] font-bold text-[#666]">贴纸广场为会员专享，开通后即可浏览并加入其他会员的贴纸。</p>}
-      {isMember && loading && <p className="flex items-center gap-2 py-3 text-[11px] font-bold text-[#666]"><Loader2 className="h-3.5 w-3.5 animate-spin" />正在加载贴纸广场…</p>}
-      {isMember && error && <p className="border-2 border-[#D62828] bg-[#FAF0F0] px-2.5 py-2 text-[11px] font-bold text-[#D62828]">{error} <button type="button" onClick={() => { setLoading(true); void load(); }} className="underline cursor-pointer">重试</button></p>}
+      {!isMember && <p className="border-2 border-dashed border-[#121212] bg-[#FAF9F5] px-3 py-3 text-xs font-bold text-[#666]">贴纸广场为会员专享，开通后即可浏览并加入其他会员的贴纸。</p>}
+      {isMember && loading && <p className="flex items-center gap-2 py-4 text-xs font-bold text-[#666]"><Loader2 className="h-4 w-4 animate-spin" />正在加载贴纸广场…</p>}
+      {isMember && error && <p className="border-2 border-[#D62828] bg-[#FAF0F0] px-3 py-2 text-xs font-bold text-[#D62828]">{error} <button type="button" onClick={() => { setLoading(true); void load(); }} className="underline cursor-pointer">重试</button></p>}
 
       {isMember && !loading && !error && (
         <>
           {pendingKey && (
-            <div className="mb-3 border-2 border-[#D62828] bg-[#FAF0F0] p-2.5">
+            <div className="mb-4 border-2 border-[#D62828] bg-[#FAF0F0] p-3">
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-[11px] font-black leading-relaxed text-[#D62828]">库存已满 {library.length}/{STICKER_LIBRARY_LIMIT} 张，请选择要替换掉的一张</h4>
-                <button type="button" onClick={() => setPendingKey(null)} className="flex shrink-0 items-center gap-0.5 text-[10px] font-bold text-[#D62828] underline cursor-pointer"><X className="h-3 w-3" />取消</button>
+                <h4 className="text-xs font-black leading-relaxed text-[#D62828]">库存已满 {library.length}/{STICKER_LIBRARY_LIMIT} 张，请选择要替换掉的一张</h4>
+                <button type="button" onClick={() => setPendingKey(null)} className="flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-[#D62828] underline cursor-pointer"><X className="h-3 w-3" />取消</button>
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {library.map((key) => (
                   <button
                     key={key}
@@ -146,27 +169,26 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
                     title="用这张替换"
                   >
                     <img src={`/api/images/${key}`} alt="我的贴纸" className="absolute inset-0 h-full w-full object-cover" />
-                    <span className="absolute inset-0 flex items-center justify-center bg-[#121212]/75 text-[10px] font-black text-white">替换这张</span>
+                    <span className="absolute inset-0 flex items-center justify-center bg-[#121212]/75 text-[11px] font-black text-white">替换这张</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {filtered.length === 0 && <p className="border-2 border-dashed border-[#121212] bg-[#FAF9F5] px-3 py-3 text-center text-[11px] font-bold text-[#666]">{members.length ? '没有匹配的会员，换个关键词试试' : '暂时还没有其他会员公开贴纸'}</p>}
+          {filtered.length === 0 && <p className="border-2 border-dashed border-[#121212] bg-[#FAF9F5] px-3 py-4 text-center text-xs font-bold text-[#666]">{members.length ? '没有匹配的会员，换个昵称试试' : '暂时还没有其他会员公开贴纸'}</p>}
 
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {filtered.map((member) => (
-              <section key={`${member.qq}-${member.name}`} className="border-2 border-[#121212] bg-white">
-                <header className="flex items-center gap-2 border-b-2 border-[#121212] bg-[#FAF9F5] px-2.5 py-1.5">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden border border-[#121212] bg-[#004E98] text-[11px] font-black text-white">
+              <section key={member.id} className="border-2 border-[#121212] bg-white">
+                <header className="flex items-center gap-2.5 border-b-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden border-2 border-[#121212] bg-[#004E98] text-xs font-black text-white">
                     {member.avatar ? <img src={member.avatar} alt="" className="h-full w-full object-cover" /> : member.name.slice(0, 1)}
                   </span>
-                  <strong className="truncate text-xs">{member.name}</strong>
-                  <span className="shrink-0 text-[10px] font-bold text-[#888]">QQ {member.qq}</span>
-                  <span className="ml-auto shrink-0 text-[10px] font-bold text-[#004E98]">{member.count} 张库存</span>
+                  <strong className="truncate text-sm">{member.name}</strong>
+                  <span className="ml-auto shrink-0 text-[11px] font-bold text-[#004E98]">{member.count} 张库存</span>
                 </header>
-                <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5">
                   {member.stickers.map((sticker) => {
                     const owned = library.includes(sticker.key);
                     const busy = busyKey === sticker.key;
@@ -177,24 +199,26 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
                         </ImageHoverPreview>
                         <button
                           type="button"
-                          disabled={owned || !!busyKey}
                           onClick={() => clickAdd(sticker.key)}
-                          className={`mt-1 flex min-h-[32px] w-full items-center justify-center gap-1 px-1 text-center text-[10px] font-black cursor-pointer disabled:cursor-not-allowed ${owned ? 'border border-[#BBB] bg-[#F2F0E8] text-[#888]' : full ? 'border border-[#D62828] bg-[#FAF0F0] text-[#D62828] hover:bg-[#FBE0E0]' : 'border border-[#004E98] bg-[#F0F5FA] text-[#004E98] hover:bg-[#E1ECFA]'}`}
+                          className="absolute bottom-1 right-1 z-10 flex h-8 w-8 items-center justify-center border-2 border-[#121212] bg-white shadow-[2px_2px_0px_#121212] cursor-pointer hover:bg-[#FFF7DE] active:translate-x-px active:translate-y-px active:shadow-none"
+                          title={owned ? '已在我的库存' : full ? '库存已满，选择要替换的一张' : '加入我的库存'}
+                          aria-label={owned ? '已在我的库存' : full ? '库存已满，选择要替换的一张' : '加入我的库存'}
+                          aria-pressed={owned}
                         >
-                          {busy ? <><Loader2 className="h-3 w-3 animate-spin" />加入中…</> : owned ? '已在库中' : full ? '库存已满 · 选替换' : '加入我的库存'}
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin text-[#004E98]" /> : <StarMark filled={owned} />}
                         </button>
                         {canModerate && (
                           <button
                             type="button"
                             onClick={() => void toggleBlock(sticker.key, false)}
-                            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center border border-[#121212] bg-white text-[#D62828] cursor-pointer hover:bg-[#D62828] hover:text-white"
+                            className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center border-2 border-[#121212] bg-white text-[#D62828] cursor-pointer hover:bg-[#D62828] hover:text-white"
                             title="下架这张贴纸（仅站主/管理员）"
                             aria-label="下架这张贴纸"
                           >
-                            <ShieldAlert className="h-3 w-3" />
+                            <ShieldAlert className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        {sticker.copies > 0 && <span className="absolute left-0 top-0 bg-[#121212]/75 px-1 text-[9px] font-bold text-white">被收藏 {sticker.copies}</span>}
+                        {sticker.copies > 0 && <span className="absolute left-1 top-1 bg-[#121212]/75 px-1.5 text-[10px] font-bold text-white">被收藏 {sticker.copies}</span>}
                       </div>
                     );
                   })}
@@ -204,22 +228,22 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
           </div>
 
           {canModerate && blocked.length > 0 && (
-            <div className="mt-3 border-2 border-dashed border-[#888] bg-[#FAF9F5] p-2">
-              <p className="text-[10px] font-bold text-[#666]">已下架 {blocked.length} 张（只在广场隐藏，已发团引用的图片不受影响）</p>
-              <div className="mt-1 flex flex-wrap gap-1">
+            <div className="mt-4 border-2 border-dashed border-[#888] bg-[#FAF9F5] p-3">
+              <p className="text-[11px] font-bold text-[#666]">已下架 {blocked.length} 张（只在广场隐藏，已发团引用的图片不受影响）</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {blocked.map((key) => (
-                  <button key={key} type="button" onClick={() => void toggleBlock(key, true)} className="border border-[#121212] bg-white px-1.5 py-0.5 text-[10px] font-bold cursor-pointer hover:bg-[#E1ECFA]">撤销 · {key.slice(-8)}</button>
+                  <button key={key} type="button" onClick={() => void toggleBlock(key, true)} className="border border-[#121212] bg-white px-2 py-1 text-[11px] font-bold cursor-pointer hover:bg-[#E1ECFA]">撤销 · {key.slice(-8)}</button>
                 ))}
               </div>
             </div>
           )}
 
-          <p className="mt-2 text-[10px] leading-relaxed text-[#666]">
-            展示其他会员公开的长条贴纸；点击「加入我的库存」只复制一份引用到自己的库存，不会改动对方库存，也不会自动默认佩戴。库存最多 {STICKER_LIBRARY_LIMIT} 张，满了需自己选一张替换；已发布的团不受影响。鼠标停在贴纸上 1 秒可看原图。
+          <p className="mt-3 text-[11px] leading-relaxed text-[#666]">
+            展示其他会员公开的长条贴纸；点右下角空心星即可加入我的库存，只复制一份引用、不改动对方库存，也不会自动默认佩戴。已拥有显示黄心。库存最多 {STICKER_LIBRARY_LIMIT} 张，满了需自己选一张替换；已发布的团不受影响。鼠标停在贴纸上 1 秒可看原图。
           </p>
-          {note && <p className="mt-1.5 border border-[#004E98] bg-[#F0F5FA] px-2 py-1 text-[10px] font-bold text-[#004E98]">{note}</p>}
+          {note && <p className="mt-2 border-2 border-[#004E98] bg-[#F0F5FA] px-2.5 py-1.5 text-[11px] font-bold text-[#004E98]">{note}</p>}
         </>
       )}
-    </section>
+    </div>
   );
 }

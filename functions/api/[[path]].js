@@ -102,7 +102,7 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
 }
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
 // 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己；
-// 每张图片必须格式合法且未被站主下架。QQ 只回传打码后的尾号，不暴露完整号。
+// 每张图片必须格式合法且未被站主下架。广场不下发任何 QQ 号，会员分组只用匿名序号标识。
 const plazaKeyOk = (key, blocked) => /^[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..') && !blocked.has(key);
 async function plazaSource(db, viewerQq) {
   const [users, blocks, copies] = await db.batch([
@@ -118,8 +118,8 @@ async function plazaSource(db, viewerQq) {
     .filter((item) => item.keys.length);
   return { members, blocked, counts };
 }
-const plazaMemberDto = (item, counts) => ({
-  qq: `····${String(item.user.qq).slice(-4)}`,
+const plazaMemberDto = (item, counts, index) => ({
+  id: `m${index}`,
   name: item.user.name || '未命名',
   avatar: assetUrl(item.user.avatar_key),
   createdAt: item.user.created_at || '',
@@ -797,7 +797,7 @@ export async function onRequest(context) {
       if (!isMember(user)) return fail('贴纸广场仅会员可用', 403);
       const source = await plazaSource(db, user.qq);
       const canModerate = !!roleOf(user);
-      return json({ members: source.members.map((item) => plazaMemberDto(item, source.counts)), canModerate, blocked: canModerate ? [...source.blocked] : [] });
+      return json({ members: source.members.map((item, index) => plazaMemberDto(item, source.counts, index)), canModerate, blocked: canModerate ? [...source.blocked] : [] });
     }
     if (path[0] === 'sticker-plaza' && path[1] === 'copy' && method === 'POST') {
       if (!isMember(user)) return fail('只有会员可以使用贴纸广场', 403);

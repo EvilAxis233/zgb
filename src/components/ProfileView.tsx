@@ -54,6 +54,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [nameplateOpen, setNameplateOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
+  const [plazaOpen, setPlazaOpen] = useState(false);
   const [membershipNow, setMembershipNow] = useState(() => Date.now());
   const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
   React.useEffect(() => {
@@ -537,12 +538,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
+      {/* 页面一：我的贴纸。右上角按钮弹出独立的贴纸广场页面。 */}
       {stickerOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setStickerOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
-            <header className="flex items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
-              <h2 className="font-black text-sm">我的贴纸库 · 贴纸广场</h2>
-              <button type="button" onClick={() => setStickerOpen(false)} className="text-xs font-bold cursor-pointer">关闭</button>
+          <section role="dialog" aria-modal="true" aria-label="我的贴纸" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
+            <header className="flex items-center justify-between gap-2 bg-[#121212] px-4 py-2.5 text-white">
+              <h2 className="font-black text-sm">我的贴纸</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setStickerOpen(false); setPlazaOpen(true); }}
+                  className="border-2 border-white px-2.5 py-1 text-xs font-black cursor-pointer hover:bg-white hover:text-[#121212]"
+                >
+                  贴纸广场 →
+                </button>
+                <button type="button" onClick={() => setStickerOpen(false)} className="px-1 text-xs font-bold cursor-pointer">关闭</button>
+              </div>
             </header>
             <div className="p-4">
               <StickerLibrary
@@ -552,12 +563,32 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 onChangeLibrary={onUpdateStickerLibrary}
                 onChangeDefaults={onUpdateStickers}
               />
-              <StickerPlaza
-                isMember={membershipActive || !!currentUser.membershipPermanent}
-                library={currentUser.stickerLibraryKeys || []}
-                onUserUpdate={onUserUpdate}
-              />
             </div>
+          </section>
+        </div>
+      )}
+      {/* 页面二：贴纸广场。PC 端加宽到 1240px，一排 5 张贴纸。 */}
+      {plazaOpen && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-3 sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlazaOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-label="贴纸广场" className="max-h-[92vh] w-full max-w-[1240px] overflow-y-auto border-4 border-[#121212] bg-white shadow-[10px_10px_0px_#121212]">
+            <header className="flex items-center justify-between gap-2 bg-[#121212] px-4 py-3 text-white">
+              <h2 className="font-black text-base">贴纸广场</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setPlazaOpen(false); setStickerOpen(true); }}
+                  className="border-2 border-white px-2.5 py-1 text-xs font-black cursor-pointer hover:bg-white hover:text-[#121212]"
+                >
+                  ← 我的贴纸
+                </button>
+                <button type="button" onClick={() => setPlazaOpen(false)} className="px-1 text-xs font-bold cursor-pointer">关闭</button>
+              </div>
+            </header>
+            <StickerPlaza
+              isMember={membershipActive || !!currentUser.membershipPermanent}
+              library={currentUser.stickerLibraryKeys || []}
+              onUserUpdate={onUserUpdate}
+            />
           </section>
         </div>
       )}

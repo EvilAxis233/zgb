@@ -37,7 +37,7 @@ export interface StickerPlazaSticker {
   copies: number; // 被其他会员加入库存的次数
 }
 export interface StickerPlazaMember {
-  qq: string;    // 打码后的 QQ 尾号
+  id: string;    // 匿名的会员分组标识，不含任何 QQ 信息
   name: string;
   avatar: string;
   createdAt: string;
