@@ -238,10 +238,7 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
             </div>
           )}
 
-          <p className="mt-3 text-[11px] leading-relaxed text-[#666]">
-            展示其他会员公开的长条贴纸；点右下角空心星即可加入我的库存，只复制一份引用、不改动对方库存，也不会自动默认佩戴。已拥有显示黄心。库存最多 {STICKER_LIBRARY_LIMIT} 张，满了需自己选一张替换；已发布的团不受影响。鼠标停在贴纸上 1 秒可看原图。
-          </p>
-          {note && <p className="mt-2 border-2 border-[#004E98] bg-[#F0F5FA] px-2.5 py-1.5 text-[11px] font-bold text-[#004E98]">{note}</p>}
+          {note && <p className="mt-3 border-2 border-[#004E98] bg-[#F0F5FA] px-2.5 py-1.5 text-[11px] font-bold text-[#004E98]">{note}</p>}
         </>
       )}
     </div>
