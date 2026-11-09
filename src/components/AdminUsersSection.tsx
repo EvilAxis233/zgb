@@ -3,7 +3,8 @@ import { Check, Search, Shield, ShieldBan, UserCog } from 'lucide-react';
 import { type AdminUser, type MembershipGrant } from '../services/api';
 import { useDialog } from './BauhausDialog';
 
-const PAGE_SIZE = 50;
+const USER_PAGE_SIZE = 100;
+const GRANT_PAGE_SIZE = 50;
 const durations = [
   ['7d', '7 天'], ['30d', '30 天'], ['6m', '半年'], ['1y', '一年'], ['permanent', '永久'],
 ] as const;
@@ -11,6 +12,7 @@ const durations = [
 interface Props {
   users: AdminUser[];
   userTotal: number;
+  memberTotal: number;
   selected: AdminUser | null;
   grants: MembershipGrant[];
   grantTotal: number;
@@ -29,12 +31,20 @@ interface Props {
   onToggleAdmin: (qq: string, makeAdmin: boolean) => Promise<void>;
 }
 
-function Pager({ offset, total, onChange }: { offset: number; total: number; onChange: (offset: number) => void }) {
-  if (total <= PAGE_SIZE) return null;
-  return <div className="flex justify-between items-center mt-4 text-xs font-bold"><button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - PAGE_SIZE))} className="bauhaus-btn bg-white px-3 py-1 disabled:opacity-40">上一页</button><span>{offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}</span><button disabled={offset + PAGE_SIZE >= total} onClick={() => onChange(offset + PAGE_SIZE)} className="bauhaus-btn bg-white px-3 py-1 disabled:opacity-40">下一页</button></div>;
+// 页码用下拉直接择页，不再显示「1-50/182」这种范围数字。
+function Pager({ offset, total, size = USER_PAGE_SIZE, onChange }: { offset: number; total: number; size?: number; onChange: (offset: number) => void }) {
+  const pages = Math.ceil(total / size);
+  if (pages <= 1) return null;
+  const current = Math.min(pages - 1, Math.floor(offset / size));
+  return <div className="flex justify-between items-center mt-4 text-xs font-bold"><button disabled={current === 0} onClick={() => onChange((current - 1) * size)} className="bauhaus-btn bg-white px-3 py-1 disabled:opacity-40">上一页</button><label className="flex items-center gap-1.5">第
+    <select aria-label="选择页码" value={current} onChange={(event) => onChange(Number(event.target.value) * size)} className="bauhaus-input px-2 py-1 text-xs font-bold">
+      {Array.from({ length: pages }, (_, index) => <option key={index} value={index}>{index + 1}</option>)}
+    </select>
+    页 / 共 {pages} 页</label><button disabled={current >= pages - 1} onClick={() => onChange((current + 1) * size)} className="bauhaus-btn bg-white px-3 py-1 disabled:opacity-40">下一页</button></div>;
 }
 
 const roleLabel = (user: AdminUser) => user.role === 'owner' ? '站长' : user.role === 'admin' ? '管理员' : '';
+const isMember = (user: AdminUser) => user.membershipPermanent || Number(user.membership_expires_at ?? 0) > Date.now() / 1000;
 const formatTime = (seconds: number) => new Date(seconds * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false });
 
 export function AdminUsersSection(props: Props) {
@@ -65,40 +75,47 @@ export function AdminUsersSection(props: Props) {
 
   return <div className="grid lg:grid-cols-[420px_1fr] gap-6">
     <section className="bauhaus-card p-5 bg-white">
-      <div className="flex justify-between border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">QQ 账号</h3><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">共 {props.userTotal} 个</span></div>
+      <div className="flex justify-between items-center border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">注册用户</h3><div className="flex items-center gap-1.5"><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">共 {props.userTotal} 个</span><span className="text-xs font-bold bg-[#C85C16] text-white px-2 py-1">会员 {props.memberTotal} 个</span></div></div>
       <form onSubmit={props.searchUsers} className="flex gap-2 mb-4"><input aria-label="搜索 QQ 号或昵称" value={props.searchInput} onChange={(e) => props.setSearchInput(e.target.value)} placeholder="输入 QQ 号后点搜索" className="bauhaus-input min-w-0 flex-1 px-3 py-2 text-sm" /><button className="bauhaus-btn bg-[#121212] text-white px-3" aria-label="搜索"><Search size={17} /></button></form>
-      <div className="space-y-2 max-h-[520px] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-3 py-3 flex justify-between gap-2 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}><span><strong className="block text-sm">{user.name}</strong><span className="font-mono text-xs text-[#666]">{user.qq}</span>{!!roleLabel(user) && <span className="block text-[11px] font-bold text-[#004E98]">{roleLabel(user)}</span>}{!!user.blacklisted && <span className="block text-[11px] font-bold text-[#B51F1F]">黑名单中</span>}{!user.membershipPermanent && user.membership_expires_at && user.membership_expires_at > Date.now() / 1000 && <span className="block text-[11px] font-bold text-[#7A4B00]">会员</span>}</span><span className="text-xs font-bold text-right">被举报 {user.report_count}</span></button>)}</div>
+      <div className="space-y-1 max-h-[70vh] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-2.5 py-1.5 flex items-center gap-2 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}>
+        <strong className="text-xs font-black truncate max-w-[6.5rem] shrink-0">{user.name}</strong>
+        <span className="font-mono text-[11px] text-[#666] shrink-0">{user.qq}</span>
+        {!!roleLabel(user) && <span className="text-[10px] font-bold text-[#004E98] border border-[#004E98] px-1 shrink-0">{roleLabel(user)}</span>}
+        {!!user.blacklisted && <span className="text-[10px] font-bold text-[#B51F1F] border border-[#B51F1F] px-1 shrink-0">黑名单</span>}
+        {isMember(user) && <span className="text-[10px] font-bold text-[#7A4B00] border border-[#C85C16] px-1 shrink-0">会员</span>}
+        <span className="ml-auto text-[11px] font-bold shrink-0">被举报 {user.report_count}</span>
+      </button>)}</div>
       <Pager offset={props.userOffset} total={props.userTotal} onChange={props.setUserOffset} />
     </section>
 
     <section className="bauhaus-card p-5 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black flex items-center gap-2"><UserCog size={18} className="text-[#D62828]" />账号数据与会员</h3>{selected && <div className="flex items-center gap-2"><ShieldBan size={17} className="text-[#B51F1F]" />{!selected.blacklisted && <select aria-label="黑名单期限" value={duration} onChange={(event) => setDuration(event.target.value as typeof duration)} className="bauhaus-input px-2 py-1 text-xs font-bold">{durations.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}<button disabled={props.busy} onClick={changeBlacklist} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.blacklisted ? 'bg-white' : 'bg-[#B51F1F] text-white'}`}>{selected.blacklisted ? '移出黑名单' : '加入黑名单'}</button></div>}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black flex items-center gap-2"><UserCog size={18} className="text-[#D62828]" />{selected ? <>{selected.name} <span className="font-mono text-sm font-bold text-[#666]">{selected.qq}</span></> : '请选择左侧账号'}</h3>{selected && <div className="flex items-center gap-2">
+        <ShieldBan size={17} className="text-[#B51F1F]" />
+        {!selected.blacklisted && <select aria-label="黑名单期限" value={duration} onChange={(event) => setDuration(event.target.value as typeof duration)} className="bauhaus-input px-2 py-1 text-xs font-bold">{durations.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
+        <button disabled={props.busy} onClick={changeBlacklist} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.blacklisted ? 'bg-white' : 'bg-[#B51F1F] text-white'}`}>{selected.blacklisted ? '移出黑名单' : '加入黑名单'}</button>
+        {props.canManageAdmins && selected.role !== 'owner' && <button disabled={props.busy} onClick={toggleAdmin} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.role === 'admin' ? 'bg-white' : 'bg-[#004E98] text-white'}`}>{selected.role === 'admin' ? '取消管理员' : '任命为管理员'}</button>}
+      </div>}</div>
       {!selected ? <div className="h-64 flex items-center justify-center text-sm text-[#666]">选择左侧账号查看数据</div> : <>
-        <div className="grid grid-cols-3 gap-2 mb-4">{[['GM 点赞', selected.received_gm], ['玩家点赞', selected.received_player], ['被举报', selected.report_count]].map(([label, value]) => <div key={String(label)} className="border border-[#121212] bg-[#FAF9F5] p-3"><span className="text-xs font-bold block">{label}</span><strong className="text-xl">{value}</strong></div>)}</div>
-        {selected.blacklisted ? <p className="mb-4 text-xs font-bold text-[#B51F1F]">黑名单生效中 · {selected.blacklist_expires_at ? `截至 ${formatTime(selected.blacklist_expires_at)}` : '永久'}</p> : null}
+        <div className="grid grid-cols-3 gap-2 mb-3">{[['GM 点赞', selected.received_gm], ['玩家点赞', selected.received_player], ['被举报', selected.report_count]].map(([label, value]) => <div key={String(label)} className="border border-[#121212] bg-[#FAF9F5] p-3"><span className="text-xs font-bold block">{label}</span><strong className="text-xl">{value}</strong></div>)}</div>
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs font-bold"><span className="border border-[#121212] bg-[#FAF9F5] px-2 py-1">带团 <strong className="text-base">{selected.hosted_count ?? 0}</strong> 次</span><span className="border border-[#121212] bg-[#FAF9F5] px-2 py-1">参团 <strong className="text-base">{selected.joined_count ?? 0}</strong> 次</span><span className="text-[11px] text-[#777]">不含宣群</span></div>
+        {selected.blacklisted ? <p className="mb-3 text-xs font-bold text-[#B51F1F]">黑名单生效中 · {selected.blacklist_expires_at ? `截至 ${formatTime(selected.blacklist_expires_at)}` : '永久'}</p> : null}
 
         <section className="mb-5 border-2 border-[#121212] bg-[#FFF9E9] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="font-black">会员</h4>
-            {!!roleLabel(selected) && <span className="inline-flex items-center gap-1 border border-[#004E98] bg-white px-2 py-0.5 text-[11px] font-bold text-[#004E98]"><Shield size={12} />{roleLabel(selected)}</span>}
+            <div className="flex items-center gap-2"><h4 className="font-black">会员</h4>{!!roleLabel(selected) && <span className="inline-flex items-center gap-1 border border-[#004E98] bg-white px-2 py-0.5 text-[11px] font-bold text-[#004E98]"><Shield size={12} />{roleLabel(selected)}</span>}</div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold flex items-center gap-1">发放
+                <input type="number" min={1} max={12} value={months} onChange={(event) => setMonths(Math.max(1, Math.min(12, Number(event.target.value) || 1)))} className="bauhaus-input w-14 px-1.5 py-1 text-xs" aria-label="发放月数" />
+                个月
+              </label>
+              <button disabled={props.busy || selected.role === 'owner'} onClick={grant} className="bauhaus-btn bg-[#D62828] text-white px-3 py-1.5 text-xs font-bold disabled:opacity-40 inline-flex items-center gap-1"><Check size={13} />确认发放</button>
+            </div>
           </div>
           <p className="my-2 text-xs font-bold">{selected.membershipPermanent ? '长期有效' : selected.membership_expires_at ? `${selected.membership_expires_at > Date.now() / 1000 ? '有效' : '已到期'} · 到期 ${formatTime(selected.membership_expires_at)}` : '未开通'}</p>
-          <div className="flex flex-wrap items-end gap-2 border-t border-[#D8D6CC] pt-3">
-            <label className="text-xs font-bold">发放
-              <input type="number" min={1} max={12} value={months} onChange={(event) => setMonths(Math.max(1, Math.min(12, Number(event.target.value) || 1)))} className="bauhaus-input ml-1 w-16 px-2 py-1 text-xs" aria-label="发放月数" />
-              <span className="ml-1">个月</span>
-            </label>
-            <button disabled={props.busy || selected.role === 'owner'} onClick={grant} className="bauhaus-btn bg-[#D62828] text-white px-3 py-1.5 text-xs font-bold disabled:opacity-40 inline-flex items-center gap-1"><Check size={13} />确认发放</button>
-            <span className="text-[11px] text-[#666]">单月按 30 天，12 个月按 365 天</span>
-          </div>
-          {props.canManageAdmins && selected.role !== 'owner' && <div className="mt-3 flex items-center gap-2 border-t border-[#D8D6CC] pt-3">
-            <button disabled={props.busy} onClick={toggleAdmin} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.role === 'admin' ? 'bg-white' : 'bg-[#004E98] text-white'}`}>{selected.role === 'admin' ? '取消管理员' : '任命为管理员'}</button>
-            <span className="text-[11px] text-[#666]">管理员可进后台全部页面，但不附带会员</span>
-          </div>}
-          <div className="mt-3 border-t border-[#D8D6CC] pt-3">
+          <div className="border-t border-[#D8D6CC] pt-3">
             <p className="text-xs font-black mb-2">发放记录</p>
             <div className="space-y-1.5 max-h-52 overflow-y-auto">{props.grants.map((record) => <div key={record.id} className="border border-[#121212] bg-white p-2 text-xs flex justify-between gap-2"><span><strong>{record.months} 个月</strong>（{record.days} 天） · 操作人 <span className="font-mono">{record.granted_by}</span></span><span className="text-[#666] shrink-0">{new Date(record.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}</span></div>)}{!props.grants.length && <p className="text-xs text-[#666]">暂无发放记录</p>}</div>
-            <Pager offset={props.grantOffset} total={props.grantTotal} onChange={props.setGrantOffset} />
+            <Pager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />
           </div>
         </section>
       </>}

@@ -466,17 +466,21 @@ export async function onRequest(context) {
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
         const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
         const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";
-        const [count, users] = await db.batch([
+        const [count, users, memberCount] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).bind(pattern, pattern),
           db.prepare(`SELECT u.qq,u.name,u.role,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,u.membership_expires_at,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count,` +
             `(SELECT COUNT(*) FROM submissions s WHERE s.type='report' AND s.reported_qq=u.qq) report_count,` +
+            // 带团/参团只算网团与面团：宣群不算开团，也没有报名记录。
+            `(SELECT COUNT(*) FROM campaigns c WHERE c.gm_qq=u.qq AND c.deleted_at IS NULL AND c.kind IN ('online','offline')) hosted_count,` +
+            `(SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=u.qq AND c.deleted_at IS NULL AND c.kind IN ('online','offline')) joined_count,` +
             `b.expires_at blacklist_expires_at,b.banned_at blacklist_banned_at,` +
             `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
-            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY u.created_at DESC LIMIT 50 OFFSET ?`).bind(now(), pattern, pattern, offset)
+            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY u.created_at DESC LIMIT 100 OFFSET ?`).bind(now(), pattern, pattern, offset),
+          db.prepare('SELECT COUNT(*) n FROM users WHERE role=\'owner\' OR membership_expires_at=? OR membership_expires_at>?').bind(PERMANENT_MEMBERSHIP, now())
         ]);
-        return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n });
+        return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n, memberTotal: memberCount.results[0].n });
       }
       if (path[1] === 'users' && path[2] && path[3] === 'blacklist' && path.length === 4) {
         const qq = path[2];
@@ -939,11 +943,19 @@ export async function onRequest(context) {
         const result = await db.prepare('UPDATE campaigns SET finished_at=?,closed_at=COALESCE(closed_at,?) WHERE id=? AND finished_at IS NULL').bind(new Date().toISOString(), new Date().toISOString(), cid).run();
         return result.meta.changes ? json({ ok: true }) : fail('本团已经结团', 409);
       }
+      // 结束宣发：只把宣群标记为「已结束」并保留记录（closed_at），不再出现在宣群板块，
+      // 但主持人仍能在团务管理里看到这条历史，随时可以用 DELETE 物理删除。幂等，重复点击按成功返回。
+      if (path[2] === 'end-promo' && path.length === 3 && method === 'POST') {
+        if (c.kind !== 'promo') return fail('只有宣群可以结束宣发', 409);
+        if (c.closed_at || c.finished_at) return json({ ok: true, alreadyEnded: true });
+        await db.prepare('UPDATE campaigns SET closed_at=? WHERE id=? AND kind=\'promo\' AND deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL').bind(new Date().toISOString(), cid).run();
+        return json({ ok: true });
+      }
       if (path[2] === 'status' && path.length === 3 && method === 'PATCH') {
         const b = await body(request);
         if (typeof b.closed !== 'boolean') return fail('状态无效');
-        // 宣群不再封车留档：结束宣发由前端二次确认后走 DELETE 物理删除，任何状态接口都不再写入 closed_at。
-        if (c.kind === 'promo') return fail('宣群请使用「结束宣发」删除记录', 409);
+        // 宣群不走封车/解封，结束宣发请用专用接口 end-promo。
+        if (c.kind === 'promo') return fail('宣群请使用「结束宣发」', 409);
         if (c.finished_at) return fail('已结团，不能重新开放', 409);
         if (!b.closed && campaignExpired(c)) return fail('预定时间已过，请先修改时间', 409);
         await db.prepare('UPDATE campaigns SET closed_at=? WHERE id=?').bind(b.closed ? new Date().toISOString() : null, cid).run();

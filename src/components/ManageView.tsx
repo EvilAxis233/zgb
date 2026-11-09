@@ -19,6 +19,7 @@ interface Props {
   popularCustomTags?: string[];
   stickerLibrary?: string[];
   onDeleteCampaign: (id: string) => void | Promise<unknown>;
+  onEndPromo: (id: string) => void | Promise<unknown>;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
   onFinishCampaign: (id: string) => void;
   onAddBatchSlot: (batchId: string, timeSchedule: string) => Promise<boolean>;
@@ -39,6 +40,7 @@ export const ManageView: React.FC<Props> = ({
   popularCustomTags = [],
   stickerLibrary = [],
   onDeleteCampaign,
+  onEndPromo,
   onSetCampaignClosed,
   onFinishCampaign,
   onAddBatchSlot,
@@ -60,6 +62,7 @@ export const ManageView: React.FC<Props> = ({
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
   const [stickerTouched, setStickerTouched] = useState(false);
   const [endingPromoIds, setEndingPromoIds] = useState<string[]>([]);
+  const [deletingPromoIds, setDeletingPromoIds] = useState<string[]>([]);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const addTag = () => {
@@ -91,20 +94,34 @@ export const ManageView: React.FC<Props> = ({
     });
     if (ok) onCancelSignup(campaign.id);
   };
-  // 宣群不再「封车」留记录：一次确认后直接物理删除，后台不保留。
-  // 确认期间锁住该按钮，避免连点或等待网络时看起来「没反应」。
+  // 结束宣发 = 归档：记录保留在团务管理的「宣群 · 历史记录」里，只是不再出现在宣群板块。
+  // 确认期间锁住按钮，避免连点或等待网络时看起来「没反应」。
   const handleEndPromo = async (campaign: Campaign) => {
     if (endingPromoIds.includes(campaign.id)) return;
     const ok = await showConfirm({
       title: '结束宣发',
-      message: `确定结束「${campaign.title}」的宣发吗？确认后这条宣群记录将被永久删除，后台不再保留，且无法恢复。`,
+      message: `确定结束「${campaign.title}」的宣发吗？确认后该宣群不再展示，但记录会保留在团务管理的历史记录中，可随时删除。`,
       confirmText: '确定结束宣发',
-      type: 'danger',
+      type: 'warning',
     });
     if (!ok) return;
     setEndingPromoIds((previous) => [...previous, campaign.id]);
-    try { await onDeleteCampaign(campaign.id); }
+    try { await onEndPromo(campaign.id); }
     finally { setEndingPromoIds((previous) => previous.filter((item) => item !== campaign.id)); }
+  };
+  // 历史记录上的「删除记录」：二次确认后才物理删除，无法恢复。
+  const handleDeletePromoRecord = async (campaign: Campaign) => {
+    if (deletingPromoIds.includes(campaign.id)) return;
+    const ok = await showConfirm({
+      title: '删除记录',
+      message: `确定永久删除「${campaign.title}」这条宣群历史记录吗？删除后后台不再保留，且无法恢复。`,
+      confirmText: '确定删除',
+      type: 'danger',
+    });
+    if (!ok) return;
+    setDeletingPromoIds((previous) => [...previous, campaign.id]);
+    try { await onDeleteCampaign(campaign.id); }
+    finally { setDeletingPromoIds((previous) => previous.filter((item) => item !== campaign.id)); }
   };
   const handleClosure = async (campaign: Campaign) => {
     const closed = !campaign.isClosed;
@@ -156,9 +173,13 @@ export const ManageView: React.FC<Props> = ({
           <div className="mt-3 pt-3 border-t border-[#D8D5CC] flex flex-wrap gap-2">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
             {hosted ? <>
-              {!campaign.batchId && !campaign.hasEnded && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
+              {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
               {campaign.kind === 'promo' ? (
-                <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><Trash2 className="w-3.5 h-3.5" />{endingPromoIds.includes(campaign.id) ? '正在删除…' : '结束宣发'}</button>
+                campaign.isClosed ? (
+                  <button disabled={deletingPromoIds.includes(campaign.id)} onClick={() => handleDeletePromoRecord(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><Trash2 className="w-3.5 h-3.5" />{deletingPromoIds.includes(campaign.id) ? '正在删除…' : '删除记录'}</button>
+                ) : (
+                  <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FFF9E9] text-[#B5651D] border-[#B5651D] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><X className="w-3.5 h-3.5" />{endingPromoIds.includes(campaign.id) ? '正在结束…' : '结束宣发'}</button>
+                )
               ) : <>
                 {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
                 {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}
@@ -174,9 +195,13 @@ export const ManageView: React.FC<Props> = ({
     const key = campaign.batchId || campaign.id;
     hostedGroups.set(key, [...(hostedGroups.get(key) || []), campaign]);
   });
-  const visibleHostedGroups = [...hostedGroups.entries()].sort((a, b) => ({ online: 0, offline: 1, promo: 2 }[a[1][0].kind] - { online: 0, offline: 1, promo: 2 }[b[1][0].kind]));
+  // 宣群把「展示中」与「已结束宣发的历史记录」分成两段，历史记录排在最后。
+  const groupRank = (c: Campaign) => c.kind === 'online' ? 0 : c.kind === 'offline' ? 1 : c.isClosed ? 3 : 2;
+  const groupKey = (c: Campaign) => `${c.kind}:${c.kind === 'promo' && c.isClosed ? 'history' : 'live'}`;
+  const groupTitle = (c: Campaign) => c.kind === 'online' ? '网团' : c.kind === 'offline' ? '面团' : c.isClosed ? '宣群 · 历史记录' : '宣群';
+  const visibleHostedGroups = [...hostedGroups.entries()].sort((a, b) => groupRank(a[1][0]) - groupRank(b[1][0]));
   const hostedList = visibleHostedGroups.length ? <div className="space-y-3">{visibleHostedGroups.map(([key, items], index) => <React.Fragment key={key}>
-    {(index === 0 || visibleHostedGroups[index - 1][1][0].kind !== items[0].kind) && <h3 className="text-xs font-black border-b border-[#121212] pb-1 pt-2">{items[0].kind === 'online' ? '网团' : items[0].kind === 'offline' ? '面团' : '宣群'}</h3>}
+    {(index === 0 || groupKey(visibleHostedGroups[index - 1][1][0]) !== groupKey(items[0])) && <h3 className="text-xs font-black border-b border-[#121212] pb-1 pt-2">{groupTitle(items[0])}</h3>}
     {(() => {
     if (!items[0].batchId) return campaignCard(items[0], true);
     const master = items[0].batchMaster || items.find((item) => item.id === key) || items[0];

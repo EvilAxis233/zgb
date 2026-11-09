@@ -57,6 +57,8 @@ export function App() {
   const removedIdsRef = useRef<Set<string>>(new Set());
   // 正在删除中的团：防止确认框被连点或重复触发。
   const deletingIdsRef = useRef<Set<string>>(new Set());
+  // 正在结束宣发中的宣群：归档操作同样防连点。
+  const endingPromoIdsRef = useRef<Set<string>>(new Set());
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,12 +165,12 @@ export function App() {
     return run(async () => { await api.createCampaign(await prepareCampaign(data)); }, `${data.kind === 'online' ? '网团' : data.kind === 'offline' ? '面团' : '宣群'}《${data.title}》发布成功`);
   };
 
-  // 删除 / 结束宣发：第一次确认后立即删除并立即从界面移除。
+  // 删除团 / 删除宣群历史记录：第一次确认后立即删除并立即从界面移除。
   // 不再等全量刷新，避免弱网下刷新慢或失败时旧卡片仍挂在列表里，被误认为「没删掉」而再点一次。
   const handleDeleteCampaign = async (campaignId: string, successMessage?: string) => {
     if (deletingIdsRef.current.has(campaignId)) return true;
     const target = campaigns.find((campaign) => campaign.id === campaignId);
-    const message = successMessage || (target?.kind === 'promo' ? '宣发已结束，记录已删除' : '战役已弃团');
+    const message = successMessage || (target?.kind === 'promo' ? '宣群历史记录已删除' : '战役已弃团');
     deletingIdsRef.current.add(campaignId);
     setPendingActions((count) => count + 1);
     try {
@@ -191,6 +193,27 @@ export function App() {
     showToast(message, 'success');
     // 本地状态已精确移除，不再整页刷新：弱网下那次刷新失败会把登录态降级或读到旧快照，
     // 反而制造「又回来了」的错觉。规则、点赞数等在下一次操作或重新进入页面时自然同步。
+    return true;
+  };
+  // 结束宣发：只归档不删除。本地立刻把卡片标成「已结束宣发」，宣群板块随即不再展示，
+  // 但团务管理里仍保留这条历史记录，可再用「删除记录」物理删除。
+  const handleEndPromo = async (campaignId: string) => {
+    if (endingPromoIdsRef.current.has(campaignId)) return true;
+    endingPromoIdsRef.current.add(campaignId);
+    setPendingActions((count) => count + 1);
+    try {
+      await api.endPromo(campaignId);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '操作失败', 'error');
+      return false;
+    } finally {
+      endingPromoIdsRef.current.delete(campaignId);
+      setPendingActions((count) => count - 1);
+    }
+    setCampaigns((previous) => previous.map((campaign) => campaign.id === campaignId ? { ...campaign, isClosed: true } : campaign));
+    // 主界面详情弹窗若正打开这条宣群，归档后直接关掉，避免停留在已下架的内容上。
+    setSelectedCampaign((previous) => previous?.id === campaignId ? null : previous);
+    showToast('宣发已结束，记录保留在团务管理的历史记录中', 'success');
     return true;
   };
   // 站长/管理员在主界面详情弹窗中直接编辑或删除任意团
@@ -675,6 +698,7 @@ export function App() {
               popularCustomTags={popularCustomTags}
               stickerLibrary={currentUser?.stickerLibraryKeys || []}
               onDeleteCampaign={handleDeleteCampaign}
+              onEndPromo={handleEndPromo}
               onSetCampaignClosed={handleSetCampaignClosed}
               onFinishCampaign={handleFinishCampaign}
               onAddBatchSlot={handleAddBatchSlot}
@@ -703,6 +727,7 @@ export function App() {
         onPraise={handleSendPraise}
         onEditCampaign={currentUser?.isAdmin ? handleAdminEditCampaign : undefined}
         onDeleteCampaign={currentUser?.isAdmin ? handleAdminDeleteCampaign : undefined}
+        onEndPromo={currentUser?.isAdmin ? handleEndPromo : undefined}
       />
 
       {/* 站长/管理员：主界面直接编辑团内容 */}

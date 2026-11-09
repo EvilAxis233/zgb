@@ -20,6 +20,7 @@ interface Props {
   onPraise: (campaignId: string, qq: string, type: 'gm' | 'player') => void;
   onEditCampaign?: (campaign: CampaignDetail) => void;
   onDeleteCampaign?: (campaignId: string) => void;
+  onEndPromo?: (campaignId: string) => void;
 }
 
 function Avatar({ member }: { member: CampaignMember }) {
@@ -37,7 +38,7 @@ function Avatar({ member }: { member: CampaignMember }) {
   );
 }
 
-export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign }) => {
+export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
   const { showConfirm } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
   if (!campaign) return null;
@@ -54,31 +55,35 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   const gm = campaign.members.find((member) => member.role === 'gm');
   const players = campaign.members.filter((member) => member.role === 'player');
 
-  // 站长/管理员在主界面直接处置违规团：编辑内容、删除（需二次确认）。
+  // 站长/管理员在主界面直接处置违规团：编辑内容、结束宣发、删除（需二次确认）。
   const isAdminModerator = !!currentUser?.isAdmin && !!onEditCampaign && !!onDeleteCampaign;
   const handleAdminDelete = async () => {
     if (!campaign) return;
-    // 宣群等同于「结束宣发」，一次确认即删除；普通团删除违规内容仍保留双重确认。
-    const isPromo = campaign.kind === 'promo';
+    // 宣群「结束宣发」是归档：记录保留为历史，一次确认即可；普通团删除违规内容仍保留双重确认。
+    if (campaign.kind === 'promo' && onEndPromo) {
+      const ok = await showConfirm({
+        title: '结束宣发',
+        message: `确定结束「${campaign.title}」的宣发吗？确认后该宣群不再展示，但记录会保留在团务管理的历史记录中，可随时删除。`,
+        confirmText: '确定结束宣发',
+        type: 'warning',
+      });
+      if (ok) onEndPromo(campaign.id);
+      return;
+    }
     const first = await showConfirm({
-      title: isPromo ? '结束宣发' : '删除违规团',
-      message: isPromo
-        ? `确定结束「${campaign.title}」的宣发吗？确认后这条宣群记录将被永久删除，后台不再保留，且无法恢复。`
-        : `确定删除《${campaign.title}》吗？团、成员记录和相关点赞将被删除。`,
-      confirmText: isPromo ? '确定结束宣发' : '继续删除',
+      title: '删除违规团',
+      message: `确定删除《${campaign.title}》吗？团、成员记录和相关点赞将被删除。`,
+      confirmText: '继续删除',
       type: 'danger',
     });
     if (!first) return;
-    if (!isPromo) {
-      const second = await showConfirm({
-        title: '最终确认',
-        message: `再次确认：《${campaign.title}》删除后无法恢复，确定执行吗？`,
-        confirmText: '确认删除',
-        type: 'danger',
-      });
-      if (!second) return;
-    }
-    onDeleteCampaign?.(campaign.id);
+    const second = await showConfirm({
+      title: '最终确认',
+      message: `再次确认：《${campaign.title}》删除后无法恢复，确定执行吗？`,
+      confirmText: '确认删除',
+      type: 'danger',
+    });
+    if (second) onDeleteCampaign?.(campaign.id);
   };
 
   const handleRemoveMember = async (member: CampaignMember) => {

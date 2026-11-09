@@ -41,6 +41,7 @@ export const api = {
   addBatchSlot: (batchId: string, timeSchedule: string) => post<{ id: string }>(`batches/${batchId}/slots`, { timeSchedule }),
   updateCampaign: (id: string, value: unknown) => patch(`campaigns/${id}`, value),
   setCampaignClosed: (id: string, closed: boolean) => patch(`campaigns/${id}/status`, { closed }),
+  endPromo: (id: string) => post<{ ok: boolean; alreadyEnded?: boolean }>(`campaigns/${id}/end-promo`),
   finishCampaign: (id: string) => post(`campaigns/${id}/finish`),
   deleteCampaign: (id: string) => request(`campaigns/${id}`, { method: 'DELETE' }),
   uploadAvatar: async (file: File) => {
@@ -77,6 +78,8 @@ export interface AdminUser {
   sent_count: number;
   received_count: number;
   report_count: number;
+  hosted_count: number;
+  joined_count: number;
   blacklisted: number;
   blacklist_expires_at: number | null;
   blacklist_banned_at: string | null;
@@ -138,7 +141,7 @@ export const adminApi = {
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
-  users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
+  users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number; memberTotal: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
   grantMembership: (qq: string, months: number) => post<{ ok: boolean; months: number; days: number; membershipExpiresAt: number }>(`admin/users/${encodeURIComponent(qq)}/membership`, { months }),
   grants: (qq: string, offset: number) => request<{ records: MembershipGrant[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/grants?offset=${offset}`),
   setRole: (qq: string, role: 'admin' | '') => patch<{ ok: boolean; role: 'admin' | null }>(`admin/users/${encodeURIComponent(qq)}/role`, { role }),
