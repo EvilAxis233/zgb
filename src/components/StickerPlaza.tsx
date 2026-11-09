@@ -18,7 +18,7 @@ function StarMark({ filled }: { filled: boolean }) {
     <svg
       viewBox="0 0 24 24"
       aria-hidden="true"
-      className="h-[18px] w-[18px]"
+      className="h-3.5 w-3.5"
       fill={filled ? '#FFC531' : 'none'}
       stroke="#121212"
       strokeWidth={2}
@@ -122,7 +122,7 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] font-bold leading-relaxed text-[#666]">
           {members.length ? `${members.length} 位会员 · ${totalStickers} 张贴纸 · ` : ''}
-          点图片右下角 ☆ 加入我的库存，★ 表示已拥有；为保护隐私，广场不显示其他会员的 QQ 号。
+          点图片右下角 ☆ 加入我的库存，★ 表示已拥有。
         </p>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -200,12 +200,12 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
                         <button
                           type="button"
                           onClick={() => clickAdd(sticker.key)}
-                          className="absolute bottom-1 right-1 z-10 flex h-8 w-8 items-center justify-center border-2 border-[#121212] bg-white shadow-[2px_2px_0px_#121212] cursor-pointer hover:bg-[#FFF7DE] active:translate-x-px active:translate-y-px active:shadow-none"
+                          className="absolute bottom-1 right-1 z-10 flex h-6 w-6 items-center justify-center border-2 border-[#121212] bg-white cursor-pointer hover:bg-[#FFF7DE]"
                           title={owned ? '已在我的库存' : full ? '库存已满，选择要替换的一张' : '加入我的库存'}
                           aria-label={owned ? '已在我的库存' : full ? '库存已满，选择要替换的一张' : '加入我的库存'}
                           aria-pressed={owned}
                         >
-                          {busy ? <Loader2 className="h-4 w-4 animate-spin text-[#004E98]" /> : <StarMark filled={owned} />}
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-[#004E98]" /> : <StarMark filled={owned} />}
                         </button>
                         {canModerate && (
                           <button
