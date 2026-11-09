@@ -748,7 +748,7 @@ export async function onRequest(context) {
       return json({ user: userDto(user), users: hosts.results.map(publicUserDto), campaigns: campaigns.filter((c) => visible.some((item) => item.id === c.id)), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'profile' && path.length === 1 && method === 'PATCH') {
-      const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 1000);
+      const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 100);
       const tags = (v) => Array.isArray(v) ? [...new Set(v.map((x) => clean(x, 40)).filter(Boolean))].slice(0, 20) : [];
       if (!name) return fail('昵称不能为空');
       if (nicknameLength(name) > 20) return fail('昵称最多 10 个中文字符或 20 个英文字符，中文及全角字符按 2 个计算');

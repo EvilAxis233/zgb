@@ -310,17 +310,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="pt-6 grid grid-cols-1 md:grid-cols-12 gap-6">
           {/* Bio */}
           <div className="md:col-span-5">
-            <h3 className="text-xs font-black tracking-wider text-[#121212] mb-2 flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 bg-[#D62828]" />
-              个人简介
-            </h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-black tracking-wider text-[#121212] flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-[#D62828]" />
+                个人简介
+              </h3>
+              {isEditing && (
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 border border-[#121212] ${bio.length >= 100 ? 'bg-[#FFEBEE] text-[#C62828]' : 'bg-[#F0F5FA] text-[#004E98]'}`}>
+                  {bio.length}/100
+                </span>
+              )}
+            </div>
             {isEditing ? (
               <textarea
                 rows={4}
+                maxLength={100}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 className="bauhaus-input w-full p-2.5 text-xs resize-none"
-                placeholder="介绍你的跑团风格、主持理念或经历..."
+                placeholder="介绍你的跑团风格、主持理念或经历...（最多 100 字）"
               />
             ) : (
               <p className="text-sm text-[#333333] leading-relaxed bg-[#F6F5F0] p-3 border-l-4 border-[#121212]">

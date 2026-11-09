@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy } from 'lucide-react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -42,6 +42,7 @@ function Avatar({ member }: { member: CampaignMember }) {
 export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
   const { showConfirm } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
   // 玩家 QQ 只给该团主持人和站主/管理员看，普通访客与同团其他玩家看不到。
@@ -149,18 +150,29 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
                 {receivedPraiseBadge}
               </div>
-              {hasTraits && <div className="flex min-w-0 flex-col items-end gap-1 text-[11px] font-bold">
-                {prefs.length > 0 && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
-                  <span className="shrink-0 text-[#004E98]">喜好</span>
-                  {prefs.slice(0, 3).map((tag) => <span key={`gm-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[#004E98]">{tag}</span>)}
-                  {prefs.length > 3 && <span className="text-[#888]">+{prefs.length - 3}</span>}
+              <div className="flex min-w-0 items-center gap-2.5">
+                {hasTraits && <div className="flex min-w-0 flex-col items-end gap-1 text-[11px] font-bold">
+                  {prefs.length > 0 && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
+                    <span className="shrink-0 text-[#004E98]">喜好</span>
+                    {prefs.slice(0, 3).map((tag) => <span key={`gm-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[#004E98]">{tag}</span>)}
+                    {prefs.length > 3 && <span className="text-[#888]">+{prefs.length - 3}</span>}
+                  </div>}
+                  {tabooList.length > 0 && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
+                    <span className="shrink-0 text-[#D62828]">雷区</span>
+                    {tabooList.slice(0, 3).map((tag) => <span key={`gm-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[#D62828]">{tag}</span>)}
+                    {tabooList.length > 3 && <span className="text-[#888]">+{tabooList.length - 3}</span>}
+                  </div>}
                 </div>}
-                {tabooList.length > 0 && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
-                  <span className="shrink-0 text-[#D62828]">雷区</span>
-                  {tabooList.slice(0, 3).map((tag) => <span key={`gm-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[#D62828]">{tag}</span>)}
-                  {tabooList.length > 3 && <span className="text-[#888]">+{tabooList.length - 3}</span>}
-                </div>}
-              </div>}
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen(true)}
+                  title={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
+                  aria-label={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
+                  className="bauhaus-btn inline-flex shrink-0 cursor-pointer items-center gap-1 border-[#004E98] bg-white px-2 py-1 text-[11px] font-black text-[#004E98] hover:bg-[#F0F5FA]"
+                >
+                  <FileText className="h-3.5 w-3.5" />个人档案
+                </button>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">{praiseButton(member)}</div>
           </div>
@@ -305,6 +317,54 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           </div>
         </footer>
       </div>
+
+      {/* 发布者 / GM 的个人档案（只读）：展示其在个人资料里填写的简介。 */}
+      {profileOpen && gm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${campaign.kind === 'promo' ? '发布者' : 'GM'}个人档案`}
+            className="flex max-h-[85vh] w-full max-w-md flex-col border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]"
+          >
+            <header className="flex shrink-0 items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
+              <span className="flex items-center gap-2 text-sm font-black tracking-wider">
+                <span className="h-3 w-3 bg-[#F4A261]" />
+                {campaign.kind === 'promo' ? '发布者' : 'GM'}个人档案
+              </span>
+              <button type="button" onClick={() => setProfileOpen(false)} aria-label="关闭个人档案" className="cursor-pointer text-white/80 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="overflow-y-auto p-4">
+              <div className="flex items-center gap-3 border-b-2 border-[#121212] pb-3">
+                <Avatar member={gm} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className="min-w-0 break-all text-sm font-black">{gm.name}</strong>
+                    {gm.nameplate && <NameplateBadge nameplate={gm.nameplate} />}
+                  </div>
+                  <p className="mt-1 text-[11px] font-bold text-[#777]">本团{campaign.kind === 'promo' ? '发布者' : ' GM'} · 个人档案</p>
+                </div>
+              </div>
+              <div className="mt-3 border-2 border-[#121212] bg-[#FAF9F5] p-3">
+                <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#121212]">
+                  <span className="h-2.5 w-2.5 bg-[#D62828]" />个人简介
+                </h4>
+                {gm.bio
+                  ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#333]">{gm.bio}</p>
+                  : <p className="text-xs font-bold text-[#888]">这位{campaign.kind === 'promo' ? '发布者' : 'GM'}还没有填写个人简介。</p>}
+              </div>
+            </div>
+            <footer className="flex shrink-0 justify-end border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-2.5">
+              <button type="button" onClick={() => setProfileOpen(false)} className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-black">关闭</button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

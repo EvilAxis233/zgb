@@ -243,7 +243,7 @@ export const NameplateModal: React.FC<Props> = ({
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
               {visibleStyles.map((style, index) => {
                 const isSelected = selectedStyle === style.id;
                 return (
@@ -263,21 +263,7 @@ export const NameplateModal: React.FC<Props> = ({
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center flex-wrap gap-1.5">
-                        <span className="font-mono text-[10px] font-bold px-1 bg-[#121212] text-white">
-                          {style.code}
-                        </span>
-                        <strong className="text-xs font-black text-[#121212]">{style.name}</strong>
-                        <span
-                          className={`text-[9px] font-bold px-1 ${
-                            style.type === 'static'
-                              ? 'bg-[#E3F2FD] text-[#0D47A1]'
-                              : 'bg-[#FCE4EC] text-[#880E4F]'
-                          }`}
-                        >
-                          {style.type === 'static' ? '静态' : '动态'}
-                        </span>
-                      </div>
+                      <strong className="block truncate text-xs font-black text-[#121212]">{style.name}</strong>
                     </div>
 
                     <div className="flex items-center justify-between gap-2 min-h-7">
