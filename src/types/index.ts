@@ -28,6 +28,7 @@ export interface UserProfile {
   stickerKeys?: string[]; // 贴纸在存储中的 key，用于编辑时回填
   stickerLibrary?: string[]; // 贴纸库（最多 10 张图片地址）
   stickerLibraryKeys?: string[]; // 贴纸库的存储 key
+  stickerLibraryPublic?: boolean; // 是否把贴纸库存公开到贴纸广场（默认公开）
   notifyEmail?: string; // 报名通知收件邮箱，留空表示用登录的 QQ 邮箱
   signupNotifyEnabled?: boolean; // 是否接收玩家报名 / 取消报名邮件
 }

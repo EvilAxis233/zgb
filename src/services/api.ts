@@ -31,6 +31,7 @@ export const api = {
   updateNameplate: (nameplate: UserNameplate | null) => patch<{ user: UserProfile }>('profile/nameplate', { nameplate }),
   updateStickers: (stickers: string[]) => patch<{ user: UserProfile }>('profile/stickers', { stickers }),
   updateStickerLibrary: (stickers: string[]) => patch<{ user: UserProfile }>('profile/sticker-library', { stickers }),
+  setStickerLibraryPublic: (value: boolean) => patch<{ user: UserProfile }>('profile/sticker-library-public', { public: value }),
   stickerPlaza: () => request<{ members: StickerPlazaMember[]; canModerate: boolean; blocked: string[] }>('sticker-plaza'),
   stickerPlazaCopy: (key: string, replaceKey?: string) => post<{ ok: boolean; already?: boolean; note?: string; user: UserProfile }>('sticker-plaza/copy', { key, replaceKey }),
   stickerPlazaBlock: (key: string) => post<{ ok: boolean }>('sticker-plaza/block', { key }),

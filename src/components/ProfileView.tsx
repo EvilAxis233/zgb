@@ -9,6 +9,7 @@ import { NameplateModal } from './NameplateModal';
 import { NameplateBadge } from './NameplateBadge';
 import { StickerLibrary } from './StickerLibrary';
 import { StickerPlaza } from './StickerPlaza';
+import { api } from '../services/api';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface ProfileViewProps {
@@ -55,8 +56,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [nameplateOpen, setNameplateOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [plazaOpen, setPlazaOpen] = useState(false);
+  const [publicBusy, setPublicBusy] = useState(false);
   const [membershipNow, setMembershipNow] = useState(() => Date.now());
   const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
+  const stickerMember = membershipActive || !!currentUser.membershipPermanent;
+
+  // 「我的贴纸」标题右侧的打勾：控制自己的贴纸库存是否出现在别人的贴纸广场。
+  const toggleLibraryPublic = async (value: boolean) => {
+    if (publicBusy) return;
+    setPublicBusy(true);
+    try {
+      const { user } = await api.setStickerLibraryPublic(value);
+      onUserUpdate(user);
+    } catch (error) {
+      showAlert({ title: '设置失败', message: error instanceof Error ? error.message : '请稍后重试', type: 'danger' });
+    } finally {
+      setPublicBusy(false);
+    }
+  };
   React.useEffect(() => {
     const timer = window.setInterval(() => setMembershipNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
@@ -542,8 +559,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {stickerOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setStickerOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-label="我的贴纸" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
-            <header className="flex items-center justify-between gap-2 bg-[#121212] px-4 py-2.5 text-white">
-              <h2 className="font-black text-sm">我的贴纸</h2>
+            <header className="flex flex-wrap items-center justify-between gap-2 bg-[#121212] px-4 py-2.5 text-white">
+              <div className="flex items-center gap-3">
+                <h2 className="shrink-0 font-black text-sm">我的贴纸</h2>
+                <label
+                  className={`flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold ${stickerMember && !publicBusy ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+                  title="勾选后，其他会员可在贴纸广场看到你的贴纸库存；取消勾选则不再展示"
+                >
+                  <input
+                    type="checkbox"
+                    checked={currentUser.stickerLibraryPublic !== false}
+                    disabled={!stickerMember || publicBusy}
+                    onChange={(event) => void toggleLibraryPublic(event.target.checked)}
+                    className="h-4 w-4 shrink-0 cursor-pointer accent-[#004E98] disabled:cursor-not-allowed"
+                    aria-label="公开贴纸库存"
+                  />
+                  公开贴纸库存
+                </label>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -557,7 +590,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </header>
             <div className="p-4">
               <StickerLibrary
-                isMember={membershipActive || !!currentUser.membershipPermanent}
+                isMember={stickerMember}
                 library={currentUser.stickerLibraryKeys || []}
                 defaults={currentUser.stickerKeys || []}
                 onChangeLibrary={onUpdateStickerLibrary}
@@ -585,7 +618,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             </header>
             <StickerPlaza
-              isMember={membershipActive || !!currentUser.membershipPermanent}
+              isMember={stickerMember}
               library={currentUser.stickerLibraryKeys || []}
               onUserUpdate={onUserUpdate}
             />

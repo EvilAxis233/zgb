@@ -150,7 +150,7 @@ export function StickerLibrary({ isMember, library, defaults, onChangeLibrary, o
       </div>
       <p className="mt-2 text-[10px] text-[#666] leading-relaxed">
         {isMember
-          ? `最多预存 ${STICKER_LIBRARY_LIMIT} 张；满 10 张后上传会提示已超库存，需自己选一张替换。新上传的贴纸只进库存，不会自动默认佩戴，发车时自行选用。静图按发团卡片的贴纸尺寸（约 166×48、3.5:1）裁剪，GIF 保留动画但不会裁剪，请自行做成 3.5:1 长条。`
+          ? `最多预存 ${STICKER_LIBRARY_LIMIT} 张；满 10 张后上传会提示已超库存，需自己选一张替换。新上传的贴纸只进库存，不会自动默认佩戴，发车时自行选用。静图按发团卡片的贴纸尺寸（约 166×48、3.5:1）裁剪，GIF 保留动画但不会裁剪，请自行做成 3.5:1 长条。取消标题右侧的「公开贴纸库存」勾选后，其他会员在贴纸广场看不到你的库存。`
           : '会员专享：开通后可预存 10 张贴纸；非会员无法上传贴纸，已发布的团不受影响'}
       </p>
       <input

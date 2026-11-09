@@ -71,7 +71,7 @@ async function touchRule(db, name, iso) {
 const userDto = (u) => {
   const role = roleOf(u);
   const permanent = role === 'owner' || u.membership_expires_at === PERMANENT_MEMBERSHIP;
-  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers), stickerLibrary: parseTags(u.sticker_library).map((key) => assetUrl(key)).filter(Boolean), stickerLibraryKeys: parseTags(u.sticker_library), notifyEmail: u.notify_email || '', signupNotifyEnabled: u.signup_notify_enabled !== 0 };
+  return { id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos), receivedGmPraises: u.received_gm, receivedPlayerPraises: u.received_player, inventory: { gmHearts: u.gm_hearts, playerHearts: u.player_hearts }, lastCheckInDate: u.last_checkin || '', role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membershipExpiresAt: permanent ? PERMANENT_MEMBERSHIP : u.membership_expires_at ?? null, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(u.stickers), stickerLibrary: parseTags(u.sticker_library).map((key) => assetUrl(key)).filter(Boolean), stickerLibraryKeys: parseTags(u.sticker_library), stickerLibraryPublic: u.sticker_library_public !== 0, notifyEmail: u.notify_email || '', signupNotifyEnabled: u.signup_notify_enabled !== 0 };
 };
 // 通知邮箱属于隐私，公开用户列表里不带出这两个字段。
 const publicUserDto = (u) => { const { notifyEmail, signupNotifyEnabled, ...rest } = userDto(u); return { ...rest, role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [], stickerLibrary: [], stickerLibraryKeys: [] }; };
@@ -101,12 +101,12 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
   return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
-// 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己；
+// 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己、且本人已勾选「公开贴纸库存」；
 // 每张图片必须格式合法且未被站主下架。广场不下发任何 QQ 号，会员分组只用匿名序号标识。
 const plazaKeyOk = (key, blocked) => /^[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..') && !blocked.has(key);
 async function plazaSource(db, viewerQq) {
   const [users, blocks, copies] = await db.batch([
-    db.prepare(`SELECT u.* FROM users u WHERE u.qq<>? AND NOT EXISTS (SELECT 1 FROM user_blacklist b WHERE b.qq=u.qq AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?))`).bind(viewerQq, now()),
+    db.prepare(`SELECT u.* FROM users u WHERE u.qq<>? AND COALESCE(u.sticker_library_public,1)<>0 AND NOT EXISTS (SELECT 1 FROM user_blacklist b WHERE b.qq=u.qq AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?))`).bind(viewerQq, now()),
     db.prepare('SELECT image_key FROM sticker_blocks'),
     db.prepare('SELECT image_key,copy_count FROM sticker_copies')
   ]);
@@ -836,6 +836,16 @@ export async function onRequest(context) {
       if (!roleOf(user)) return fail('只有站主 / 管理员可以撤销下架', 403);
       await db.prepare('DELETE FROM sticker_blocks WHERE image_key=?').bind(clean(path[2], 120)).run();
       return json({ ok: true });
+    }
+    // 「我的贴纸」标题右侧的打勾：是否把自己的贴纸库存公开到贴纸广场。
+    // 会员可随时切换；取消公开只影响他人广场的展示，自己已发布的团和已加入的库存都不变。
+    if (path[0] === 'profile' && path[1] === 'sticker-library-public' && method === 'PATCH') {
+      if (!isMember(user)) return fail('只有会员可以设置贴纸库存公开状态', 403);
+      const b = await body(request);
+      if (typeof b.public !== 'boolean') return fail('参数无效');
+      await db.prepare('UPDATE users SET sticker_library_public=? WHERE qq=?').bind(b.public ? 1 : 0, user.qq).run();
+      const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      return json({ user: userDto(updated) });
     }
     // 贴纸库：会员最多预存 10 张，发团时从这里挑（不允许现场上传）
     if (path[0] === 'profile' && path[1] === 'sticker-library' && method === 'PATCH') {
