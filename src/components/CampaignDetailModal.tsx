@@ -42,7 +42,7 @@ function Avatar({ member }: { member: CampaignMember }) {
 export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
   const { showConfirm } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileMember, setProfileMember] = useState<CampaignMember | null>(null);
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
   // 玩家 QQ 只给该团主持人和站主/管理员看，普通访客与同团其他玩家看不到。
@@ -59,6 +59,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
 
   // 站长/管理员在主界面直接处置违规团：编辑内容、结束宣发、删除（需二次确认）。
   const isAdminModerator = !!currentUser?.isAdmin && !!onEditCampaign && !!onDeleteCampaign;
+  // 个人档案弹窗：GM / 发布者 / 报名玩家都用同一个只读弹窗，展示简介 + 喜好 + 雷区。
+  const profileRoleLabel = profileMember
+    ? (profileMember.role === 'gm' ? (campaign.kind === 'promo' ? '发布者' : 'GM') : '玩家')
+    : '';
+  const profilePrefs = profileMember?.preferences ?? [];
+  const profileTaboos = profileMember?.taboos ?? [];
   const handleAdminDelete = async () => {
     if (!campaign) return;
     // 宣群「结束宣发」是归档：记录保留为历史，一次确认即可；普通团删除违规内容仍保留双重确认。
@@ -165,12 +171,13 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 </div>}
                 <button
                   type="button"
-                  onClick={() => setProfileOpen(true)}
+                  onClick={() => setProfileMember(member)}
                   title={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
                   aria-label={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
-                  className="bauhaus-btn inline-flex shrink-0 cursor-pointer items-center gap-1 border-[#004E98] bg-white px-2 py-1 text-[11px] font-black text-[#004E98] hover:bg-[#F0F5FA]"
+                  className="bauhaus-btn inline-flex h-11 w-11 shrink-0 cursor-pointer flex-col items-center justify-center gap-0 leading-none border-[#004E98] bg-white px-0 py-0 text-[10px] font-black text-[#004E98] hover:bg-[#F0F5FA]"
                 >
-                  <FileText className="h-3.5 w-3.5" />个人档案
+                  <span>个人</span>
+                  <span className="mt-0.5">档案</span>
                 </button>
               </div>
             </div>
@@ -185,8 +192,17 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         {/* 两列对齐：左列头像(跨 ID+铭牌两行) → 获赞点赞在头像正下方；右列 ID → 铭牌贴纸 → QQ 数字。第三行的点赞与 QQ 数字齐平。 */}
         <div className={`grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
           <div className="row-span-2 flex justify-center self-center"><Avatar member={member} /></div>
-          <div className="flex min-w-0 items-center">
+          <div className="flex min-w-0 items-center gap-1.5">
             <strong className="min-w-0 break-all text-sm">{member.name}</strong>
+            <button
+              type="button"
+              onClick={() => setProfileMember(member)}
+              title={`查看 ${member.name} 的个人简介`}
+              aria-label={`查看 ${member.name} 的个人简介`}
+              className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border border-[#121212] bg-[#F0F5FA] text-[#004E98] hover:bg-[#E1ECFA]"
+            >
+              <FileText className="h-3 w-3" />
+            </button>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
             {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
@@ -318,49 +334,67 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         </footer>
       </div>
 
-      {/* 发布者 / GM 的个人档案（只读）：展示其在个人资料里填写的简介。 */}
-      {profileOpen && gm && (
+      {/* 个人档案（只读）：GM / 发布者从方形文字按钮打开，报名玩家从头像旁的图标按钮打开。 */}
+      {profileMember && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileMember(null); }}
         >
           <section
             role="dialog"
             aria-modal="true"
-            aria-label={`${campaign.kind === 'promo' ? '发布者' : 'GM'}个人档案`}
+            aria-label={`${profileRoleLabel}个人档案`}
             className="flex max-h-[85vh] w-full max-w-md flex-col border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]"
           >
             <header className="flex shrink-0 items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
               <span className="flex items-center gap-2 text-sm font-black tracking-wider">
                 <span className="h-3 w-3 bg-[#F4A261]" />
-                {campaign.kind === 'promo' ? '发布者' : 'GM'}个人档案
+                {profileRoleLabel}个人档案
               </span>
-              <button type="button" onClick={() => setProfileOpen(false)} aria-label="关闭个人档案" className="cursor-pointer text-white/80 hover:text-white">
+              <button type="button" onClick={() => setProfileMember(null)} aria-label="关闭个人档案" className="cursor-pointer text-white/80 hover:text-white">
                 <X className="h-4 w-4" />
               </button>
             </header>
             <div className="overflow-y-auto p-4">
               <div className="flex items-center gap-3 border-b-2 border-[#121212] pb-3">
-                <Avatar member={gm} />
+                <Avatar member={profileMember} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <strong className="min-w-0 break-all text-sm font-black">{gm.name}</strong>
-                    {gm.nameplate && <NameplateBadge nameplate={gm.nameplate} />}
+                    <strong className="min-w-0 break-all text-sm font-black">{profileMember.name}</strong>
+                    {profileMember.nameplate && <NameplateBadge nameplate={profileMember.nameplate} />}
                   </div>
-                  <p className="mt-1 text-[11px] font-bold text-[#777]">本团{campaign.kind === 'promo' ? '发布者' : ' GM'} · 个人档案</p>
+                  <p className="mt-1 text-[11px] font-bold text-[#777]">本团{profileRoleLabel} · 个人档案</p>
                 </div>
               </div>
               <div className="mt-3 border-2 border-[#121212] bg-[#FAF9F5] p-3">
                 <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#121212]">
                   <span className="h-2.5 w-2.5 bg-[#D62828]" />个人简介
                 </h4>
-                {gm.bio
-                  ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#333]">{gm.bio}</p>
-                  : <p className="text-xs font-bold text-[#888]">这位{campaign.kind === 'promo' ? '发布者' : 'GM'}还没有填写个人简介。</p>}
+                {profileMember.bio
+                  ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#333]">{profileMember.bio}</p>
+                  : <p className="text-xs font-bold text-[#888]">这位{profileRoleLabel}还没有填写个人简介。</p>}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="border-2 border-[#121212] bg-white p-3">
+                  <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#004E98]">
+                    <span className="h-2.5 w-2.5 bg-[#004E98]" />喜好
+                  </h4>
+                  {profilePrefs.length
+                    ? <div className="flex flex-wrap gap-1">{profilePrefs.map((tag) => <span key={`pf-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98]">{tag}</span>)}</div>
+                    : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
+                </div>
+                <div className="border-2 border-[#121212] bg-white p-3">
+                  <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#D62828]">
+                    <span className="h-2.5 w-2.5 bg-[#D62828]" />雷区
+                  </h4>
+                  {profileTaboos.length
+                    ? <div className="flex flex-wrap gap-1">{profileTaboos.map((tag) => <span key={`pf-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828]">{tag}</span>)}</div>
+                    : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
+                </div>
               </div>
             </div>
             <footer className="flex shrink-0 justify-end border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-2.5">
-              <button type="button" onClick={() => setProfileOpen(false)} className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-black">关闭</button>
+              <button type="button" onClick={() => setProfileMember(null)} className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-black">关闭</button>
             </footer>
           </section>
         </div>
