@@ -101,6 +101,31 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
   return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), ...(role === 'gm' ? { bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) } : {}) });
+// 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己；
+// 每张图片必须格式合法且未被站主下架。QQ 只回传打码后的尾号，不暴露完整号。
+const plazaKeyOk = (key, blocked) => /^[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..') && !blocked.has(key);
+async function plazaSource(db, viewerQq) {
+  const [users, blocks, copies] = await db.batch([
+    db.prepare(`SELECT u.* FROM users u WHERE u.qq<>? AND NOT EXISTS (SELECT 1 FROM user_blacklist b WHERE b.qq=u.qq AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?))`).bind(viewerQq, now()),
+    db.prepare('SELECT image_key FROM sticker_blocks'),
+    db.prepare('SELECT image_key,copy_count FROM sticker_copies')
+  ]);
+  const blocked = new Set(blocks.results.map((row) => row.image_key));
+  const counts = new Map(copies.results.map((row) => [row.image_key, Number(row.copy_count || 0)]));
+  const members = users.results
+    .filter((u) => isMember(u))
+    .map((u) => ({ user: u, keys: [...new Set(parseTags(u.sticker_library))].filter((key) => plazaKeyOk(key, blocked)) }))
+    .filter((item) => item.keys.length);
+  return { members, blocked, counts };
+}
+const plazaMemberDto = (item, counts) => ({
+  qq: `····${String(item.user.qq).slice(-4)}`,
+  name: item.user.name || '未命名',
+  avatar: assetUrl(item.user.avatar_key),
+  createdAt: item.user.created_at || '',
+  count: item.keys.length,
+  stickers: item.keys.map((key) => ({ key, copies: Number(counts.get(key) || 0) }))
+});
 async function body(request) { try { return await request.json(); } catch { throw new Error('无效的 JSON 请求'); } }
 function sessionCookie(token, age) { return `zgb_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${age}`; }
 function adminCookie(token, age) { return `zgb_admin=${token}; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`; }
@@ -766,6 +791,51 @@ export async function onRequest(context) {
       }
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
+    }
+    // 贴纸广场：会员可浏览其他会员公开的贴纸库，并把某张复制进自己的库存。
+    if (path[0] === 'sticker-plaza' && path.length === 1 && method === 'GET') {
+      if (!isMember(user)) return fail('贴纸广场仅会员可用', 403);
+      const source = await plazaSource(db, user.qq);
+      const canModerate = !!roleOf(user);
+      return json({ members: source.members.map((item) => plazaMemberDto(item, source.counts)), canModerate, blocked: canModerate ? [...source.blocked] : [] });
+    }
+    if (path[0] === 'sticker-plaza' && path[1] === 'copy' && method === 'POST') {
+      if (!isMember(user)) return fail('只有会员可以使用贴纸广场', 403);
+      const b = await body(request);
+      const key = clean(b.key, 120), replaceKey = clean(b.replaceKey, 120);
+      if (!/^[A-Za-z0-9._/-]+$/.test(key) || key.includes('..')) return fail('贴纸文件无效');
+      const source = await plazaSource(db, user.qq);
+      if (source.blocked.has(key)) return fail('这张贴纸已下架', 403);
+      const available = new Set(source.members.flatMap((item) => item.keys));
+      if (!available.has(key)) return fail('这张贴纸不在贴纸广场中', 404);
+      if (!await env.COVERS?.head(key)) return fail('贴纸文件不存在', 404);
+      const current = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      const library = parseTags(current?.sticker_library);
+      if (library.includes(key)) return json({ ok: true, already: true, note: '这张贴纸已经在你的库存里', user: userDto(current) });
+      const full = library.length >= 10;
+      if (full && (!replaceKey || !library.includes(replaceKey))) return fail('贴纸库已满 10 张，请先选择要替换的一张', 409);
+      const next = full ? library.map((item) => item === replaceKey ? key : item) : [...library, key];
+      // 只复制引用，不改原作者库存、不自动默认佩戴；被替换的贴纸若原本是默认佩戴则摘掉。
+      const equipped = parseTags(current?.stickers).filter((item) => item !== replaceKey && next.includes(item));
+      await db.batch([
+        db.prepare('UPDATE users SET sticker_library=?,stickers=? WHERE qq=?').bind(JSON.stringify(next), JSON.stringify(equipped), user.qq),
+        db.prepare('INSERT INTO sticker_copies(image_key,copy_count,updated_at) VALUES(?,1,?) ON CONFLICT(image_key) DO UPDATE SET copy_count=copy_count+1,updated_at=excluded.updated_at').bind(key, new Date().toISOString())
+      ]);
+      const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+      return json({ ok: true, already: false, note: full ? '已替换并加入库存（不会自动默认佩戴）' : '已加入我的库存（不会自动默认佩戴）', user: userDto(updated) });
+    }
+    // 站主 / 管理员下架违规贴纸：只影响广场展示与后续加入，已发团上引用的图片不受影响。
+    if (path[0] === 'sticker-plaza' && path[1] === 'block' && method === 'POST') {
+      if (!roleOf(user)) return fail('只有站主 / 管理员可以下架贴纸', 403);
+      const key = clean((await body(request)).key, 120);
+      if (!/^[A-Za-z0-9._/-]+$/.test(key) || key.includes('..')) return fail('贴纸文件无效');
+      await db.prepare('INSERT INTO sticker_blocks(image_key,blocked_by,created_at) VALUES(?,?,?) ON CONFLICT(image_key) DO UPDATE SET blocked_by=excluded.blocked_by,created_at=excluded.created_at').bind(key, user.qq, new Date().toISOString()).run();
+      return json({ ok: true });
+    }
+    if (path[0] === 'sticker-plaza' && path[1] === 'block' && path[2] && method === 'DELETE') {
+      if (!roleOf(user)) return fail('只有站主 / 管理员可以撤销下架', 403);
+      await db.prepare('DELETE FROM sticker_blocks WHERE image_key=?').bind(clean(path[2], 120)).run();
+      return json({ ok: true });
     }
     // 贴纸库：会员最多预存 10 张，发团时从这里挑（不允许现场上传）
     if (path[0] === 'profile' && path[1] === 'sticker-library' && method === 'PATCH') {

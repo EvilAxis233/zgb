@@ -1,4 +1,4 @@
-import type { Campaign, CampaignDetail, UserProfile, UserNameplate } from '../types';
+import type { Campaign, CampaignDetail, UserProfile, UserNameplate, StickerPlazaMember } from '../types';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // 弱网（如 4G）下 fetch 可能长时间挂起，统一加超时：普通请求 30s，文件上传 90s
@@ -31,6 +31,10 @@ export const api = {
   updateNameplate: (nameplate: UserNameplate | null) => patch<{ user: UserProfile }>('profile/nameplate', { nameplate }),
   updateStickers: (stickers: string[]) => patch<{ user: UserProfile }>('profile/stickers', { stickers }),
   updateStickerLibrary: (stickers: string[]) => patch<{ user: UserProfile }>('profile/sticker-library', { stickers }),
+  stickerPlaza: () => request<{ members: StickerPlazaMember[]; canModerate: boolean; blocked: string[] }>('sticker-plaza'),
+  stickerPlazaCopy: (key: string, replaceKey?: string) => post<{ ok: boolean; already?: boolean; note?: string; user: UserProfile }>('sticker-plaza/copy', { key, replaceKey }),
+  stickerPlazaBlock: (key: string) => post<{ ok: boolean }>('sticker-plaza/block', { key }),
+  stickerPlazaUnblock: (key: string) => request<{ ok: boolean }>(`sticker-plaza/block/${encodeURIComponent(key)}`, { method: 'DELETE' }),
   checkin: () => post<{ ok: boolean; streak: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),

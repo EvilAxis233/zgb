@@ -27,24 +27,24 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       aria-label={`查看战役：${campaign.title}`}
       className="bauhaus-card bauhaus-card-interactive flex min-h-[310px] flex-col cursor-pointer group bg-white focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#004E98]"
     >
-      {/* Top Banner / Image Area */}
+      {/* Top Banner / Image Area
+          由悬停组件包住整个封面（含遮罩与标题）：之前两层 absolute inset-0 盖在上面，
+          鼠标实际停在遮罩上，组件收不到 mouseenter，导致主界面卡片悬停不弹原图。 */}
       <div className="relative h-[154px] shrink-0">
         {campaign.imageUrl ? (
-          <div className="relative h-full w-full overflow-hidden border-b-2 border-[#121212] bg-[#EAE8E0]">
-            <ImageHoverPreview src={campaign.imageUrl} label="团封面原图" className="block h-full w-full">
+          <ImageHoverPreview src={campaign.imageUrl} label="团封面原图" className="relative block h-full w-full overflow-hidden border-b-2 border-[#121212] bg-[#EAE8E0]">
             <img
               src={campaign.imageUrl}
               alt=""
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
-            </ImageHoverPreview>
-            <div className="absolute inset-0 bg-black/10" />
-            <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="pointer-events-none absolute inset-0 bg-black/10" />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
               <h2 className="max-w-[86%] break-words border-2 border-[#121212] bg-white/95 px-3 py-2 text-center text-xl font-black leading-tight tracking-tight text-[#121212] shadow-[3px_3px_0px_#121212] sm:text-2xl">
                 {campaign.title}
               </h2>
             </div>
-          </div>
+          </ImageHoverPreview>
         ) : (
           <BauhausPlaceholder
             rule={campaign.rule}

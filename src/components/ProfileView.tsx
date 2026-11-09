@@ -8,6 +8,7 @@ import { MembershipModal } from './MembershipModal';
 import { NameplateModal } from './NameplateModal';
 import { NameplateBadge } from './NameplateBadge';
 import { StickerLibrary } from './StickerLibrary';
+import { StickerPlaza } from './StickerPlaza';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface ProfileViewProps {
@@ -18,6 +19,7 @@ interface ProfileViewProps {
   onUpdateNameplate: (nameplate: UserNameplate | null) => Promise<boolean>;
   onUpdateStickers: (keys: string[]) => Promise<boolean>;
   onUpdateStickerLibrary: (keys: string[]) => Promise<boolean>;
+  onUserUpdate: (user: UserProfile) => void;
   onSelectCampaign: (campaign: Campaign) => void;
   onUploadAvatar: (file: File) => void;
   onOpenManage: () => void;
@@ -43,6 +45,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onUpdateNameplate,
   onUpdateStickers,
   onUpdateStickerLibrary,
+  onUserUpdate,
 }) => {
   const { showAlert } = useDialog();
   const [isEditing, setIsEditing] = useState(false);
@@ -536,9 +539,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
       {stickerOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setStickerOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="max-h-[90vh] w-full max-w-md overflow-y-auto border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
+          <section role="dialog" aria-modal="true" aria-label="管理贴纸" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]">
             <header className="flex items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
-              <h2 className="font-black text-sm">我的贴纸库</h2>
+              <h2 className="font-black text-sm">我的贴纸库 · 贴纸广场</h2>
               <button type="button" onClick={() => setStickerOpen(false)} className="text-xs font-bold cursor-pointer">关闭</button>
             </header>
             <div className="p-4">
@@ -548,6 +551,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 defaults={currentUser.stickerKeys || []}
                 onChangeLibrary={onUpdateStickerLibrary}
                 onChangeDefaults={onUpdateStickers}
+              />
+              <StickerPlaza
+                isMember={membershipActive || !!currentUser.membershipPermanent}
+                library={currentUser.stickerLibraryKeys || []}
+                onUserUpdate={onUserUpdate}
               />
             </div>
           </section>

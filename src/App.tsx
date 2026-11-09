@@ -695,6 +695,7 @@ export function App() {
               onUpdateNameplate={handleUpdateNameplate}
               onUpdateStickers={handleUpdateStickers}
               onUpdateStickerLibrary={handleUpdateStickerLibrary}
+              onUserUpdate={handleStickerUserUpdate}
             />
           </div>
         )}

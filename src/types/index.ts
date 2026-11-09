@@ -32,6 +32,19 @@ export interface UserProfile {
   signupNotifyEnabled?: boolean; // 是否接收玩家报名 / 取消报名邮件
 }
 
+export interface StickerPlazaSticker {
+  key: string;   // 图片在 R2 里的 key
+  copies: number; // 被其他会员加入库存的次数
+}
+export interface StickerPlazaMember {
+  qq: string;    // 打码后的 QQ 尾号
+  name: string;
+  avatar: string;
+  createdAt: string;
+  count: number;
+  stickers: StickerPlazaSticker[];
+}
+
 export type SessionType = '语音' | '文字' | '其他游戏形式';
 export type CampaignKind = 'online' | 'offline' | 'promo';
 export const GAME_PLATFORMS = ['QQ', 'Kook', 'Oopz', '枭熊', 'Fvtt', '菠萝', 'excalidraw', '其它'] as const;
