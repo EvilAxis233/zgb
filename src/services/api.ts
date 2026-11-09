@@ -48,9 +48,10 @@ export const api = {
     const form = new FormData(); form.append('file', file);
     return request<{ avatar: string }>('profile/avatar', { method: 'POST', body: form });
   },
-  upload: async (file: File) => {
+  upload: async (file: File, saveToLibrary = false) => {
     const form = new FormData(); form.append('file', file);
-    return request<{ imageKey: string; imageUrl: string }>('upload', { method: 'POST', body: form });
+    if (saveToLibrary) form.append('saveToLibrary', '1');
+    return request<{ imageKey: string; imageUrl: string; savedToLibrary?: boolean; libraryNote?: string; user?: UserProfile | null }>('upload', { method: 'POST', body: form });
   },
   tickets: (offset = 0) => request<{ submissions: UserTicket[]; total: number }>(`submissions?offset=${offset}`),
   submitFeedback: async (type: 'feedback' | 'report', content: string, images: File[], reportedUser = '') => {

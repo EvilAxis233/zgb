@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Edit2, X, BookOpen, Sparkles, Upload, ImagePlus } from 'lucide-react';
-import { GAME_PLATFORMS, type Campaign } from '../types';
+import { GAME_PLATFORMS, type Campaign, type UserProfile } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { MARKDOWN_SUPPORT_HINT, BAUHAUS_COLORS } from './PublishModal';
 import { buildTimeSchedule, parseTimeSchedule, TIME_PERIODS, type TimePeriod } from '../utils/date';
@@ -15,12 +15,13 @@ interface Props {
   rules: string[];
   popularCustomTags?: string[];
   stickerLibrary?: string[];
+  onUserUpdate?: (user: UserProfile) => void;
   onSave: (campaign: Campaign) => Promise<boolean>;
   onClose: () => void;
 }
 
 // 主界面直接编辑团内容（站长/管理员审核违规团时使用），字段与团务管理里的编辑一致。
-export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCustomTags = [], stickerLibrary = [], onSave, onClose }) => {
+export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCustomTags = [], stickerLibrary = [], onUserUpdate, onSave, onClose }) => {
   const [draft, setDraft] = useState<Campaign>(() => ({
     ...campaign,
     sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'),
@@ -95,7 +96,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
     </div>
   );
 
-  // 贴纸：从自己的贴纸库补选，最多 2 张（不能现场上传）；全部取消等于用 GM 默认佩戴。
+  // 贴纸：可现场上传裁剪，也可从贴纸库补选，最多 2 张；全部取消等于用 GM 默认佩戴。
   // 已挂在团上、但不在当前编辑者库里的贴纸也要显示出来，避免误以为被清空。
   const pickerLibrary = [...new Set([...stickerLibrary, ...(draft.stickerKeys || [])])];
   const stickerBlock = (
@@ -108,8 +109,9 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         library={pickerLibrary}
         value={draft.stickerKeys || []}
         onChange={(keys) => { setStickerTouched(true); setDraft({ ...draft, stickerKeys: keys }); }}
+        onUserUpdate={onUserUpdate}
       />
-      <p className="mt-1 text-[10px] font-bold text-[#666]">从贴纸库补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
+      <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
     </div>
   );
 

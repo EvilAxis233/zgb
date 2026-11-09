@@ -46,11 +46,12 @@ export const validateNameplateText = (text: string) => {
     if (/[\u4e00-\u9fa5]/.test(ch)) zh++;
     else en++;
   }
+  // 6 个中文字符（每个按 2 计）＝ 12；纯英文最多 12 个字母。
   const total = zh * 2 + en;
-  const isValid = total > 0 && total <= 8 && zh <= 4;
+  const isValid = total > 0 && total <= 12 && zh <= 6;
   let label = '';
-  if (zh > 0 && en === 0) label = `${zh}/4 字`;
-  else if (zh === 0) label = `${en}/8 字母`;
+  if (zh > 0 && en === 0) label = `${zh}/6 字`;
+  else if (zh === 0) label = `${en}/12 字母`;
   else label = `${zh}字+${en}英`;
 
   return { isValid, label, zh, en, total };
@@ -108,7 +109,7 @@ export const NameplateModal: React.FC<Props> = ({
       return;
     }
     if (!isValid) {
-      setError('铭牌文字上限为四个汉字或8个英文字符');
+      setError('铭牌文字上限为六个汉字或 12 个英文字符');
       return;
     }
     setBusy(true);
@@ -179,14 +180,14 @@ export const NameplateModal: React.FC<Props> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor={inputId} className="text-xs font-black text-[#121212]">
-                铭牌文字内容（限制四个汉字 / 8 个英文）
+                铭牌文字内容（限制六个汉字 / 12 个英文）
               </label>
               <span
                 className={`text-[11px] font-mono font-bold px-1.5 py-0.5 border border-[#121212] ${
                   isValid ? 'bg-[#E8F5E9] text-[#2E7D32]' : 'bg-[#FFEBEE] text-[#C62828]'
                 }`}
               >
-                {label || '0/4 字'}
+                {label || '0/6 字'}
               </span>
             </div>
             <div className="flex gap-2">
@@ -194,7 +195,7 @@ export const NameplateModal: React.FC<Props> = ({
                 id={inputId}
                 type="text"
                 autoFocus
-                maxLength={16}
+                maxLength={24}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="例如：跑团狂魔"

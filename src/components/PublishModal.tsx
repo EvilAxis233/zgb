@@ -16,6 +16,7 @@ interface PublishModalProps {
   currentUser: UserProfile | null;
   rules: string[];
   popularCustomTags?: string[];
+  onUserUpdate?: (user: UserProfile) => void;
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
 }
 
@@ -41,6 +42,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   currentUser,
   rules,
   popularCustomTags = [],
+  onUserUpdate,
   onPublish,
 }) => {
   const { showAlert } = useDialog();
@@ -635,13 +637,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </p>
                 </div>
 
-              {/* 贴纸：只能从个人贴纸库里挑，本团临时生效，不改默认佩戴 */}
+              {/* 贴纸：可现场上传裁剪，也可从个人贴纸库挑；本团临时生效，不改默认佩戴 */}
               <div>
                 <label className="block font-bold text-[#121212] mb-1">
                   贴纸
-                  <span className="ml-1 text-[11px] font-normal text-[#666]">从贴纸库选择，最多 2 张</span>
+                  <span className="ml-1 text-[11px] font-normal text-[#666]">上传自动存入贴纸库，或从库里选，本团最多 2 张</span>
                 </label>
-                <StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} />
+                <StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} onUserUpdate={onUserUpdate} />
               </div>
 
               {/* Cover Image: Drag & Drop / Click upload big rectangle */}

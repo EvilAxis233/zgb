@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, Plus, Upload, ImagePlus } from 'lucide-react';
-import { GAME_PLATFORMS, type Campaign } from '../types';
+import { GAME_PLATFORMS, type Campaign, type UserProfile } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
@@ -18,6 +18,7 @@ interface Props {
   rules: string[];
   popularCustomTags?: string[];
   stickerLibrary?: string[];
+  onUserUpdate?: (user: UserProfile) => void;
   onDeleteCampaign: (id: string) => void | Promise<unknown>;
   onEndPromo: (id: string) => void | Promise<unknown>;
   onSetCampaignClosed: (id: string, closed: boolean) => void;
@@ -39,6 +40,7 @@ export const ManageView: React.FC<Props> = ({
   rules,
   popularCustomTags = [],
   stickerLibrary = [],
+  onUserUpdate,
   onDeleteCampaign,
   onEndPromo,
   onSetCampaignClosed,
@@ -282,8 +284,9 @@ export const ManageView: React.FC<Props> = ({
         library={pickerLibrary}
         value={editingCampaign.stickerKeys || []}
         onChange={(keys) => { setStickerTouched(true); setEditingCampaign({ ...editingCampaign, stickerKeys: keys }); }}
+        onUserUpdate={onUserUpdate}
       />
-      <p className="mt-1 text-[10px] font-bold text-[#666]">从贴纸库补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
+      <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
     </div>
   );
 

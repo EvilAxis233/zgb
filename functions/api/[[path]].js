@@ -68,17 +68,15 @@ const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
   return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.sticker_override || c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(c.sticker_override || c.gm_stickers), gmIsMember: c.gm_role === 'owner' || Number(c.gm_membership_expires_at ?? 0) > now(), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
 };
-// 编辑团时补充贴纸：key 必须来自该团 GM 或当前编辑者的贴纸库，且文件真实存在；null 表示恢复默认佩戴。
+// 编辑团时补充贴纸：可来自个人贴纸库，也可以是发车/编辑时现场上传裁剪的图。
+// 与封面图同口径：key 格式合法且文件真实存在于 R2 即可；null 表示恢复默认佩戴。
 async function resolveStickerOverride(db, env, editor, gmQq, input) {
   if (input === null) return { value: null };
   if (!Array.isArray(input) || input.length > 2) return { error: '最多可以佩戴 2 张贴纸' };
   const keys = [...new Set(input.map((item) => clean(item, 120)).filter(Boolean))];
   if (keys.length !== input.length) return { error: '贴纸不能重复' };
-  const gm = gmQq === editor.qq ? editor : await db.prepare('SELECT sticker_library FROM users WHERE qq=?').bind(gmQq).first();
-  const allowed = new Set([...parseTags(gm?.sticker_library), ...parseTags(editor.sticker_library)]);
   for (const key of keys) {
     if (!/^[A-Za-z0-9._/-]+$/.test(key) || key.includes('..')) return { error: '贴纸文件无效' };
-    if (!allowed.has(key)) return { error: '只能使用贴纸库里的图片' };
     if (!await env.COVERS?.head(key)) return { error: '贴纸文件不存在，请重新上传' };
   }
   return { value: keys.length ? JSON.stringify(keys) : null };
@@ -743,14 +741,15 @@ export async function onRequest(context) {
         const isReferenceStyle = /^nb-ref-(?:d(?:0[1-9]|[12]\d|30)|s(?:0[1-9]|1\d|20))$/.test(styleId)
           && !['nb-ref-d08', 'nb-ref-d20', 'nb-ref-d26'].includes(styleId);
         if (!allowedStyles.includes(styleId) && !isReferenceStyle) return fail('无效的铭牌样式');
-        const text = clean(b.nameplate.text, 20);
+        const text = clean(b.nameplate.text, 24);
         if (!text) return fail('铭牌文字不能为空');
         let zh = 0, en = 0;
         for (const ch of text) {
           if (/[\u4e00-\u9fa5]/.test(ch)) zh++;
           else en++;
         }
-        if (zh > 4 || (zh * 2 + en) > 8) return fail('铭牌最多 4 个汉字或 8 个英文字符');
+        // 6 个中文字符（按 2 计）＝ 12，与前端 NameplateModal 的口径一致。
+        if (zh > 6 || (zh * 2 + en) > 12) return fail('铭牌最多 6 个汉字或 12 个英文字符');
         await db.prepare('UPDATE users SET nameplate=? WHERE qq=?').bind(JSON.stringify({ styleId, text }), user.qq).run();
       }
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
@@ -846,15 +845,37 @@ export async function onRequest(context) {
       if (!type || file.size > MAX_UPLOAD_BYTES) return fail('仅支持小于 8MB 的 PNG、JPG、GIF、WebP 图片');
       const key = `${id()}.${type === 'image/jpeg' ? 'jpg' : type.split('/')[1]}`;
       await env.COVERS.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: type } });
-      return json({ imageKey: key, imageUrl: `/api/images/${key}` });
+      // 发车 / 编辑车现场上传的贴纸：直接存进个人贴纸库（最多 10 张，满了替换最早一张）。
+      // 一次请求完成上传与入库，避免出现「图片已传、库存没更新」的游离文件。
+      const intoLibrary = form.get('saveToLibrary') === '1';
+      let savedToLibrary = false, libraryNote = '', updatedUser = null;
+      if (intoLibrary) {
+        if (!isMember(user)) {
+          libraryNote = '会员才能存入贴纸库，本团仍可使用这张贴纸';
+        } else {
+          const current = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+          const library = parseTags(current.sticker_library);
+          const next = [...new Set([...library, key])].slice(-10);
+          const replaced = library.length >= 10 && !library.includes(key);
+          // 被挤出库存的贴纸同时从默认佩戴里摘掉，与贴纸库编辑接口保持同一口径。
+          const equipped = parseTags(current.stickers).filter((item) => next.includes(item));
+          await db.prepare('UPDATE users SET sticker_library=?,stickers=? WHERE qq=?').bind(JSON.stringify(next), JSON.stringify(equipped), user.qq).run();
+          updatedUser = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+          savedToLibrary = true;
+          libraryNote = replaced ? '贴纸库已满，已替换最早一张' : '已存入贴纸库';
+        }
+      }
+      return json({ imageKey: key, imageUrl: `/api/images/${key}`, savedToLibrary, libraryNote, user: updatedUser ? userDto(updatedUser) : null });
     }
     if (path[0] === 'campaigns' && method === 'POST' && path.length === 1) {
       const b = await body(request), c = validateCampaign(b), imageKey = clean(b.imageKey, 100) || null;
       if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
-      // 贴纸只能从个人贴纸库里挑：本团临时选择，不改默认佩戴
-      const library = parseTags(user.sticker_library);
+      // 贴纸可来自个人贴纸库，也可以是发车时现场上传裁剪的图：本团临时选择，不改默认佩戴。
       const pickedStickers = Array.isArray(b.stickerKeys) ? [...new Set(b.stickerKeys.map((item) => clean(item, 120)).filter(Boolean))].slice(0, 2) : [];
-      if (pickedStickers.some((key) => !library.includes(key))) return fail('只能从贴纸库中选择贴纸');
+      for (const key of pickedStickers) {
+        if (!/^[A-Za-z0-9._/-]+$/.test(key) || key.includes('..')) return fail('贴纸文件无效');
+        if (!await env.COVERS?.head(key)) return fail('贴纸文件不存在，请重新上传');
+      }
       const stickerOverride = pickedStickers.length ? JSON.stringify(pickedStickers) : null;
       const cid = id();
       const createdAt = new Date().toISOString();

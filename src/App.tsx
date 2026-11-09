@@ -315,6 +315,12 @@ export function App() {
     }
   };
 
+  // 发车 / 编辑车现场上传的贴纸由后端直接写入贴纸库；同步最新用户资料，
+  // 让贴纸库、个人档案与卡片立刻看到新贴纸，不必刷新整页。
+  const handleStickerUserUpdate = (user: UserProfile) => {
+    setUsers((previous) => previous.map((item) => item.id === user.id ? user : item));
+  };
+
   const handleUpdateStickerLibrary = async (keys: string[]) => {
     setPendingActions((count) => count + 1);
     try {
@@ -697,6 +703,7 @@ export function App() {
               rules={rules}
               popularCustomTags={popularCustomTags}
               stickerLibrary={currentUser?.stickerLibraryKeys || []}
+              onUserUpdate={handleStickerUserUpdate}
               onDeleteCampaign={handleDeleteCampaign}
               onEndPromo={handleEndPromo}
               onSetCampaignClosed={handleSetCampaignClosed}
@@ -737,6 +744,7 @@ export function App() {
           rules={rules}
           popularCustomTags={popularCustomTags}
           stickerLibrary={currentUser?.stickerLibraryKeys || []}
+          onUserUpdate={handleStickerUserUpdate}
           onSave={handleAdminEditSave}
           onClose={() => setAdminEditingCampaign(null)}
         />
@@ -750,6 +758,7 @@ export function App() {
         currentUser={currentUser}
         rules={rules}
         popularCustomTags={popularCustomTags}
+        onUserUpdate={handleStickerUserUpdate}
         onPublish={handlePublish}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
