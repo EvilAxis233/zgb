@@ -15,7 +15,19 @@ const roleOf = (user) => {
 const isSiteAdmin = (user) => !!roleOf(user);
 const isOwner = (user) => roleOf(user) === 'owner';
 const isMember = (user) => !!user && (roleOf(user) === 'owner' || (user.membership_expires_at ?? 0) > now());
-const campaignTags = (c) => [...new Set([...parseTags(c.custom_tags), ...parseTags(c.preset_tags)].map((tag) => Array.from(String(tag).trim()).slice(0, 6).join('')).filter(Boolean))].slice(0, 6);
+// 标签宽度：中文/全角按 2，半角英文按 1，最多 12（＝6 个汉字或 12 个英文字符）。
+const TAG_MAX_WIDTH = 12;
+const tagWidth = (value) => Array.from(String(value)).reduce((total, ch) => total + (/^[\x00-\x7F]$/.test(ch) ? 1 : 2), 0);
+const clampTag = (value) => {
+  let out = '', width = 0;
+  for (const ch of String(value).trim()) {
+    const w = /^[\x00-\x7F]$/.test(ch) ? 1 : 2;
+    if (width + w > TAG_MAX_WIDTH) break;
+    out += ch; width += w;
+  }
+  return out;
+};
+const campaignTags = (c) => [...new Set([...parseTags(c.custom_tags), ...parseTags(c.preset_tags)].map(clampTag).filter(Boolean))].slice(0, 6);
 const dateHK = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 const id = () => crypto.randomUUID();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -299,7 +311,7 @@ function validateCampaign(b, fixedKind = null, requireLocation = true) {
   const presetTags = [];
   if (!Array.isArray(b.customTags ?? [])) throw new Error('自定义标签格式无效');
   const customTags = [...new Set((b.customTags || []).map((tag) => typeof tag === 'string' ? tag.trim() : '').filter(Boolean))];
-  if (customTags.length > 6 || customTags.some((tag) => Array.from(tag).length > 6)) throw new Error('最多 6 个自定义标签，每个最多 6 字');
+  if (customTags.length > 6 || customTags.some((tag) => tagWidth(tag) > TAG_MAX_WIDTH)) throw new Error('最多 6 个自定义标签，每个最多 6 个中文字符或 12 个英文字符');
   return { kind, title, rule, sessionType, platforms, province, city, address, presetTags, customTags, summary, contact, time, scheduledDate: matched[1], period: matched[2], players, description: clean(b.description, 10000), color: /^#[0-9a-fA-F]{6}$/.test(b.bannerColor) ? b.bannerColor : '#D62828' };
 }
 function validateNewSlot(raw, unrestricted = false) {
@@ -843,27 +855,32 @@ export async function onRequest(context) {
       if (!(file instanceof File)) return fail('请选择图片');
       const type = uploadTypeOf(file);
       if (!type || file.size > MAX_UPLOAD_BYTES) return fail('仅支持小于 8MB 的 PNG、JPG、GIF、WebP 图片');
+      // 贴纸上传是会员专享（封面上传不带 purpose / saveToLibrary，不受影响）。
+      const intoLibrary = form.get('saveToLibrary') === '1';
+      if ((intoLibrary || form.get('purpose') === 'sticker') && !isMember(user)) return fail('只有会员可以上传贴纸', 403);
+      const replaceKey = clean(form.get('replaceKey'), 120);
+      // 贴纸库满 10 张时不再自动挤掉最早一张：必须由用户先选好要替换哪一张。
+      // 校验放在写 R2 之前，避免留下「图已传、库存没更新」的孤儿文件。
+      let current = null, library = [];
+      if (intoLibrary) {
+        current = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+        library = parseTags(current?.sticker_library);
+        if (library.length >= 10 && (!replaceKey || !library.includes(replaceKey))) return fail('贴纸库已满 10 张，请先选择要替换的一张', 409);
+      }
       const key = `${id()}.${type === 'image/jpeg' ? 'jpg' : type.split('/')[1]}`;
       await env.COVERS.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: type } });
-      // 发车 / 编辑车现场上传的贴纸：直接存进个人贴纸库（最多 10 张，满了替换最早一张）。
-      // 一次请求完成上传与入库，避免出现「图片已传、库存没更新」的游离文件。
-      const intoLibrary = form.get('saveToLibrary') === '1';
       let savedToLibrary = false, libraryNote = '', updatedUser = null;
       if (intoLibrary) {
-        if (!isMember(user)) {
-          libraryNote = '会员才能存入贴纸库，本团仍可使用这张贴纸';
-        } else {
-          const current = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
-          const library = parseTags(current.sticker_library);
-          const next = [...new Set([...library, key])].slice(-10);
-          const replaced = library.length >= 10 && !library.includes(key);
-          // 被挤出库存的贴纸同时从默认佩戴里摘掉，与贴纸库编辑接口保持同一口径。
-          const equipped = parseTags(current.stickers).filter((item) => next.includes(item));
-          await db.prepare('UPDATE users SET sticker_library=?,stickers=? WHERE qq=?').bind(JSON.stringify(next), JSON.stringify(equipped), user.qq).run();
-          updatedUser = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
-          savedToLibrary = true;
-          libraryNote = replaced ? '贴纸库已满，已替换最早一张' : '已存入贴纸库';
-        }
+        const next = replaceKey && library.includes(replaceKey)
+          ? library.map((item) => item === replaceKey ? key : item)
+          : [...new Set([...library, key])];
+        // 贴纸不像铭牌会自动默认佩戴：新上传的只进库存，绝不自动加入 stickers。
+        // 仅当被替换掉的那张恰好是默认佩戴时，把它摘掉，避免佩戴一张已不在库里的图。
+        const equipped = parseTags(current?.stickers).filter((item) => item !== replaceKey && next.includes(item));
+        await db.prepare('UPDATE users SET sticker_library=?,stickers=? WHERE qq=?').bind(JSON.stringify(next), JSON.stringify(equipped), user.qq).run();
+        updatedUser = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
+        savedToLibrary = true;
+        libraryNote = replaceKey ? '已替换选中的贴纸' : '已存入贴纸库（不会自动默认佩戴）';
       }
       return json({ imageKey: key, imageUrl: `/api/images/${key}`, savedToLibrary, libraryNote, user: updatedUser ? userDto(updatedUser) : null });
     }

@@ -9,6 +9,7 @@ import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
+import { clampTag, tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
 
 interface Props {
   campaign: Campaign;
@@ -16,12 +17,13 @@ interface Props {
   popularCustomTags?: string[];
   stickerLibrary?: string[];
   onUserUpdate?: (user: UserProfile) => void;
+  isMember?: boolean;
   onSave: (campaign: Campaign) => Promise<boolean>;
   onClose: () => void;
 }
 
 // 主界面直接编辑团内容（站长/管理员审核违规团时使用），字段与团务管理里的编辑一致。
-export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCustomTags = [], stickerLibrary = [], onUserUpdate, onSave, onClose }) => {
+export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCustomTags = [], stickerLibrary = [], onUserUpdate, isMember = false, onSave, onClose }) => {
   const [draft, setDraft] = useState<Campaign>(() => ({
     ...campaign,
     sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'),
@@ -110,6 +112,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         value={draft.stickerKeys || []}
         onChange={(keys) => { setStickerTouched(true); setDraft({ ...draft, stickerKeys: keys }); }}
         onUserUpdate={onUserUpdate}
+        isMember={isMember}
       />
       <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
     </div>
@@ -203,19 +206,19 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
 
         <div>
           <div className="relative">
-            <div className="flex justify-between text-xs font-bold mb-1"><span>自定义标签 (最多6个，每个最多6字)</span><span className="text-[#666]">{draft.customTags?.length || 0}/6</span></div>
+            <div className="flex justify-between text-xs font-bold mb-1"><span>自定义标签 ({TAG_LIMIT_HINT})</span><span className="text-[#666]">{draft.customTags?.length || 0}/6</span></div>
             <div className="relative">
-              <input value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)} onKeyDown={(e) => {
+              <input value={customTagInput} onChange={(e) => setCustomTagInput(clampTag(e.target.value))} onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const t = customTagInput.trim();
                   if (!t) return;
-                  if (Array.from(t).length > 6) { alert('自定义标签最多 6 个字'); return; }
+                  if (tagTooLong(t)) { alert('自定义标签最多 6 个中文字符或 12 个英文字符'); return; }
                   if ((draft.customTags || []).length >= 6 || (draft.customTags || []).includes(t)) return;
                   setDraft({ ...draft, customTags: [...(draft.customTags || []), t] });
                   setCustomTagInput('');
                 }
-              }} disabled={(draft.customTags?.length || 0) >= 6} placeholder="输入回车添加 (限6字)" className="bauhaus-input w-full p-2 pr-7 text-xs disabled:bg-[#F2F0E8]" />
+              }} disabled={(draft.customTags?.length || 0) >= 6} placeholder="输入回车添加 (6 中文 / 12 英文)" className="bauhaus-input w-full p-2 pr-7 text-xs disabled:bg-[#F2F0E8]" />
               <button type="button" onClick={() => setShowCustomTagDropdown(!showCustomTagDropdown)} className="absolute right-1.5 top-2 text-[#004E98] hover:text-[#D62828]"><Sparkles className="w-4 h-4" /></button>
             </div>
             {showCustomTagDropdown && (
@@ -225,10 +228,10 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
                   {popularCustomTags.map((tag) => (
                     <button key={tag} type="button" onClick={() => {
                       const cur = draft.customTags || [];
-                      if (cur.includes(tag) || cur.length >= 6) return;
+                      if (cur.includes(tag) || cur.length >= 6 || tagTooLong(tag)) return;
                       setDraft({ ...draft, customTags: [...cur, tag] });
                     }} className="text-[11px] px-1.5 py-0.5 border border-[#121212] bg-[#FAF9F5] text-[#D62828] hover:bg-[#D62828] hover:text-white">
-                      #{tag}
+                      {tag}
                     </button>
                   ))}
                 </div>
@@ -237,7 +240,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
             <div className="flex flex-wrap gap-1 mt-1.5">
               {draft.customTags?.map(tag => (
                 <span key={tag} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 bg-[#FFF9F9] border border-[#121212] text-[#D62828]">
-                  #{tag}
+                  {tag}
                   <button type="button" onClick={() => setDraft({ ...draft, customTags: draft.customTags?.filter(t => t !== tag) })}><X className="w-3 h-3 text-[#121212]" /></button>
                 </span>
               ))}

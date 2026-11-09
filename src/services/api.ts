@@ -48,9 +48,11 @@ export const api = {
     const form = new FormData(); form.append('file', file);
     return request<{ avatar: string }>('profile/avatar', { method: 'POST', body: form });
   },
-  upload: async (file: File, saveToLibrary = false) => {
+  upload: async (file: File, saveToLibrary = false, extra: { purpose?: 'sticker'; replaceKey?: string } = {}) => {
     const form = new FormData(); form.append('file', file);
     if (saveToLibrary) form.append('saveToLibrary', '1');
+    if (extra.purpose) form.append('purpose', extra.purpose);
+    if (extra.replaceKey) form.append('replaceKey', extra.replaceKey);
     return request<{ imageKey: string; imageUrl: string; savedToLibrary?: boolean; libraryNote?: string; user?: UserProfile | null }>('upload', { method: 'POST', body: form });
   },
   tickets: (offset = 0) => request<{ submissions: UserTicket[]; total: number }>(`submissions?offset=${offset}`),

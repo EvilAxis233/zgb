@@ -8,6 +8,7 @@ import { useDialog } from './BauhausDialog';
 import { ImageCropper } from './ImageCropper';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
+import { clampTag, tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface PublishModalProps {
   rules: string[];
   popularCustomTags?: string[];
   onUserUpdate?: (user: UserProfile) => void;
+  isMember?: boolean;
   onPublish: (newCampaign: Omit<Campaign, 'id' | 'createdAt'>) => Promise<boolean>;
 }
 
@@ -43,6 +45,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   rules,
   popularCustomTags = [],
   onUserUpdate,
+  isMember = false,
   onPublish,
 }) => {
   const { showAlert } = useDialog();
@@ -442,7 +445,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   <div className="relative">
                     <div className="flex items-center justify-between mb-1">
                       <label className="block font-bold text-[#121212]">
-                        自定义标签 <span className="text-xs font-normal text-[#666]">(最多6个，每个最多6字)</span>
+                        自定义标签 <span className="text-xs font-normal text-[#666]">({TAG_LIMIT_HINT})</span>
                       </label>
                       <span className="text-[11px] text-[#666]">{selectedCustomTags.length}/6</span>
                     </div>
@@ -450,14 +453,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       <input
                         type="text"
                         value={customTagInput}
-                        onChange={(e) => setCustomTagInput(e.target.value)}
+                        onChange={(e) => setCustomTagInput(clampTag(e.target.value))}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             const tag = customTagInput.trim();
                             if (!tag) return;
-                            if (Array.from(tag).length > 6) {
-                              showAlert({ title: '提示', message: '自定义标签最多 6 个字', type: 'warning' });
+                            if (tagTooLong(tag)) {
+                              showAlert({ title: '提示', message: '自定义标签最多 6 个中文字符或 12 个英文字符', type: 'warning' });
                               return;
                             }
                             if (selectedCustomTags.includes(tag)) {
@@ -473,7 +476,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           }
                         }}
                         disabled={selectedCustomTags.length >= 6}
-                        placeholder={selectedCustomTags.length >= 6 ? '已选满 (6个)' : '输入回车添加 (限6字)'}
+                        placeholder={selectedCustomTags.length >= 6 ? '已选满 (6个)' : '输入回车添加 (6 中文 / 12 英文)'}
                         className="bauhaus-input w-full pl-3 pr-10 py-2 text-sm disabled:bg-[#F2F0E8] disabled:cursor-not-allowed"
                       />
                       <button
@@ -508,6 +511,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                   if (selectedCustomTags.includes(tag)) return;
+                                  if (tagTooLong(tag)) { showAlert({ title: '提示', message: '该标签超过 6 个中文字符 / 12 个英文字符', type: 'warning' }); return; }
                                   if (selectedCustomTags.length >= 6) {
                                     showAlert({ title: '提示', message: '最多添加 6 个自定义标签', type: 'warning' });
                                     return;
@@ -520,7 +524,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                                     : 'bg-[#FAF9F5] text-[#D62828] hover:bg-[#D62828] hover:text-white'
                                 }`}
                               >
-                                #{tag}
+                                {tag}
                               </button>
                             ))
                           ) : (
@@ -537,7 +541,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                             key={tag}
                             className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]"
                           >
-                            <span>#{tag}</span>
+                            <span>{tag}</span>
                             <button
                               type="button"
                               onClick={() => setSelectedCustomTags(selectedCustomTags.filter((t) => t !== tag))}
@@ -643,7 +647,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   贴纸
                   <span className="ml-1 text-[11px] font-normal text-[#666]">上传自动存入贴纸库，或从库里选，本团最多 2 张</span>
                 </label>
-                <StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} onUserUpdate={onUserUpdate} />
+                <StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} onUserUpdate={onUserUpdate} isMember={isMember} />
               </div>
 
               {/* Cover Image: Drag & Drop / Click upload big rectangle */}

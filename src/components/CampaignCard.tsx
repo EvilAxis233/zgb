@@ -2,6 +2,7 @@ import React from 'react';
 import { Campaign } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { NameplateBadge } from './NameplateBadge';
+import { ImageHoverPreview } from './ImageHoverPreview';
 import { BookOpen, ThumbsUp, MapPin } from 'lucide-react';
 import { locationLabel } from '../utils/location';
 
@@ -30,11 +31,13 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
       <div className="relative h-[154px] shrink-0">
         {campaign.imageUrl ? (
           <div className="relative h-full w-full overflow-hidden border-b-2 border-[#121212] bg-[#EAE8E0]">
+            <ImageHoverPreview src={campaign.imageUrl} label="团封面原图" className="block h-full w-full">
             <img
               src={campaign.imageUrl}
               alt=""
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
+            </ImageHoverPreview>
             <div className="absolute inset-0 bg-black/10" />
             <div className="absolute inset-0 flex items-center justify-center p-4">
               <h2 className="max-w-[86%] break-words border-2 border-[#121212] bg-white/95 px-3 py-2 text-center text-xl font-black leading-tight tracking-tight text-[#121212] shadow-[3px_3px_0px_#121212] sm:text-2xl">
@@ -92,16 +95,16 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
             同时卡片总高、贴纸行下间距（6px）都不变，无贴纸的卡片也仍然对齐。 */}
         <div className={`flex shrink-0 items-center gap-1.5 ${hasStickers ? 'h-14' : 'h-6'}`}>
           {campaign.gmStickers?.slice(0, 2).map((src, index) => (
-            <span key={`${src}-${index}`} className="block h-12 min-w-0 flex-1 overflow-hidden rounded-lg">
+            <ImageHoverPreview key={`${src}-${index}`} src={src} label="贴纸原图" className="block h-12 min-w-0 flex-1 overflow-hidden rounded-lg">
               <img src={src} alt="GM 贴纸" className="h-full w-full object-cover" />
-            </span>
+            </ImageHoverPreview>
           ))}
         </div>
 
         <div className={`${hasStickers ? 'mt-1.5' : 'mt-[38px]'} border-t border-dashed border-[#D8D5CC] pt-2`}>
           <div className="flex flex-wrap content-start items-start gap-2">
             {campaign.customTags?.map((tag) => (
-              <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">#{tag}</span>
+              <span key={`custom-${tag}`} className="whitespace-nowrap border border-[#121212] bg-[#FFF9F9] px-2 py-0.5 text-sm font-bold text-[#D62828] shadow-[1px_1px_0px_#121212]">{tag}</span>
             ))}
           </div>
           {campaign.kind === 'offline' && campaign.address && <p className="mt-2 flex items-start gap-1.5 text-xs font-bold text-[#555] break-all"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#004E98]" /><span>地址：{campaign.address}</span></p>}

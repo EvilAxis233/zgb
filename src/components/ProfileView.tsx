@@ -140,41 +140,45 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       <div className="w-full lg:w-60 xl:w-64 shrink-0 lg:sticky lg:top-20 space-y-3">
         <AccountSideActions destination="manage" onNavigate={onOpenManage} onFeedback={onFeedback} onReport={onReport} />
         <button type="button" disabled={currentUser.membershipPermanent} onClick={() => setMembershipOpen(true)} className="bauhaus-btn w-full bg-[#FFF4DA] px-4 py-3 text-sm font-black gap-2"><Crown size={17} />{currentUser.membershipPermanent ? '永久会员' : membershipActive ? '续费会员' : '升级会员'}</button>
-        {membershipActive && (
-          <div className="space-y-3">
+        <div className="space-y-3">
+          {membershipActive && (
             <p className="text-xs font-bold text-[#5C4300]">
               {currentUser.membershipPermanent ? '永久会员 · 长期有效' : `到期：${new Date(currentUser.membershipExpiresAt! * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}`}
             </p>
-            <div className="border-t-2 border-[#121212] pt-3 space-y-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setNameplateOpen(true)}
-                  className="bauhaus-btn flex-1 bg-white px-3 py-2 text-xs font-black gap-1.5 hover:bg-[#FAF9F5] shadow-[2px_2px_0px_#121212] cursor-pointer"
-                  title="设置我的自定义铭牌"
-                >
-                  <Tag size={14} className="text-[#004E98]" />
-                  铭牌
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStickerOpen(true)}
-                  className="bauhaus-btn flex-1 bg-white px-3 py-2 text-xs font-black gap-1.5 hover:bg-[#FAF9F5] shadow-[2px_2px_0px_#121212] cursor-pointer"
-                  title="管理我的贴纸"
-                >
-                  <Sparkles size={14} className="text-[#D62828]" />
-                  贴纸
-                </button>
-              </div>
-              {currentUser.nameplate && (
-                <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#121212]">
-                  <span className="text-[11px] font-bold text-[#666]">当前佩戴：</span>
-                  <NameplateBadge nameplate={currentUser.nameplate} />
-                </div>
-              )}
+          )}
+          {/* 会员权益到期后按钮保留但置灰，已发布的团上的铭牌 / 贴纸不受影响。 */}
+          <div className="border-t-2 border-[#121212] pt-3 space-y-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={!membershipActive}
+                onClick={() => setNameplateOpen(true)}
+                className={`bauhaus-btn flex-1 px-3 py-2 text-xs font-black gap-1.5 shadow-[2px_2px_0px_#121212] ${membershipActive ? 'bg-white hover:bg-[#FAF9F5] cursor-pointer' : 'cursor-not-allowed border-[#999] bg-[#EDEDE7] text-[#999] opacity-70'}`}
+                title={membershipActive ? '设置我的自定义铭牌' : '会员权益已到期，续费后可继续编辑'}
+              >
+                <Tag size={14} className={membershipActive ? 'text-[#004E98]' : 'text-[#999]'} />
+                铭牌
+              </button>
+              <button
+                type="button"
+                disabled={!membershipActive}
+                onClick={() => setStickerOpen(true)}
+                className={`bauhaus-btn flex-1 px-3 py-2 text-xs font-black gap-1.5 shadow-[2px_2px_0px_#121212] ${membershipActive ? 'bg-white hover:bg-[#FAF9F5] cursor-pointer' : 'cursor-not-allowed border-[#999] bg-[#EDEDE7] text-[#999] opacity-70'}`}
+                title={membershipActive ? '管理我的贴纸' : '会员权益已到期，续费后可继续编辑'}
+              >
+                <Sparkles size={14} className={membershipActive ? 'text-[#D62828]' : 'text-[#999]'} />
+                贴纸
+              </button>
             </div>
+            {currentUser.nameplate && (
+              <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#121212]">
+                <span className="text-[11px] font-bold text-[#666]">当前佩戴：</span>
+                <NameplateBadge nameplate={currentUser.nameplate} />
+              </div>
+            )}
+            {!membershipActive && <p className="text-[11px] font-bold leading-relaxed text-[#888]">会员权益已到期，铭牌与贴纸暂不可编辑；已发布的团不受影响。</p>}
           </div>
-        )}
+        </div>
       </div>
       <div className="space-y-6 min-w-0 w-full">
       {/* Top Profile Header Card */}

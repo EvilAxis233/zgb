@@ -315,6 +315,12 @@ export function App() {
     }
   };
 
+  // 贴纸 / 铭牌是会员权益：到期后按钮置灰，后端上传接口也会拒绝（已发布的团不受影响）。
+  const stickerMember = !!currentUser && (
+    !!currentUser.membershipPermanent || currentUser.isOwner === true || currentUser.role === 'owner' ||
+    (currentUser.membershipExpiresAt ?? 0) * 1000 > Date.now()
+  );
+
   // 发车 / 编辑车现场上传的贴纸由后端直接写入贴纸库；同步最新用户资料，
   // 让贴纸库、个人档案与卡片立刻看到新贴纸，不必刷新整页。
   const handleStickerUserUpdate = (user: UserProfile) => {
@@ -704,6 +710,7 @@ export function App() {
               popularCustomTags={popularCustomTags}
               stickerLibrary={currentUser?.stickerLibraryKeys || []}
               onUserUpdate={handleStickerUserUpdate}
+              isMember={stickerMember}
               onDeleteCampaign={handleDeleteCampaign}
               onEndPromo={handleEndPromo}
               onSetCampaignClosed={handleSetCampaignClosed}
@@ -745,6 +752,7 @@ export function App() {
           popularCustomTags={popularCustomTags}
           stickerLibrary={currentUser?.stickerLibraryKeys || []}
           onUserUpdate={handleStickerUserUpdate}
+          isMember={stickerMember}
           onSave={handleAdminEditSave}
           onClose={() => setAdminEditingCampaign(null)}
         />
@@ -759,6 +767,7 @@ export function App() {
         rules={rules}
         popularCustomTags={popularCustomTags}
         onUserUpdate={handleStickerUserUpdate}
+        isMember={stickerMember}
         onPublish={handlePublish}
       />
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />

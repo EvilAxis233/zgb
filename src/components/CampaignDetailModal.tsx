@@ -4,6 +4,7 @@ import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
 import { NameplateBadge } from './NameplateBadge';
+import { ImageHoverPreview } from './ImageHoverPreview';
 import { formatDisplayTime } from '../utils/date';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
@@ -177,7 +178,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
             {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
-            {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="贴纸" className="h-4 w-14 rounded-sm border border-[#121212] bg-white object-cover" />)}
+            {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <ImageHoverPreview key={`${src}-${index}`} src={src} label="贴纸原图" className="block h-4 w-14"><img src={src} alt="贴纸" className="h-full w-full rounded-sm border border-[#121212] bg-white object-cover" /></ImageHoverPreview>)}
           </div>
           <div className="flex justify-center">{receivedPraiseBadge}</div>
           <div className="flex min-w-0 items-center">
@@ -215,7 +216,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         <div className="overflow-y-auto p-5 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-x-6 gap-y-4 items-start">
             <div className="md:col-span-5 overflow-hidden border-2 border-[#121212] bg-[#EAE8E0] shadow-[4px_4px_0px_#121212]">
-              {campaign.imageUrl ? <img src={campaign.imageUrl} alt={`${campaign.title}封面`} className="block aspect-video h-auto w-full object-contain" /> : <BauhausPlaceholder rule={campaign.rule} title={campaign.title} seedColor={campaign.bannerColor || '#D62828'} className="aspect-video h-auto w-full" />}
+              {campaign.imageUrl ? <ImageHoverPreview src={campaign.imageUrl} label="团封面原图" className="block w-full"><img src={campaign.imageUrl} alt={`${campaign.title}封面`} className="block aspect-video h-auto w-full object-contain" /></ImageHoverPreview> : <BauhausPlaceholder rule={campaign.rule} title={campaign.title} seedColor={campaign.bannerColor || '#D62828'} className="aspect-video h-auto w-full" />}
             </div>
             <div className="md:col-span-7">
               <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -226,7 +227,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>)}
               </div>
               <div className="flex flex-wrap items-center gap-2 mb-2" aria-label="次级标签">
-                {campaign.customTags?.map((tag) => <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">#{tag}</span>)}
+                {campaign.customTags?.map((tag) => <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">{tag}</span>)}
                 {!campaign.hasEnded && !campaign.isClosed && !campaign.isFull && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '展示中' : '招募中'}</span>}
                 {campaign.kind !== 'promo' && campaign.hasEnded && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">已结团</span>}
                 {!campaign.hasEnded && campaign.isClosed && <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">{campaign.kind === 'promo' ? '已结束宣发' : '已锁车'}</span>}
