@@ -29,6 +29,15 @@ export const NAMEPLATE_STYLES = [
   { id: 'nb-d09', code: 'D09', name: '雷霆电弧', type: 'dynamic' as const },
   { id: 'nb-d12', code: 'D12', name: '雷达扫描', type: 'dynamic' as const },
   { id: 'nb-d16', code: 'D16', name: '潮汐涌浪', type: 'dynamic' as const },
+
+  // 精选 VIP 铭牌 7 款（站长提供的「精选 VIP 铭牌样式合集」）
+  { id: 'nb-vip-01', code: 'V01', name: '极简黑金', type: 'static' as const },
+  { id: 'nb-vip-02', code: 'V02', name: '渐变描边玻璃', type: 'dynamic' as const },
+  { id: 'nb-vip-03', code: 'V03', name: '赛博朋克双色', type: 'static' as const },
+  { id: 'nb-vip-04', code: 'V04', name: '全息镭射', type: 'dynamic' as const },
+  { id: 'nb-vip-05', code: 'V05', name: '霓虹脉冲圆点', type: 'dynamic' as const },
+  { id: 'nb-vip-06', code: 'V06', name: '星辉赞助者', type: 'dynamic' as const },
+  { id: 'nb-vip-07', code: 'V07', name: '熔岩暗涌', type: 'dynamic' as const },
   ...REFERENCE_NAMEPLATE_STYLES,
 ];
 

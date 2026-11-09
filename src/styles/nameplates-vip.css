@@ -1,0 +1,196 @@
+/* ==========================================================================
+   精选 VIP 铭牌 7 款（站长提供的「精选 VIP 铭牌样式合集」）
+   原稿是深色背景上的大徽章，这里按站点规范压缩为 24px 高、6 汉字 / 12 英文
+   的紧凑铭牌，保留配色、渐变、发光与动画特征。
+   ========================================================================== */
+
+.nb-badge[class*="nb-vip-"] {
+  gap: 5px;
+  padding-inline: 11px;
+  max-width: 160px;
+}
+.nb-badge[class*="nb-vip-"] .nb-text { position: relative; z-index: 2; }
+
+/* V01 · 极简黑金（静态） */
+.nb-vip-01 {
+  background: #0f0f0f;
+  color: #fceca5;
+  border: 1px solid #fceca5;
+  border-radius: 6px;
+  letter-spacing: 1.5px;
+  box-shadow: 0 0 0 2px rgba(252, 236, 165, .1), 0 0 12px rgba(252, 236, 165, .15);
+}
+.nb-vip-01::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fceca5;
+  box-shadow: 0 0 8px #fceca5;
+}
+
+/* V02 · 渐变描边玻璃（动态） */
+.nb-vip-02 {
+  background: rgba(26, 26, 46, .8);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  padding-inline: 14px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.nb-vip-02::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(90deg, #10b981, #eab308, #06b6d4, #10b981);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: nbVipGlassFlow 3s linear infinite;
+  pointer-events: none;
+}
+@keyframes nbVipGlassFlow { to { background-position: 200% 0; } }
+
+/* V03 · 赛博朋克双色（静态） */
+.nb-vip-03 {
+  color: #ff2e97;
+  background: #0f011a;
+  border: 1px solid #ff2e97;
+  border-radius: 4px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px #ff2e97;
+  box-shadow: 0 0 10px rgba(255, 46, 151, .4), inset 0 0 10px rgba(255, 46, 151, .2);
+}
+.nb-vip-03::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 1px solid #00f0ff;
+  border-radius: 6px;
+  opacity: .8;
+  filter: drop-shadow(0 0 4px #00f0ff);
+  pointer-events: none;
+}
+
+/* V04 · 全息镭射（动态） */
+.nb-vip-04 {
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(120deg, #ff9a9e, #fad0c4, #a1c4fd, #c2e9fb, #ff9a9e);
+  background-size: 300% 300%;
+  animation: nbVipHoloFlow 5s linear infinite;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .65), 0 0 3px rgba(0, 0, 0, .35);
+  box-shadow: 0 4px 15px rgba(161, 196, 253, .4), inset 0 2px 4px rgba(255, 255, 255, .8), inset 0 -2px 4px rgba(0, 0, 0, .1);
+}
+@keyframes nbVipHoloFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+/* V05 · 霓虹脉冲圆点（动态） */
+.nb-vip-05 {
+  color: #a7f3d0;
+  background: #052e2b;
+  border: 1px solid #10b981;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 15px rgba(16, 185, 129, .15);
+}
+.nb-vip-05::before {
+  content: '';
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+.nb-vip-05::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  margin-top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid #10b981;
+  animation: nbVipPulseRing 1.8s cubic-bezier(.2, .8, .2, 1) infinite;
+  pointer-events: none;
+}
+@keyframes nbVipPulseRing {
+  0% { transform: scale(.5); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* V06 · 星辉赞助者（动态，渐变文字 + 星芒） */
+.nb-vip-06 {
+  background: #121212;
+  border: 1px solid #2d2d2d;
+  border-radius: 6px;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, .5), 0 4px 10px rgba(0, 0, 0, .6);
+}
+.nb-vip-06::before {
+  content: '✦';
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nbVipSparkle 3s linear infinite;
+}
+.nb-vip-06 .nb-text {
+  background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6, #818cf8);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nbVipTextFlow 4s linear infinite;
+}
+@keyframes nbVipTextFlow { to { background-position: 200% center; } }
+@keyframes nbVipSparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .55; transform: scale(1.25); }
+}
+
+/* V07 · 熔岩暗涌（动态，红黑脉动） */
+.nb-vip-07 {
+  color: #fca5a5;
+  background: #1c0a0a;
+  border: 1px solid #7f1d1d;
+  border-radius: 4px;
+  letter-spacing: 1.5px;
+  overflow: hidden;
+  box-shadow: 0 0 15px rgba(185, 28, 28, .3);
+}
+.nb-vip-07::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 120%, #dc2626 0%, transparent 60%);
+  opacity: .6;
+  animation: nbVipLavaPulse 2s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes nbVipLavaPulse {
+  0% { transform: scale(1); opacity: .4; }
+  100% { transform: scale(1.2); opacity: .8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-badge[class*="nb-vip-"],
+  .nb-badge[class*="nb-vip-"]::before,
+  .nb-badge[class*="nb-vip-"]::after,
+  .nb-badge[class*="nb-vip-"] .nb-text { animation: none !important; }
+}

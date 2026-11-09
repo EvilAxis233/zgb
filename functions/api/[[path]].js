@@ -777,7 +777,8 @@ export async function onRequest(context) {
         const styleId = String(b.nameplate.styleId || '');
         const isReferenceStyle = /^nb-ref-(?:d(?:0[1-9]|[12]\d|30)|s(?:0[1-9]|1\d|20))$/.test(styleId)
           && !['nb-ref-d08', 'nb-ref-d20', 'nb-ref-d26'].includes(styleId);
-        if (!allowedStyles.includes(styleId) && !isReferenceStyle) return fail('无效的铭牌样式');
+        const isVipStyle = /^nb-vip-0[1-7]$/.test(styleId);
+        if (!allowedStyles.includes(styleId) && !isReferenceStyle && !isVipStyle) return fail('无效的铭牌样式');
         const text = clean(b.nameplate.text, 24);
         if (!text) return fail('铭牌文字不能为空');
         let zh = 0, en = 0;
