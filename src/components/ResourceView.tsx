@@ -70,9 +70,15 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
 }) {
   const href = safeHref(item.url);
   return (
-    <article className="bauhaus-card flex min-h-[196px] flex-col p-4">
+    <article className="bauhaus-card flex flex-col p-4">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">{item.name}</h3>
+        <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">
+          {href
+            ? <a href={href} target="_blank" rel="noopener noreferrer" title="打开链接" className="underline decoration-2 underline-offset-4 hover:text-[#004E98] hover:decoration-[#004E98]">
+                {item.name}<ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline text-[#777]" aria-hidden="true" />
+              </a>
+            : <span>{item.name}</span>}
+        </h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           {showCategory && <span className="border-2 border-[#121212] bg-[#FFF0D6] px-1.5 py-0.5 text-[10px] font-black">{CATEGORY_LABEL[categoryOf(item)]}</span>}
           {(item.flags || []).map((flag) => FLAG_LABEL[flag] && (
@@ -82,14 +88,8 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
         </div>
       </div>
       <p className="mt-2 min-h-[18px] break-words text-xs leading-relaxed text-[#666]">{item.note || '（未填写备注）'}</p>
-      {/* 卡片不展示网址，只保留打开链接按钮。 */}
-      <div className="mt-3 flex items-center border-2 border-[#121212] bg-[#FAF9F5] px-2 py-1.5">
-        {href
-          ? <a href={href} target="_blank" rel="noopener noreferrer" className="bauhaus-btn w-full justify-center gap-1 bg-white px-2 py-1 text-[10px] font-black shadow-none hover:bg-[#F0F5FA]">
-              打开链接 <ExternalLink className="h-3 w-3" />
-            </a>
-          : <span className="w-full text-center text-[10px] font-black text-[#999]">链接不可用</span>}
-      </div>
+      {/* 不展示网址也不放按钮：点击标题即可打开链接；无有效链接时标题为纯文本。 */}
+      {!href && <p className="mt-1 text-[10px] font-black text-[#999]">链接不可用</p>}
       <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-[#CFCBC0] pt-3 text-[11px] font-bold text-[#666]">
         {item.uploaderAvatar
           ? <img src={item.uploaderAvatar} alt="" className="h-5 w-5 border-2 border-[#121212] object-cover" />
