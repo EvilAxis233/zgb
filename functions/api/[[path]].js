@@ -953,24 +953,24 @@ export async function onRequest(context) {
     if (path[0] === 'checkin' && method === 'POST') {
       const today = dateHK();
       const yesterday = dateHK(new Date(Date.now() - 86400000));
-      const checkedAt = now();
       const memberNow = isMember(user) ? 1 : 0;
+      // 统一累计签到次数：不分身份、断签不清零、切换会员身份也不清零。
+      // 身份只决定每满 7 次发几张 GM 点赞券（会员 3 张 / 普通 1 张），避免换身份时进度作废。
+      // checkin_streak 仅保留给前端展示「连续签到天数」，不再参与发奖。
       const result = await db.prepare(`UPDATE users SET
-        gm_hearts=gm_hearts+CASE
-          WHEN ?=1 THEN CASE WHEN (member_checkin_count+1)%7=0 THEN 3 ELSE 0 END
-          WHEN last_checkin=? AND (checkin_streak+1)%7=0 THEN 1 ELSE 0 END,
-        member_checkin_count=member_checkin_count+CASE WHEN ?=1 THEN 1 ELSE 0 END,
+        gm_hearts=gm_hearts+CASE WHEN (checkin_count+1)%7=0 THEN CASE WHEN ?=1 THEN 3 ELSE 1 END ELSE 0 END,
+        checkin_count=checkin_count+1,
         checkin_streak=CASE WHEN last_checkin=? THEN checkin_streak+1 ELSE 1 END,
         last_checkin=?,player_hearts=player_hearts+1
         WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)
-        RETURNING checkin_streak,member_checkin_count,membership_expires_at`).bind(memberNow, yesterday, memberNow, yesterday, today, user.qq, today).first();
+        RETURNING checkin_count,checkin_streak`).bind(memberNow, yesterday, today, user.qq, today).first();
       if (!result) return fail('今日已签到');
-      const streak = result.checkin_streak;
-      const memberAfter = !!memberNow;
-      const progress = memberAfter ? result.member_checkin_count : streak;
-      const gmHeartsAwarded = progress % 7 === 0 ? (memberAfter ? 3 : 1) : 0;
-      return json({ ok: true, streak, memberCheckinCount: result.member_checkin_count, isMember: memberAfter,
-        daysUntilGmReward: gmHeartsAwarded ? 0 : 7 - progress % 7,
+      const count = result.checkin_count;
+      const gmHeartsAwarded = count % 7 === 0 ? (memberNow ? 3 : 1) : 0;
+      return json({ ok: true, streak: result.checkin_streak, checkinCount: count,
+        memberCheckinCount: count, // 兼容旧前端字段，语义已改为「统一累计签到次数」
+        isMember: !!memberNow,
+        daysUntilGmReward: gmHeartsAwarded ? 0 : 7 - count % 7,
         gmHeartsAwarded, gmAwarded: gmHeartsAwarded > 0 });
     }
     if (path[0] === 'praise' && method === 'POST') {

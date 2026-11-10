@@ -142,7 +142,7 @@ export function App() {
     try {
       const result = await api.checkin();
       await refresh();
-      const progress = result.isMember ? `会员累计签到${result.memberCheckinCount}次` : `连续签到${result.streak}天`;
+      const progress = `累计签到${result.checkinCount}次`;
       const reward = result.gmHeartsAwarded
         ? `已获得${result.gmHeartsAwarded}张GM点赞券！`
         : `距离下次领取GM点赞券还需签到${result.daysUntilGmReward}次。`;
