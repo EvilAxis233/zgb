@@ -10,6 +10,7 @@ import { NameplateBadge } from './NameplateBadge';
 import { StickerLibrary } from './StickerLibrary';
 import { StickerPlaza } from './StickerPlaza';
 import { api } from '../services/api';
+import { formatDisplayTime } from '../utils/date';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface ProfileViewProps {
@@ -499,7 +500,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       <div className="text-xs text-[#666666] mt-1 flex items-center gap-2">
                         <span>{camp.rule}</span>
                         <span>•</span>
-                        <span>{camp.timeSchedule}</span>
+                        <span>{formatDisplayTime(camp.timeSchedule)}</span>
                       </div>
                     </div>
                   </div>
@@ -552,7 +553,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       <div className="text-xs text-[#666666] mt-1">
                         <span>规则: {camp.rule}</span>
                         <span className="mx-2">|</span>
-                        <span>{camp.timeSchedule}</span>
+                        <span>{formatDisplayTime(camp.timeSchedule)}</span>
                       </div>
                     </div>
                   </div>

@@ -3,7 +3,7 @@ import { Edit2, X, BookOpen, Sparkles, Upload, ImagePlus } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign, type UserProfile } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { MARKDOWN_SUPPORT_HINT, BAUHAUS_COLORS } from './PublishModal';
-import { buildTimeSchedule, parseTimeSchedule, TIME_PERIODS, type TimePeriod } from '../utils/date';
+import { buildTimeSchedule, parseTimeSchedule, formatDisplayTime, TIME_PERIODS, type TimePeriod } from '../utils/date';
 import { locationLabel } from '../utils/location';
 import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
@@ -141,7 +141,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
               <select value={parsed.period || '晚'} aria-label={`第 ${index + 1} 个时段`} onChange={(e) => updateSlot(slot.id, parsed.dateStr || '', e.target.value as TimePeriod)} className="bauhaus-input px-2 py-1 text-xs">
                 {TIME_PERIODS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
               </select>
-              <span className="text-[10px] font-bold text-[#666]">{slot.timeSchedule}</span>
+              <span className="text-[10px] font-bold text-[#666]">{formatDisplayTime(slot.timeSchedule)}</span>
             </div>
           );
         })}
@@ -253,7 +253,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         <label className="block text-xs font-bold">联系方式<input className="bauhaus-input mt-1 w-full p-2" value={draft.contact || ''} onChange={(e) => setDraft({ ...draft, contact: e.target.value })} placeholder="留空则保持原联系方式" /></label>
         <p className="-mt-2 text-[10px] font-bold text-[#666]">代编辑他人团时若看不到原联系方式，留空即可保留，不会被覆盖。</p>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
-        <p className="text-[11px] text-[#666]">{draft.kind === 'offline' ? `面团 · ${locationLabel(draft)} · ` : ''}开团时间：{draft.timeSchedule}{draft.batchId ? '（各时段可在上方逐个改期）' : '（可在日历中改期）'}</p>
+        <p className="text-[11px] text-[#666]">{draft.kind === 'offline' ? `面团 · ${locationLabel(draft)} · ` : ''}开团时间：{formatDisplayTime(draft.timeSchedule)}{draft.batchId ? '（各时段可在上方逐个改期）' : '（可在日历中改期）'}</p>
         <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button disabled={saving} className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs disabled:opacity-50">{saving ? '保存中…' : '保存修改'}</button></div>
       </form>
       {coverToCrop && <ImageCropper file={coverToCrop} shape="cover" onClose={() => setCoverToCrop(null)} onConfirm={(file) => {

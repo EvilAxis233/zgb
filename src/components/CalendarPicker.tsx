@@ -6,6 +6,8 @@ import {
   buildTimeSchedule,
   parseTimeSchedule,
   formatDisplayTime,
+  formatPeriod,
+  PERIOD_HINT,
   TimePeriod,
   TIME_PERIODS,
 } from '../utils/date';
@@ -313,7 +315,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         <div className="flex items-center justify-between mb-2 gap-2">
           <label className="text-xs font-black text-[#121212] flex items-center gap-1 shrink-0">
             <span className="w-2 h-2 bg-[#004E98]" />
-            <span>开团时段 (早 / 中 / 晚)</span>
+            <span>开团时段 ({PERIOD_HINT})</span>
             <span className="text-[#D62828]">*</span>
           </label>
           {selectedDate && (
@@ -362,10 +364,10 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         }`}
       >
         {multiple ? (
-          <span className="text-[#121212] text-center">{selectedSlots.length ? `已选 ${selectedSlots.length} 个时段：${selectedSlots.map(formatDisplayTime).join('、')}` : '点击日期，再选择早 / 中 / 晚；再次点击时段可取消'}</span>
+          <span className="text-[#121212] text-center">{selectedSlots.length ? `已选 ${selectedSlots.length} 个时段：${selectedSlots.map(formatDisplayTime).join('、')}` : `点击日期，再选择${PERIOD_HINT}；再次点击时段可取消`}</span>
         ) : selectedDate && selectedPeriod ? (
           <span className="font-mono font-black text-xs sm:text-sm text-[#121212]">
-            {`${selectedDate}（${selectedDateWeekDay}）${selectedPeriod}`}
+            {`${selectedDate}（${selectedDateWeekDay}）${formatPeriod(selectedPeriod)}`}
           </span>
         ) : null}
       </div>

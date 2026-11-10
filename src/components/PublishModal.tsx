@@ -9,6 +9,7 @@ import { ImageCropper } from './ImageCropper';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
 import { clampTag, tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { formatDisplayTime, PERIOD_HINT } from '../utils/date';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -170,7 +171,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       return;
     }
     if (!timeSlots.length) {
-      showAlert({ title: '提示', message: '请在日历中选择开团日期及开团时段（早/中/晚）', type: 'warning' });
+      showAlert({ title: '提示', message: `请在日历中选择开团日期及开团时段（${PERIOD_HINT}）`, type: 'warning' });
       return;
     }
 
@@ -585,7 +586,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           timeSchedule ? 'text-[#121212]' : 'text-[#888888] font-normal italic'
                         }`}
                       >
-                        {timeSlots.length ? `${timeSlots.length} 个时段：${timeSlots.join('、')}` : '未选择时间（请在左侧日历选定）'}
+                        {timeSlots.length ? `${timeSlots.length} 个时段：${timeSlots.map(formatDisplayTime).join('、')}` : '未选择时间（请在左侧日历选定）'}
                       </span>
                     </div>
                     {timeSchedule ? (

@@ -20,7 +20,7 @@ import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
 import { TicketsModal } from './components/TicketsModal';
 import { SubmissionModal } from './components/SubmissionModal';
-import { parseTimeSchedule, TimePeriod } from './utils/date';
+import { parseTimeSchedule, formatPeriod, TimePeriod } from './utils/date';
 
 import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase, UserRound, MessageSquareText, Flag } from 'lucide-react';
 
@@ -641,7 +641,7 @@ export function App() {
                                 : 'bg-white text-[#121212] border-[#CCCCCC] hover:border-[#121212] hover:bg-[#FAF9F5]'
                             }`}
                           >
-                            {p === 'all' ? '全部' : p}
+                            {p === 'all' ? '全部' : formatPeriod(p)}
                           </button>
                         );
                       })}

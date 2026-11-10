@@ -2,9 +2,18 @@ export type TimePeriod = '早' | '中' | '晚';
 
 export const TIME_PERIODS: { key: TimePeriod; label: string; desc: string }[] = [
   { key: '早', label: '早', desc: '上午 (约 09:00 - 12:00)' },
-  { key: '中', label: '中', desc: '下午 (约 13:30 - 18:00)' },
+  { key: '中', label: '午', desc: '下午 (约 13:30 - 18:00)' },
   { key: '晚', label: '晚', desc: '晚上 (约 19:00 - 23:30)' },
 ];
+
+// 时段在页面上的显示字：「中」统一显示为「午」（数据库与接口仍沿用「中」，兼容存量数据与后端校验）。
+const PERIOD_DISPLAY: Record<TimePeriod, string> = { 早: '早', 中: '午', 晚: '晚' };
+
+export function formatPeriod(period: TimePeriod | null | undefined): string {
+  return period ? PERIOD_DISPLAY[period] || period : '';
+}
+
+export const PERIOD_HINT = '早 / 午 / 晚';
 
 const WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
@@ -117,7 +126,7 @@ export function formatDisplayTime(raw: string): string {
   if (parsed.valid && parsed.dateStr && parsed.period) {
     const d = parseDateString(parsed.dateStr);
     const week = d ? getWeekDayName(d) : parsed.weekDay || '';
-    return `${parsed.dateStr}（${week}）${parsed.period}`;
+    return `${parsed.dateStr}（${week}）${formatPeriod(parsed.period)}`;
   }
   return raw;
 }
