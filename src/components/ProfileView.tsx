@@ -164,7 +164,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
       <div className="w-full lg:w-60 xl:w-64 shrink-0 lg:sticky lg:top-20 space-y-3">
-        <AccountSideActions destination="manage" onNavigate={onOpenManage} onFeedback={onFeedback} onReport={onReport} />
+        <AccountSideActions
+          destination="manage"
+          onNavigate={onOpenManage}
+          onFeedback={onFeedback}
+          onReport={onReport}
+          extraActions={
+            <button
+              type="button"
+              onClick={() => setMyResourcesOpen(true)}
+              title="查看、更新或删除我分享的规则资源"
+              className="bauhaus-btn w-full cursor-pointer gap-2 bg-white px-4 py-3 text-sm font-black hover:bg-[#FAF9F5]"
+            >
+              <Heart className="h-4 w-4 fill-[#D62828] text-[#D62828]" />
+              我的分享
+            </button>
+          }
+        />
         <button type="button" disabled={currentUser.membershipPermanent} onClick={() => setMembershipOpen(true)} className="bauhaus-btn w-full bg-[#FFF4DA] px-4 py-3 text-sm font-black gap-2"><Crown size={17} />{currentUser.membershipPermanent ? '永久会员' : membershipActive ? '续费会员' : '升级会员'}</button>
         <div className="space-y-3">
           {membershipActive && (
@@ -196,16 +212,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 贴纸
               </button>
             </div>
-            {/* 我的分享：爱心资源里自己发布过的条目，可在这里更新或删除。 */}
-            <button
-              type="button"
-              onClick={() => setMyResourcesOpen(true)}
-              title="查看、更新或删除我分享的规则资源"
-              className="bauhaus-btn w-full cursor-pointer gap-1.5 bg-[#FFF4F4] px-3 py-2 text-xs font-black shadow-[2px_2px_0px_#121212] hover:bg-[#FDE8E8]"
-            >
-              <Heart size={14} className="fill-[#D62828] text-[#D62828]" />
-              我的分享
-            </button>
             {currentUser.nameplate && (
               <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#121212]">
                 <span className="text-[11px] font-bold text-[#666]">当前佩戴：</span>
