@@ -103,8 +103,15 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
 // 爱心资源：只存规则名 + 自填链接，昵称展示时 JOIN users 取当前值，不下发上传者 QQ。
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
-const RESOURCE_FLAGS = new Set(['reprint', 'self', 'machine']); // 转载 / 自译 / 机翻
-const parseResourceFlags = (s) => [...new Set(String(s || '').split(',').map((v) => v.trim()).filter((v) => RESOURCE_FLAGS.has(v)))];
+const RESOURCE_FLAGS = new Set(['zh', 'en_other', 'reprint', 'self', 'machine']); // 中文 / 英文或其它 / 转载 / 自译 / 机翻
+const RESOURCE_LANG_FLAGS = new Set(['zh', 'en_other']); // 语言标签：必选，二选一
+const RESOURCE_FLAG_ORDER = ['zh', 'en_other', 'reprint', 'self', 'machine'];
+const parseResourceFlags = (s) => {
+  const picked = new Set(String(s || '').split(',').map((v) => v.trim()).filter((v) => RESOURCE_FLAGS.has(v)));
+  const langs = [...picked].filter((v) => RESOURCE_LANG_FLAGS.has(v));
+  if (langs.length > 1) langs.slice(1).forEach((v) => picked.delete(v)); // 语言互斥，只保留先出现的
+  return RESOURCE_FLAG_ORDER.filter((v) => picked.has(v)); // 固定顺序：语言在前、来源在后
+};
 const resourceSelect = 'SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq';
 const resourceDto = (r, viewerQq, admin) => ({
   id: r.id, name: r.name, url: r.url, type: r.type, note: r.note || '',
@@ -126,6 +133,10 @@ const resourceInput = (b, base = {}) => {
   if (!link) return { error: '请填写链接地址' };
   if (/^\s*(javascript|data|vbscript|file)\s*:/i.test(link)) return { error: '链接地址无效' };
   if (!RESOURCE_TYPES.has(type)) return { error: '地址类型无效' };
+  // 新建必须选语言；更新时只要带了标签，也必须保留一项语言。旧数据不带标签的更新不强制。
+  if ((b.flags !== undefined || !base.id) && !flags.split(',').some((v) => RESOURCE_LANG_FLAGS.has(v))) {
+    return { error: '请选择语言标签：中文 / 英文或其它' };
+  }
   return { name, url: link, type, note, flags };
 };
 // 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己、且本人已勾选「公开贴纸库存」；

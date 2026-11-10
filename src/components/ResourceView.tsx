@@ -10,14 +10,20 @@ const TYPE_STYLE: Record<RuleResource['type'], string> = {
   wiki: 'bg-[#E6F0FA] text-[#004E98]',
   other: 'bg-[#EEEAE0] text-[#555]',
 };
-// 来源标签：分享时勾选，展示在「网盘下载」等类型标签左边。
-const FLAG_OPTIONS = [
+// 标签：语言二选一必选，来源可多选；展示在「网盘下载」等类型标签左边。
+const LANGUAGE_OPTIONS = [
+  { key: 'zh', label: '中文' },
+  { key: 'en_other', label: '英文或其它' },
+];
+const SOURCE_OPTIONS = [
   { key: 'reprint', label: '转载' },
   { key: 'self', label: '自译' },
   { key: 'machine', label: '机翻' },
 ];
-const FLAG_LABEL: Record<string, string> = { reprint: '转载', self: '自译', machine: '机翻' };
+const FLAG_LABEL: Record<string, string> = { zh: '中文', en_other: '英文或其它', reprint: '转载', self: '自译', machine: '机翻' };
 const FLAG_STYLE: Record<string, string> = {
+  zh: 'bg-[#004E98] text-white',
+  en_other: 'bg-[#3A3A3A] text-white',
   reprint: 'bg-[#E6F0FA] text-[#004E98]',
   self: 'bg-[#E7F4E9] text-[#1B7A3D]',
   machine: 'bg-[#F3E9FA] text-[#7A2E9E]',
@@ -96,13 +102,19 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
   const [flags, setFlags] = useState<string[]>(initial?.flags || []);
   const [saving, setSaving] = useState(false);
 
-  const toggleFlag = (key: string) => setFlags((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
+  const toggleFlag = (key: string) => setFlags((prev) => {
+    if (prev.includes(key)) return prev.filter((x) => x !== key);
+    // 语言标签互斥：换选时自动取消另一个，来源标签不受影响。
+    const isLanguage = key === 'zh' || key === 'en_other';
+    return [...(isLanguage ? prev.filter((x) => x !== 'zh' && x !== 'en_other') : prev), key];
+  });
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const payload: RuleResourceInput = { name: name.trim(), url: url.trim(), type, note: note.trim(), flags };
     if (!payload.name) { await showAlert({ title: '提示', message: '请填写规则名字', type: 'warning' }); return; }
     if (!payload.url) { await showAlert({ title: '提示', message: '请填写链接地址', type: 'warning' }); return; }
+    if (!flags.some((f) => f === 'zh' || f === 'en_other')) { await showAlert({ title: '提示', message: '请选择语言标签：中文 / 英文或其它', type: 'warning' }); return; }
     setSaving(true);
     try {
       const result = initial
@@ -141,9 +153,19 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
             </div>
           </div>
           <div className="border-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
-            <span className="block text-xs font-black">来源标签（可多选）</span>
-            <div className="mt-1.5 flex flex-wrap gap-4">
-              {FLAG_OPTIONS.map((option) => (
+            <span className="block text-xs font-black">标签</span>
+            <p className="mt-1.5 text-[11px] font-black text-[#B51F1F]">语言（必选，二选一）</p>
+            <div className="mt-1 flex flex-wrap gap-4">
+              {LANGUAGE_OPTIONS.map((option) => (
+                <label key={option.key} className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#121212]">
+                  <input type="checkbox" checked={flags.includes(option.key)} onChange={() => toggleFlag(option.key)} className="h-4 w-4 cursor-pointer accent-[#004E98]" />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 border-t-2 border-dashed border-[#CFCBC0] pt-2 text-[11px] font-bold text-[#666]">来源（可多选）</p>
+            <div className="mt-1 flex flex-wrap gap-4">
+              {SOURCE_OPTIONS.map((option) => (
                 <label key={option.key} className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#121212]">
                   <input type="checkbox" checked={flags.includes(option.key)} onChange={() => toggleFlag(option.key)} className="h-4 w-4 cursor-pointer accent-[#004E98]" />
                   {option.label}
