@@ -103,6 +103,8 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
 // 爱心资源：只存规则名 + 自填链接，昵称展示时 JOIN users 取当前值，不下发上传者 QQ。
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
+const RESOURCE_CATEGORIES = new Set(['rulebook', 'module', 'tool']); // 规则书 / 模组或世设 / 工具书
+const RESOURCE_CATEGORY_DEFAULT = 'rulebook';
 const RESOURCE_FLAGS = new Set(['zh', 'en_other', 'reprint', 'self', 'machine']); // 中文 / 英文或其它 / 转载 / 自译 / 机翻
 const RESOURCE_LANG_FLAGS = new Set(['zh', 'en_other']); // 语言标签：必选，二选一
 const RESOURCE_FLAG_ORDER = ['zh', 'en_other', 'reprint', 'self', 'machine'];
@@ -115,6 +117,7 @@ const parseResourceFlags = (s) => {
 const resourceSelect = 'SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq';
 const resourceDto = (r, viewerQq, admin) => ({
   id: r.id, name: r.name, url: r.url, type: r.type, note: r.note || '',
+  category: RESOURCE_CATEGORIES.has(r.category) ? r.category : RESOURCE_CATEGORY_DEFAULT,
   flags: parseResourceFlags(r.flags),
   uploaderName: r.uploader_name || '未命名', uploaderAvatar: assetUrl(r.uploader_avatar_key),
   createdAt: (r.created_at || '').slice(0, 10), updatedAt: (r.updated_at || '').slice(0, 10),
@@ -125,6 +128,7 @@ const resourceInput = (b, base = {}) => {
   const name = b.name === undefined ? (base.name || '') : clean(b.name, 60);
   const link = b.url === undefined ? (base.url || '') : clean(b.url, 500);
   const type = b.type === undefined ? (base.type || 'other') : b.type;
+  const category = b.category === undefined ? (base.category || RESOURCE_CATEGORY_DEFAULT) : b.category;
   const note = b.note === undefined ? (base.note || '') : clean(b.note, 200);
   const rawFlags = b.flags === undefined ? (base.flags || '') : (Array.isArray(b.flags) ? b.flags.join(',') : '');
   const flags = parseResourceFlags(rawFlags).join(',');
@@ -133,11 +137,12 @@ const resourceInput = (b, base = {}) => {
   if (!link) return { error: '请填写链接地址' };
   if (/^\s*(javascript|data|vbscript|file)\s*:/i.test(link)) return { error: '链接地址无效' };
   if (!RESOURCE_TYPES.has(type)) return { error: '地址类型无效' };
+  if (!RESOURCE_CATEGORIES.has(category)) return { error: '所属分页无效' };
   // 新建必须选语言；更新时只要带了标签，也必须保留一项语言。旧数据不带标签的更新不强制。
   if ((b.flags !== undefined || !base.id) && !flags.split(',').some((v) => RESOURCE_LANG_FLAGS.has(v))) {
     return { error: '请选择语言标签：中文 / 英文或其它' };
   }
-  return { name, url: link, type, note, flags };
+  return { name, url: link, type, note, flags, category };
 };
 // 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己、且本人已勾选「公开贴纸库存」；
 // 每张图片必须格式合法且未被站主下架。广场不下发任何 QQ 号，会员分组只用匿名序号标识。
@@ -719,12 +724,17 @@ export async function onRequest(context) {
       }
       return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
-    // 爱心资源：浏览对所有访客开放，只按规则名字模糊检索，不下发上传者 QQ。
+    // 爱心资源：浏览对所有访客开放，按规则名字模糊检索 + 按分页筛选，不下发上传者 QQ。
+    // 不带 cat 时返回全部分页（兼容旧调用）；cat 非法时按全部分页处理。
     if (path[0] === 'resources' && path.length === 1 && method === 'GET') {
       const q = clean(url.searchParams.get('q') || '', 60).replace(/[%_\\]/g, '');
-      const rows = q
-        ? await db.prepare(`${resourceSelect} WHERE r.name LIKE ? ORDER BY r.created_at DESC, r.id DESC LIMIT 200`).bind(`%${q}%`).all()
-        : await db.prepare(`${resourceSelect} ORDER BY r.created_at DESC, r.id DESC LIMIT 200`).all();
+      const cat = url.searchParams.get('cat') || '';
+      const where = [], binds = [];
+      if (q) { where.push('r.name LIKE ?'); binds.push(`%${q}%`); }
+      if (RESOURCE_CATEGORIES.has(cat)) { where.push('r.category=?'); binds.push(cat); }
+      const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+      const stmt = db.prepare(`${resourceSelect}${clause} ORDER BY r.created_at DESC, r.id DESC LIMIT 200`);
+      const rows = binds.length ? await stmt.bind(...binds).all() : await stmt.all();
       return json({ items: rows.results.map((r) => resourceDto(r, user?.qq, isSiteAdmin(user))) });
     }
     if (!user) return fail('请先登录', 401);
@@ -850,8 +860,8 @@ export async function onRequest(context) {
       const total = await db.prepare('SELECT COUNT(*) n FROM rule_resources WHERE uploader_qq=?').bind(user.qq).first();
       if (Number(total?.n || 0) >= 50) return fail('每人最多分享 50 条资源', 409);
       const rid = id(), iso = new Date().toISOString();
-      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,flags,uploader_qq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)')
-        .bind(rid, input.name, input.url, input.type, input.note, input.flags, user.qq, iso, iso).run();
+      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,flags,category,uploader_qq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .bind(rid, input.name, input.url, input.type, input.note, input.flags, input.category, user.qq, iso, iso).run();
       const row = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(rid).first();
       return json({ item: resourceDto(row, user.qq, isSiteAdmin(user)) });
     }
@@ -865,8 +875,8 @@ export async function onRequest(context) {
       }
       const input = resourceInput(await body(request), row);
       if (input.error) return fail(input.error);
-      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,flags=?,updated_at=? WHERE id=?')
-        .bind(input.name, input.url, input.type, input.note, input.flags, new Date().toISOString(), row.id).run();
+      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,flags=?,category=?,updated_at=? WHERE id=?')
+        .bind(input.name, input.url, input.type, input.note, input.flags, input.category, new Date().toISOString(), row.id).run();
       const updated = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(row.id).first();
       return json({ item: resourceDto(updated, user.qq, isSiteAdmin(user)) });
     }

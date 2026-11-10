@@ -1,10 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { Heart, Search, Plus, Pencil, Trash2, X, Loader2, ExternalLink } from 'lucide-react';
-import type { RuleResource, RuleResourceInput, UserProfile } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import { Search, Plus, Pencil, Trash2, X, Loader2, ExternalLink } from 'lucide-react';
+import type { RuleResource, RuleResourceInput, ResourceCategory, UserProfile } from '../types';
 import { api } from '../services/api';
 import { useDialog } from './BauhausDialog';
 
-const TYPE_LABEL: Record<RuleResource['type'], string> = { pan: '网盘下载', wiki: 'Wiki 查询', other: '其他' };
+// 三个分页：规则书 / 模组或世设 / 工具书。每条分享只归属一个分页，上传时用下拉选择。
+const CATEGORY_TABS: { key: ResourceCategory; label: string }[] = [
+  { key: 'rulebook', label: '规则书' },
+  { key: 'module', label: '模组或世设' },
+  { key: 'tool', label: '工具书' },
+];
+const CATEGORY_LABEL: Record<ResourceCategory, string> = { rulebook: '规则书', module: '模组或世设', tool: '工具书' };
+const DEFAULT_CATEGORY: ResourceCategory = 'rulebook';
+const categoryOf = (item: RuleResource): ResourceCategory => item.category && CATEGORY_LABEL[item.category] ? item.category : DEFAULT_CATEGORY;
+
+const TYPE_LABEL: Record<RuleResource['type'], string> = { pan: '网盘下载', wiki: '在线查询', other: '其他' };
 const TYPE_STYLE: Record<RuleResource['type'], string> = {
   pan: 'bg-[#FFF0D6] text-[#8A5A00]',
   wiki: 'bg-[#E6F0FA] text-[#004E98]',
@@ -44,10 +54,11 @@ function HeartIcon({ size = 16 }: { size?: number }) {
 }
 
 /** 一条资源卡片。上传者本人（或管理员）会看到「编辑」「删除」。 */
-export function ResourceCard({ item, onEdit, onDelete }: {
+export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
   item: RuleResource;
   onEdit?: (item: RuleResource) => void;
   onDelete?: (item: RuleResource) => void;
+  showCategory?: boolean;
 }) {
   const href = safeHref(item.url);
   return (
@@ -55,6 +66,7 @@ export function ResourceCard({ item, onEdit, onDelete }: {
       <div className="flex items-start justify-between gap-2">
         <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">{item.name}</h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {showCategory && <span className="border-2 border-[#121212] bg-[#FFF0D6] px-1.5 py-0.5 text-[10px] font-black">{CATEGORY_LABEL[categoryOf(item)]}</span>}
           {(item.flags || []).map((flag) => FLAG_LABEL[flag] && (
             <span key={flag} className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${FLAG_STYLE[flag]}`}>{FLAG_LABEL[flag]}</span>
           ))}
@@ -62,13 +74,13 @@ export function ResourceCard({ item, onEdit, onDelete }: {
         </div>
       </div>
       <p className="mt-2 min-h-[18px] break-words text-xs leading-relaxed text-[#666]">{item.note || '（未填写备注）'}</p>
-      <div className="mt-3 flex items-center gap-2 border-2 border-[#121212] bg-[#FAF9F5] px-2 py-1.5">
-        <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#004E98] underline" title={item.url}>{item.url}</span>
+      {/* 卡片不展示网址，只保留打开链接按钮。 */}
+      <div className="mt-3 flex items-center border-2 border-[#121212] bg-[#FAF9F5] px-2 py-1.5">
         {href
-          ? <a href={href} target="_blank" rel="noopener noreferrer" className="bauhaus-btn shrink-0 gap-1 bg-white px-2 py-1 text-[10px] font-black shadow-none">
+          ? <a href={href} target="_blank" rel="noopener noreferrer" className="bauhaus-btn w-full justify-center gap-1 bg-white px-2 py-1 text-[10px] font-black shadow-none hover:bg-[#F0F5FA]">
               打开链接 <ExternalLink className="h-3 w-3" />
             </a>
-          : <span className="shrink-0 px-1 text-[10px] font-black text-[#999]">链接不可用</span>}
+          : <span className="w-full text-center text-[10px] font-black text-[#999]">链接不可用</span>}
       </div>
       <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-[#CFCBC0] pt-3 text-[11px] font-bold text-[#666]">
         {item.uploaderAvatar
@@ -88,9 +100,10 @@ export function ResourceCard({ item, onEdit, onDelete }: {
 }
 
 /** 分享 / 编辑弹窗。上传者昵称由后端按登录账号记录，前端不允许手改。 */
-export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
+export function ResourceEditor({ initial, currentUserName, defaultCategory, onClose, onSaved }: {
   initial?: RuleResource | null;
   currentUserName?: string;
+  defaultCategory?: ResourceCategory;
   onClose: () => void;
   onSaved: (item: RuleResource) => void;
 }) {
@@ -98,6 +111,7 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
   const [name, setName] = useState(initial?.name || '');
   const [url, setUrl] = useState(initial?.url || '');
   const [type, setType] = useState<RuleResource['type']>(initial?.type || 'pan');
+  const [category, setCategory] = useState<ResourceCategory>(initial ? categoryOf(initial) : (defaultCategory || DEFAULT_CATEGORY));
   const [note, setNote] = useState(initial?.note || '');
   const [flags, setFlags] = useState<string[]>(initial?.flags || []);
   const [saving, setSaving] = useState(false);
@@ -111,7 +125,7 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const payload: RuleResourceInput = { name: name.trim(), url: url.trim(), type, note: note.trim(), flags };
+    const payload: RuleResourceInput = { name: name.trim(), url: url.trim(), type, category, note: note.trim(), flags };
     if (!payload.name) { await showAlert({ title: '提示', message: '请填写规则名字', type: 'warning' }); return; }
     if (!payload.url) { await showAlert({ title: '提示', message: '请填写链接地址', type: 'warning' }); return; }
     if (!flags.some((f) => f === 'zh' || f === 'en_other')) { await showAlert({ title: '提示', message: '请选择语言标签：中文 / 英文或其它', type: 'warning' }); return; }
@@ -141,16 +155,21 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="例如：祸不单行 / Mausritter 中文规则" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
           <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs font-black">所属分页
+              <select value={category} onChange={(e) => setCategory(e.target.value as ResourceCategory)} className="bauhaus-input mt-1 w-full p-2 text-sm font-bold">
+                {CATEGORY_TABS.map((tab) => <option key={tab.key} value={tab.key}>{tab.label}</option>)}
+              </select>
+            </label>
             <label className="block text-xs font-black">地址类型
               <select value={type} onChange={(e) => setType(e.target.value as RuleResource['type'])} className="bauhaus-input mt-1 w-full p-2 text-sm font-bold">
                 <option value="pan">网盘下载</option>
-                <option value="wiki">Wiki / 在线查询</option>
+                <option value="wiki">在线查询</option>
                 <option value="other">其他</option>
               </select>
             </label>
-            <div className="block text-xs font-black">分享者
-              <div className="bauhaus-input mt-1 flex items-center gap-1.5 p-2 text-sm font-bold text-[#666]" title="自动取当前登录账号昵称"><HeartIcon size={14} />{currentUserName || '登录账号昵称'}</div>
-            </div>
+          </div>
+          <div className="block text-xs font-black">分享者
+            <div className="bauhaus-input mt-1 flex items-center gap-1.5 p-2 text-sm font-bold text-[#666]" title="自动取当前登录账号昵称"><HeartIcon size={14} />{currentUserName || '登录账号昵称'}</div>
           </div>
           <div className="border-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
             <span className="block text-xs font-black">标签</span>
@@ -174,7 +193,7 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
             </div>
           </div>
           <label className="block text-xs font-black">链接地址 <span className="text-[#D62828]">*</span>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="网盘链接或 Wiki 页面地址，不强制写前缀" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
+            <input value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="网盘链接或在线查询页面地址，不强制写前缀" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
           <label className="block text-xs font-black">备注（选填）
             <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} placeholder="例如：提取码 1234 / 含中文译本" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
@@ -191,18 +210,20 @@ export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
   );
 }
 
-/** 爱心资源页：所有人可浏览、按规则名字检索；登录后可分享，自己的条目可改可删。 */
+/** 爱心资源页：三个分页（规则书 / 模组或世设 / 工具书），按规则名字检索；登录后可分享，自己的条目可改可删。 */
 export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserProfile | null; onOpenLogin: () => void }) {
   const { showAlert, showConfirm } = useDialog();
   const [items, setItems] = useState<RuleResource[]>([]);
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<ResourceCategory>(DEFAULT_CATEGORY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<RuleResource | 'new' | null>(null);
+  const lastQuery = useRef(query);
 
-  const load = async (q: string) => {
+  const load = async (q: string, cat: ResourceCategory) => {
     try {
-      const data = await api.resources(q);
+      const data = await api.resources(q, cat);
       setItems(data.items || []);
       setError('');
     } catch (e) {
@@ -212,11 +233,13 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
     }
   };
 
-  // 服务端按规则名字检索，输入停顿 300ms 后再查，避免每敲一个字都请求。
+  // 服务端按规则名字 + 分页检索；输入停顿 300ms 后再查，切换分页立即查询。
   useEffect(() => {
-    const timer = window.setTimeout(() => { setLoading(true); void load(query.trim()); }, 300);
+    const isQueryChange = lastQuery.current !== query;
+    lastQuery.current = query;
+    const timer = window.setTimeout(() => { setLoading(true); void load(query.trim(), category); }, isQueryChange ? 300 : 0);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, category]);
 
   const remove = async (item: RuleResource) => {
     const ok = await showConfirm({ title: '删除分享', message: `确定删除「${item.name}」这条分享吗？删除后不可恢复。`, confirmText: '确认删除', type: 'danger' });
@@ -231,8 +254,10 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
 
   const saved = (item: RuleResource) => {
     // 检索状态下新增/改名可能不再匹配当前关键词，直接按当前关键词重载最稳妥。
-    if (query.trim()) void load(query.trim());
-    else setItems((prev) => [item, ...prev.filter((x) => x.id !== item.id)]);
+    if (query.trim()) { void load(query.trim(), category); return; }
+    setItems((prev) => categoryOf(item) === category
+      ? [item, ...prev.filter((x) => x.id !== item.id)]
+      : prev.filter((x) => x.id !== item.id));
   };
 
   return (
@@ -240,7 +265,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-4 border-[#121212] pb-3">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">爱心资源</h2>
-          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址（网盘 / Wiki 均可）</p>
+          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址（网盘 / 在线查询均可）</p>
           <p className="mt-1 text-[11px] font-black leading-relaxed text-[#B51F1F]">请不要分享国内官方代理的正版文件，不要分享与TRPG无关的文件，不要分享不符合公序良俗的文件！感谢！</p>
         </div>
         <button
@@ -250,6 +275,19 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
         ><Plus className="h-4 w-4" />分享规则</button>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2 border-b-2 border-[#121212] pb-3" role="tablist" aria-label="爱心资源分页">
+        {CATEGORY_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={category === tab.key}
+            onClick={() => setCategory(tab.key)}
+            className={`bauhaus-btn px-4 py-2 text-sm font-black ${category === tab.key ? 'bg-[#004E98] text-white' : 'bg-white text-[#121212] hover:bg-[#F0F5FA]'}`}
+          >{tab.label}</button>
+        ))}
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#777]" />
@@ -257,15 +295,15 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
         </div>
         <span className="border-2 border-[#121212] bg-[#F2F0E8] px-3 py-2.5 text-xs font-black">共 {items.length} 条</span>
       </div>
-      {error && <div className="bauhaus-card mb-4 bg-[#FAF0F0] p-4 text-sm font-bold text-[#B51F1F]">{error}<button type="button" onClick={() => void load(query.trim())} className="ml-3 underline">重试</button></div>}
+      {error && <div className="bauhaus-card mb-4 bg-[#FAF0F0] p-4 text-sm font-bold text-[#B51F1F]">{error}<button type="button" onClick={() => void load(query.trim(), category)} className="ml-3 underline">重试</button></div>}
       {loading && !error && <div className="bauhaus-card p-10 text-center text-sm font-bold text-[#666]">加载中…</div>}
       {!loading && !error && items.length === 0 && (
         <div className="bauhaus-card border-dashed p-12 text-center text-sm font-bold text-[#666]">
-          {query.trim() ? `没有找到名字含「${query.trim()}」的规则，换个关键词试试～` : '还没有人分享资源，来发第一条吧！'}
+          {query.trim() ? `没有找到名字含「${query.trim()}」的规则，换个关键词试试～` : `「${CATEGORY_LABEL[category]}」分页还没有分享，来发第一条吧！`}
         </div>
       )}
       {!loading && !error && items.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} />)}
         </div>
       )}
@@ -274,6 +312,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
         <ResourceEditor
           initial={editor === 'new' ? null : editor}
           currentUserName={currentUser?.name}
+          defaultCategory={category}
           onClose={() => setEditor(null)}
           onSaved={saved}
         />
@@ -331,7 +370,7 @@ export function MyResourcesModal({ onClose, onGoResources, currentUserName }: { 
           {!loading && !error && items.length === 0 && <p className="bauhaus-card border-dashed p-12 text-center text-sm font-bold text-[#666]">你还没有分享过规则资源，点右上角「分享新规则」发第一条吧。</p>}
           {!loading && !error && items.length > 0 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} />)}
+              {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory />)}
             </div>
           )}
         </div>

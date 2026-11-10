@@ -36,7 +36,13 @@ export const api = {
   stickerPlazaCopy: (key: string, replaceKey?: string) => post<{ ok: boolean; already?: boolean; note?: string; user: UserProfile }>('sticker-plaza/copy', { key, replaceKey }),
   stickerPlazaBlock: (key: string) => post<{ ok: boolean }>('sticker-plaza/block', { key }),
   stickerPlazaUnblock: (key: string) => request<{ ok: boolean }>(`sticker-plaza/block/${encodeURIComponent(key)}`, { method: 'DELETE' }),
-  resources: (q = '') => request<{ items: RuleResource[] }>(`resources${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  resources: (q = '', category = '') => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('cat', category);
+    const suffix = params.toString();
+    return request<{ items: RuleResource[] }>(`resources${suffix ? `?${suffix}` : ''}`);
+  },
   myResources: () => request<{ items: RuleResource[] }>('resources/mine'),
   createResource: (value: RuleResourceInput) => post<{ item: RuleResource }>('resources', value),
   updateResource: (id: string, value: RuleResourceInput) => patch<{ item: RuleResource }>(`resources/${encodeURIComponent(id)}`, value),
