@@ -308,7 +308,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             aria-current={activeTab === 'resources' ? 'page' : undefined}
             className={`bauhaus-btn px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'resources' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#D62828" aria-hidden="true" className="mr-1.5 shrink-0"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" /></svg>
             爱心资源
           </button>
         </nav>
