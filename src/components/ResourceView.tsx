@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, Plus, Pencil, Trash2, X, Loader2, ExternalLink } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
 import type { RuleResource, RuleResourceInput, ResourceCategory, UserProfile } from '../types';
 import { api } from '../services/api';
 import { useDialog } from './BauhausDialog';
@@ -76,7 +76,7 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
         <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">
           {href
             ? <a href={href} target="_blank" rel="noopener noreferrer" title="打开链接" className="underline decoration-2 underline-offset-4 hover:text-[#004E98] hover:decoration-[#004E98]">
-                {item.name}<ExternalLink className="ml-1 inline h-3.5 w-3.5 align-baseline text-[#777]" aria-hidden="true" />
+                {item.name}
               </a>
             : <span>{item.name}</span>}
         </h3>
