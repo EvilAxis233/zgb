@@ -103,9 +103,12 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
 // 爱心资源：只存规则名 + 自填链接，昵称展示时 JOIN users 取当前值，不下发上传者 QQ。
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
+const RESOURCE_FLAGS = new Set(['reprint', 'self', 'machine']); // 转载 / 自译 / 机翻
+const parseResourceFlags = (s) => [...new Set(String(s || '').split(',').map((v) => v.trim()).filter((v) => RESOURCE_FLAGS.has(v)))];
 const resourceSelect = 'SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq';
 const resourceDto = (r, viewerQq, admin) => ({
   id: r.id, name: r.name, url: r.url, type: r.type, note: r.note || '',
+  flags: parseResourceFlags(r.flags),
   uploaderName: r.uploader_name || '未命名', uploaderAvatar: assetUrl(r.uploader_avatar_key),
   createdAt: (r.created_at || '').slice(0, 10), updatedAt: (r.updated_at || '').slice(0, 10),
   mine: !!viewerQq && viewerQq === r.uploader_qq,
@@ -116,10 +119,14 @@ const resourceInput = (b, base = {}) => {
   const link = b.url === undefined ? (base.url || '') : clean(b.url, 500);
   const type = b.type === undefined ? (base.type || 'other') : b.type;
   const note = b.note === undefined ? (base.note || '') : clean(b.note, 200);
+  const rawFlags = b.flags === undefined ? (base.flags || '') : (Array.isArray(b.flags) ? b.flags.join(',') : '');
+  const flags = parseResourceFlags(rawFlags).join(',');
   if (!name) return { error: '请填写规则名字' };
-  if (!/^https?:\/\/\S+$/i.test(link)) return { error: '链接地址需以 http:// 或 https:// 开头' };
+  // 链接由玩家自行填写，不再强制 http/https 前缀；只拦截可执行脚本协议，避免 XSS。
+  if (!link) return { error: '请填写链接地址' };
+  if (/^\s*(javascript|data|vbscript|file)\s*:/i.test(link)) return { error: '链接地址无效' };
   if (!RESOURCE_TYPES.has(type)) return { error: '地址类型无效' };
-  return { name, url: link, type, note };
+  return { name, url: link, type, note, flags };
 };
 // 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己、且本人已勾选「公开贴纸库存」；
 // 每张图片必须格式合法且未被站主下架。广场不下发任何 QQ 号，会员分组只用匿名序号标识。
@@ -832,8 +839,8 @@ export async function onRequest(context) {
       const total = await db.prepare('SELECT COUNT(*) n FROM rule_resources WHERE uploader_qq=?').bind(user.qq).first();
       if (Number(total?.n || 0) >= 50) return fail('每人最多分享 50 条资源', 409);
       const rid = id(), iso = new Date().toISOString();
-      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,uploader_qq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)')
-        .bind(rid, input.name, input.url, input.type, input.note, user.qq, iso, iso).run();
+      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,flags,uploader_qq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)')
+        .bind(rid, input.name, input.url, input.type, input.note, input.flags, user.qq, iso, iso).run();
       const row = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(rid).first();
       return json({ item: resourceDto(row, user.qq, isSiteAdmin(user)) });
     }
@@ -847,8 +854,8 @@ export async function onRequest(context) {
       }
       const input = resourceInput(await body(request), row);
       if (input.error) return fail(input.error);
-      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,updated_at=? WHERE id=?')
-        .bind(input.name, input.url, input.type, input.note, new Date().toISOString(), row.id).run();
+      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,flags=?,updated_at=? WHERE id=?')
+        .bind(input.name, input.url, input.type, input.note, input.flags, new Date().toISOString(), row.id).run();
       const updated = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(row.id).first();
       return json({ item: resourceDto(updated, user.qq, isSiteAdmin(user)) });
     }
@@ -954,16 +961,21 @@ export async function onRequest(context) {
       const today = dateHK();
       const yesterday = dateHK(new Date(Date.now() - 86400000));
       const memberNow = isMember(user) ? 1 : 0;
-      // 统一累计签到次数：不分身份、断签不清零、切换会员身份也不清零。
-      // 身份只决定每满 7 次发几张 GM 点赞券（会员 3 张 / 普通 1 张），避免换身份时进度作废。
+      // 累计签到次数全站统一：升级会员 / 变为普通用户都不清零，切换身份时已攒次数继续有效。
+      // 断签：本次签到仍是会员则保留累计（会员权益），普通用户期间断签才归 1 重新计算。
+      // 每累计满 7 次发一次 GM 点赞券，只按发奖当次的身份决定张数（会员 3 / 普通 1）。
       // checkin_streak 仅保留给前端展示「连续签到天数」，不再参与发奖。
+      const nextCount = '(CASE WHEN last_checkin=? OR ?=1 THEN checkin_count+1 ELSE 1 END)';
       const result = await db.prepare(`UPDATE users SET
-        gm_hearts=gm_hearts+CASE WHEN (checkin_count+1)%7=0 THEN CASE WHEN ?=1 THEN 3 ELSE 1 END ELSE 0 END,
-        checkin_count=checkin_count+1,
+        gm_hearts=gm_hearts+CASE WHEN ${nextCount}%7=0 THEN CASE WHEN ?=1 THEN 3 ELSE 1 END ELSE 0 END,
+        checkin_count=${nextCount},
         checkin_streak=CASE WHEN last_checkin=? THEN checkin_streak+1 ELSE 1 END,
         last_checkin=?,player_hearts=player_hearts+1
         WHERE qq=? AND (last_checkin IS NULL OR last_checkin<>?)
-        RETURNING checkin_count,checkin_streak`).bind(memberNow, yesterday, today, user.qq, today).first();
+        RETURNING checkin_count,checkin_streak`).bind(
+          yesterday, memberNow, memberNow,
+          yesterday, memberNow,
+          yesterday, today, user.qq, today).first();
       if (!result) return fail('今日已签到');
       const count = result.checkin_count;
       const gmHeartsAwarded = count % 7 === 0 ? (memberNow ? 3 : 1) : 0;

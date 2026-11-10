@@ -150,6 +150,7 @@ export interface RuleResource {
   url: string;
   type: 'pan' | 'wiki' | 'other';
   note: string;
+  flags: string[];
   uploaderName: string;
   uploaderAvatar?: string;
   createdAt: string;
@@ -163,6 +164,7 @@ export interface RuleResourceInput {
   url: string;
   type: RuleResource['type'];
   note: string;
+  flags: string[];
 }
 
 export interface PraiseRecord {

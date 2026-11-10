@@ -491,7 +491,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {/* 红框处：GM点赞券数量 */}
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：累计签到每满七次得1张（会员3张），断签或身份变化都不清零，可在团详情给GM点赞"
+                title="GM点赞券：累计签到每满7次，按当次身份得1张（会员3张）；会员期间断签不清零、身份变化不清零，普通用户断签重算。可在团详情给GM点赞"
               >
                 <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
                 <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
@@ -665,6 +665,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       )}
       {myResourcesOpen && (
         <MyResourcesModal
+          currentUserName={currentUser.name}
           onClose={() => setMyResourcesOpen(false)}
           onGoResources={onOpenResources ? () => { setMyResourcesOpen(false); onOpenResources(); } : undefined}
         />

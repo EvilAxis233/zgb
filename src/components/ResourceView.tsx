@@ -10,6 +10,24 @@ const TYPE_STYLE: Record<RuleResource['type'], string> = {
   wiki: 'bg-[#E6F0FA] text-[#004E98]',
   other: 'bg-[#EEEAE0] text-[#555]',
 };
+// 来源标签：分享时勾选，展示在「网盘下载」等类型标签左边。
+const FLAG_OPTIONS = [
+  { key: 'reprint', label: '转载' },
+  { key: 'self', label: '自译' },
+  { key: 'machine', label: '机翻' },
+];
+const FLAG_LABEL: Record<string, string> = { reprint: '转载', self: '自译', machine: '机翻' };
+const FLAG_STYLE: Record<string, string> = {
+  reprint: 'bg-[#E6F0FA] text-[#004E98]',
+  self: 'bg-[#E7F4E9] text-[#1B7A3D]',
+  machine: 'bg-[#F3E9FA] text-[#7A2E9E]',
+};
+// 链接不强制前缀：没有协议时自动补 https:// 供点击；危险协议降级为不可点击文本。
+const safeHref = (raw: string) => {
+  const value = (raw || '').trim();
+  if (!value || /^\s*(javascript|data|vbscript|file)\s*:/i.test(value)) return '';
+  return /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+};
 
 function HeartIcon({ size = 16 }: { size?: number }) {
   return (
@@ -25,18 +43,26 @@ export function ResourceCard({ item, onEdit, onDelete }: {
   onEdit?: (item: RuleResource) => void;
   onDelete?: (item: RuleResource) => void;
 }) {
+  const href = safeHref(item.url);
   return (
     <article className="bauhaus-card flex min-h-[196px] flex-col p-4">
       <div className="flex items-start justify-between gap-2">
         <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">{item.name}</h3>
-        <span className={`shrink-0 border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${TYPE_STYLE[item.type]}`}>{TYPE_LABEL[item.type]}</span>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {(item.flags || []).map((flag) => FLAG_LABEL[flag] && (
+            <span key={flag} className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${FLAG_STYLE[flag]}`}>{FLAG_LABEL[flag]}</span>
+          ))}
+          <span className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${TYPE_STYLE[item.type]}`}>{TYPE_LABEL[item.type]}</span>
+        </div>
       </div>
       <p className="mt-2 min-h-[18px] break-words text-xs leading-relaxed text-[#666]">{item.note || '（未填写备注）'}</p>
       <div className="mt-3 flex items-center gap-2 border-2 border-[#121212] bg-[#FAF9F5] px-2 py-1.5">
         <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#004E98] underline" title={item.url}>{item.url}</span>
-        <a href={item.url} target="_blank" rel="noopener noreferrer" className="bauhaus-btn shrink-0 gap-1 bg-white px-2 py-1 text-[10px] font-black shadow-none">
-          打开链接 <ExternalLink className="h-3 w-3" />
-        </a>
+        {href
+          ? <a href={href} target="_blank" rel="noopener noreferrer" className="bauhaus-btn shrink-0 gap-1 bg-white px-2 py-1 text-[10px] font-black shadow-none">
+              打开链接 <ExternalLink className="h-3 w-3" />
+            </a>
+          : <span className="shrink-0 px-1 text-[10px] font-black text-[#999]">链接不可用</span>}
       </div>
       <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-[#CFCBC0] pt-3 text-[11px] font-bold text-[#666]">
         {item.uploaderAvatar
@@ -56,8 +82,9 @@ export function ResourceCard({ item, onEdit, onDelete }: {
 }
 
 /** 分享 / 编辑弹窗。上传者昵称由后端按登录账号记录，前端不允许手改。 */
-export function ResourceEditor({ initial, onClose, onSaved }: {
+export function ResourceEditor({ initial, currentUserName, onClose, onSaved }: {
   initial?: RuleResource | null;
+  currentUserName?: string;
   onClose: () => void;
   onSaved: (item: RuleResource) => void;
 }) {
@@ -66,13 +93,16 @@ export function ResourceEditor({ initial, onClose, onSaved }: {
   const [url, setUrl] = useState(initial?.url || '');
   const [type, setType] = useState<RuleResource['type']>(initial?.type || 'pan');
   const [note, setNote] = useState(initial?.note || '');
+  const [flags, setFlags] = useState<string[]>(initial?.flags || []);
   const [saving, setSaving] = useState(false);
+
+  const toggleFlag = (key: string) => setFlags((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const payload: RuleResourceInput = { name: name.trim(), url: url.trim(), type, note: note.trim() };
+    const payload: RuleResourceInput = { name: name.trim(), url: url.trim(), type, note: note.trim(), flags };
     if (!payload.name) { await showAlert({ title: '提示', message: '请填写规则名字', type: 'warning' }); return; }
-    if (!/^https?:\/\/\S+$/i.test(payload.url)) { await showAlert({ title: '提示', message: '链接地址需以 http:// 或 https:// 开头', type: 'warning' }); return; }
+    if (!payload.url) { await showAlert({ title: '提示', message: '请填写链接地址', type: 'warning' }); return; }
     setSaving(true);
     try {
       const result = initial
@@ -106,13 +136,23 @@ export function ResourceEditor({ initial, onClose, onSaved }: {
                 <option value="other">其他</option>
               </select>
             </label>
-            <label className="block text-xs font-black">分享者
-              <div className="bauhaus-input mt-1 flex items-center gap-1.5 p-2 text-sm font-bold text-[#666]"><HeartIcon size={14} />登录账号昵称</div>
-            </label>
+            <div className="block text-xs font-black">分享者
+              <div className="bauhaus-input mt-1 flex items-center gap-1.5 p-2 text-sm font-bold text-[#666]" title="自动取当前登录账号昵称"><HeartIcon size={14} />{currentUserName || '登录账号昵称'}</div>
+            </div>
+          </div>
+          <div className="border-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
+            <span className="block text-xs font-black">来源标签（可多选）</span>
+            <div className="mt-1.5 flex flex-wrap gap-4">
+              {FLAG_OPTIONS.map((option) => (
+                <label key={option.key} className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#121212]">
+                  <input type="checkbox" checked={flags.includes(option.key)} onChange={() => toggleFlag(option.key)} className="h-4 w-4 cursor-pointer accent-[#004E98]" />
+                  {option.label}
+                </label>
+              ))}
+            </div>
           </div>
           <label className="block text-xs font-black">链接地址 <span className="text-[#D62828]">*</span>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="https://…（网盘链接或 Wiki 页面地址）" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
-            <span className="mt-1 block text-[11px] font-bold text-[#777]">只接受 http/https 链接；提取码可写在备注里，站点不托管文件。</span>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="网盘链接或 Wiki 页面地址，不强制写前缀" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
           <label className="block text-xs font-black">备注（选填）
             <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} placeholder="例如：提取码 1234 / 含中文译本" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
@@ -195,8 +235,6 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
         </div>
         <span className="border-2 border-[#121212] bg-[#F2F0E8] px-3 py-2.5 text-xs font-black">共 {items.length} 条</span>
       </div>
-      <p className="mb-4 text-[11px] font-bold text-[#777]">只按「规则名字」检索；链接由玩家自行填写，站点不托管文件。分享者昵称自动取当前登录账号。</p>
-
       {error && <div className="bauhaus-card mb-4 bg-[#FAF0F0] p-4 text-sm font-bold text-[#B51F1F]">{error}<button type="button" onClick={() => void load(query.trim())} className="ml-3 underline">重试</button></div>}
       {loading && !error && <div className="bauhaus-card p-10 text-center text-sm font-bold text-[#666]">加载中…</div>}
       {!loading && !error && items.length === 0 && (
@@ -213,6 +251,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       {editor && (
         <ResourceEditor
           initial={editor === 'new' ? null : editor}
+          currentUserName={currentUser?.name}
           onClose={() => setEditor(null)}
           onSaved={saved}
         />
@@ -222,7 +261,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
 }
 
 /** 个人档案里的「我的分享」界面：只看自己的条目，可新增、更新、删除。 */
-export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => void; onGoResources?: () => void }) {
+export function MyResourcesModal({ onClose, onGoResources, currentUserName }: { onClose: () => void; onGoResources?: () => void; currentUserName?: string }) {
   const { showAlert, showConfirm } = useDialog();
   const [items, setItems] = useState<RuleResource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -281,6 +320,7 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
       {editor && (
         <ResourceEditor
           initial={editor === 'new' ? null : editor}
+          currentUserName={currentUserName}
           onClose={() => setEditor(null)}
           onSaved={(item) => setItems((prev) => [item, ...prev.filter((x) => x.id !== item.id)])}
         />
