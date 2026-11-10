@@ -20,20 +20,28 @@ const TYPE_STYLE: Record<RuleResource['type'], string> = {
   wiki: 'bg-[#E6F0FA] text-[#004E98]',
   other: 'bg-[#EEEAE0] text-[#555]',
 };
-// 标签：语言二选一必选，来源可多选；展示在「网盘下载」等类型标签左边。
+// 标签：语言四选一必选，来源可多选；展示在「网盘下载」等类型标签左边。
 const LANGUAGE_OPTIONS = [
   { key: 'zh', label: '中文' },
-  { key: 'en_other', label: '英文或其它' },
+  { key: 'en', label: '英文' },
+  { key: 'ja', label: '日文' },
+  { key: 'other_lang', label: '其它语言' },
 ];
+const LANGUAGE_KEYS = new Set(LANGUAGE_OPTIONS.map((option) => option.key));
+// 备注限 30 个中文字符（60 个英文字符）：按中文 1、ASCII 0.5 加权。
+const NOTE_WEIGHT_LIMIT = 30;
+const noteWeight = (value: string) => Array.from(value).reduce((n, ch) => n + (/[\u0000-\u007F]/.test(ch) ? 0.5 : 1), 0);
 const SOURCE_OPTIONS = [
   { key: 'reprint', label: '转载' },
   { key: 'self', label: '自译' },
   { key: 'machine', label: '机翻' },
 ];
-const FLAG_LABEL: Record<string, string> = { zh: '中文', en_other: '英文或其它', reprint: '转载', self: '自译', machine: '机翻' };
+const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', reprint: '转载', self: '自译', machine: '机翻' };
 const FLAG_STYLE: Record<string, string> = {
   zh: 'bg-[#004E98] text-white',
-  en_other: 'bg-[#3A3A3A] text-white',
+  en: 'bg-[#3A3A3A] text-white',
+  ja: 'bg-[#B51F1F] text-white',
+  other_lang: 'bg-[#5B5646] text-white',
   reprint: 'bg-[#E6F0FA] text-[#004E98]',
   self: 'bg-[#E7F4E9] text-[#1B7A3D]',
   machine: 'bg-[#F3E9FA] text-[#7A2E9E]',
@@ -115,12 +123,12 @@ export function ResourceEditor({ initial, currentUserName, defaultCategory, onCl
   const [note, setNote] = useState(initial?.note || '');
   const [flags, setFlags] = useState<string[]>(initial?.flags || []);
   const [saving, setSaving] = useState(false);
+  const noteUsed = noteWeight(note);
 
   const toggleFlag = (key: string) => setFlags((prev) => {
     if (prev.includes(key)) return prev.filter((x) => x !== key);
-    // 语言标签互斥：换选时自动取消另一个，来源标签不受影响。
-    const isLanguage = key === 'zh' || key === 'en_other';
-    return [...(isLanguage ? prev.filter((x) => x !== 'zh' && x !== 'en_other') : prev), key];
+    // 语言标签四选一：换选时自动取消其它语言，来源标签不受影响。
+    return [...(LANGUAGE_KEYS.has(key) ? prev.filter((x) => !LANGUAGE_KEYS.has(x)) : prev), key];
   });
 
   const submit = async (event: React.FormEvent) => {
@@ -128,7 +136,8 @@ export function ResourceEditor({ initial, currentUserName, defaultCategory, onCl
     const payload: RuleResourceInput = { name: name.trim(), url: url.trim(), type, category, note: note.trim(), flags };
     if (!payload.name) { await showAlert({ title: '提示', message: '请填写规则名字', type: 'warning' }); return; }
     if (!payload.url) { await showAlert({ title: '提示', message: '请填写链接地址', type: 'warning' }); return; }
-    if (!flags.some((f) => f === 'zh' || f === 'en_other')) { await showAlert({ title: '提示', message: '请选择语言标签：中文 / 英文或其它', type: 'warning' }); return; }
+    if (!flags.some((f) => LANGUAGE_KEYS.has(f))) { await showAlert({ title: '提示', message: '请选择语言标签：中文 / 英文 / 日文 / 其它语言', type: 'warning' }); return; }
+    if (noteWeight(payload.note) > NOTE_WEIGHT_LIMIT) { await showAlert({ title: '提示', message: '备注最多 30 个中文字符（60 个英文字符）', type: 'warning' }); return; }
     setSaving(true);
     try {
       const result = initial
@@ -173,7 +182,7 @@ export function ResourceEditor({ initial, currentUserName, defaultCategory, onCl
           </div>
           <div className="border-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
             <span className="block text-xs font-black">标签</span>
-            <p className="mt-1.5 text-[11px] font-black text-[#B51F1F]">语言（必选，二选一）</p>
+            <p className="mt-1.5 text-[11px] font-black text-[#B51F1F]">语言（必选，四选一）</p>
             <div className="mt-1 flex flex-wrap gap-4">
               {LANGUAGE_OPTIONS.map((option) => (
                 <label key={option.key} className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#121212]">
@@ -195,8 +204,14 @@ export function ResourceEditor({ initial, currentUserName, defaultCategory, onCl
           <label className="block text-xs font-black">链接地址 <span className="text-[#D62828]">*</span>
             <input value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="网盘链接或在线查询页面地址，不强制写前缀" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
-          <label className="block text-xs font-black">备注（选填）
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} placeholder="例如：提取码 1234 / 含中文译本" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
+          <label className="block text-xs font-black">
+            <span className="flex items-end justify-between gap-2">
+              <span>备注（选填，最多 30 个中文字符 / 60 个英文字符）</span>
+              <span className={noteUsed > NOTE_WEIGHT_LIMIT ? 'text-[11px] font-black text-[#D62828]' : 'text-[11px] font-bold text-[#999]'}>
+                {Number(noteUsed.toFixed(1))}/{NOTE_WEIGHT_LIMIT}
+              </span>
+            </span>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} rows={2} placeholder="例如：提取码 1234 / 含中文译本" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
         </div>
         <footer className="flex justify-end gap-2 border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-2.5">
@@ -265,7 +280,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-4 border-[#121212] pb-3">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">爱心资源</h2>
-          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址（网盘 / 在线查询均可）</p>
+          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址，网盘请填写提取码，不要导向到某视频某群等！转载请获得原作者的同意！</p>
           <p className="mt-1 text-[11px] font-black leading-relaxed text-[#B51F1F]">请不要分享国内官方代理的正版文件，不要分享与TRPG无关的文件，不要分享不符合公序良俗的文件！感谢！</p>
         </div>
         <button

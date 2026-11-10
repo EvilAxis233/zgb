@@ -105,11 +105,15 @@ const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: asse
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
 const RESOURCE_CATEGORIES = new Set(['rulebook', 'module', 'tool']); // 规则书 / 模组或世设 / 工具书
 const RESOURCE_CATEGORY_DEFAULT = 'rulebook';
-const RESOURCE_FLAGS = new Set(['zh', 'en_other', 'reprint', 'self', 'machine']); // 中文 / 英文或其它 / 转载 / 自译 / 机翻
-const RESOURCE_LANG_FLAGS = new Set(['zh', 'en_other']); // 语言标签：必选，二选一
-const RESOURCE_FLAG_ORDER = ['zh', 'en_other', 'reprint', 'self', 'machine'];
+const RESOURCE_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang', 'reprint', 'self', 'machine']); // 中文 / 英文 / 日文 / 其它语言 / 转载 / 自译 / 机翻
+const RESOURCE_LANG_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang']); // 语言标签：必选，四选一
+const RESOURCE_FLAG_ORDER = ['zh', 'en', 'ja', 'other_lang', 'reprint', 'self', 'machine'];
+// 备注限 30 个中文字符（60 个英文字符）：按中文 1、ASCII 0.5 加权计算，上限 30。
+const RESOURCE_NOTE_WEIGHT = 30;
+const resourceNoteWeight = (s) => [...String(s || '')].reduce((n, ch) => n + (/[\u0000-\u007F]/.test(ch) ? 0.5 : 1), 0);
 const parseResourceFlags = (s) => {
-  const picked = new Set(String(s || '').split(',').map((v) => v.trim()).filter((v) => RESOURCE_FLAGS.has(v)));
+  // 旧标签 en_other（英文或其它）已拆分，历史数据统一按「英文」展示。
+  const picked = new Set(String(s || '').split(',').map((v) => v.trim()).map((v) => (v === 'en_other' ? 'en' : v)).filter((v) => RESOURCE_FLAGS.has(v)));
   const langs = [...picked].filter((v) => RESOURCE_LANG_FLAGS.has(v));
   if (langs.length > 1) langs.slice(1).forEach((v) => picked.delete(v)); // 语言互斥，只保留先出现的
   return RESOURCE_FLAG_ORDER.filter((v) => picked.has(v)); // 固定顺序：语言在前、来源在后
@@ -133,6 +137,7 @@ const resourceInput = (b, base = {}) => {
   const rawFlags = b.flags === undefined ? (base.flags || '') : (Array.isArray(b.flags) ? b.flags.join(',') : '');
   const flags = parseResourceFlags(rawFlags).join(',');
   if (!name) return { error: '请填写规则名字' };
+  if (resourceNoteWeight(note) > RESOURCE_NOTE_WEIGHT) return { error: '备注最多 30 个中文字符（60 个英文字符）' };
   // 链接由玩家自行填写，不再强制 http/https 前缀；只拦截可执行脚本协议，避免 XSS。
   if (!link) return { error: '请填写链接地址' };
   if (/^\s*(javascript|data|vbscript|file)\s*:/i.test(link)) return { error: '链接地址无效' };
@@ -140,7 +145,7 @@ const resourceInput = (b, base = {}) => {
   if (!RESOURCE_CATEGORIES.has(category)) return { error: '所属分页无效' };
   // 新建必须选语言；更新时只要带了标签，也必须保留一项语言。旧数据不带标签的更新不强制。
   if ((b.flags !== undefined || !base.id) && !flags.split(',').some((v) => RESOURCE_LANG_FLAGS.has(v))) {
-    return { error: '请选择语言标签：中文 / 英文或其它' };
+    return { error: '请选择语言标签：中文 / 英文 / 日文 / 其它语言' };
   }
   return { name, url: link, type, note, flags, category };
 };
