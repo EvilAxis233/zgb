@@ -281,7 +281,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-4 border-[#121212] pb-3">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">爱心资源</h2>
-          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址，网盘请填写提取码，不要导向到某视频某群等！转载请获得原作者的同意！</p>
+          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址，网盘请填写提取码，不要强制导向到某视频某群获取等！转载请获得原作者的同意或遵守分享协议！</p>
           <p className="mt-1 text-[11px] font-black leading-relaxed text-[#B51F1F]">请不要分享国内官方代理的正版文件，不要分享与TRPG无关的文件，不要分享不符合公序良俗的文件！感谢！</p>
         </div>
         <button
