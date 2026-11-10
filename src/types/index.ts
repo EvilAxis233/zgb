@@ -144,7 +144,7 @@ export interface CampaignMember {
 export interface CampaignDetail extends Campaign { members: CampaignMember[]; }
 
 // 爱心资源：玩家分享的规则下载地址 / 在线查询地址。
-export type ResourceCategory = 'rulebook' | 'module' | 'tool';
+export type ResourceCategory = 'rulebook' | 'module' | 'tool' | 'fun';
 export interface RuleResource {
   id: string;
   name: string;

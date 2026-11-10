@@ -103,7 +103,7 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
 // 爱心资源：只存规则名 + 自填链接，昵称展示时 JOIN users 取当前值，不下发上传者 QQ。
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
-const RESOURCE_CATEGORIES = new Set(['rulebook', 'module', 'tool']); // 规则书 / 模组或世设 / 工具书
+const RESOURCE_CATEGORIES = new Set(['rulebook', 'module', 'tool', 'fun']); // 规则书 / 模组或世设 / 实用工具 / 趣味书籍
 const RESOURCE_CATEGORY_DEFAULT = 'rulebook';
 const RESOURCE_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang', 'reprint', 'self', 'machine']); // 中文 / 英文 / 日文 / 其它语言 / 转载 / 自译 / 机翻
 const RESOURCE_LANG_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang']); // 语言标签：必选，四选一

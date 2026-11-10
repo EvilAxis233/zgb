@@ -8,9 +8,10 @@ import { useDialog } from './BauhausDialog';
 const CATEGORY_TABS: { key: ResourceCategory; label: string }[] = [
   { key: 'rulebook', label: '规则书' },
   { key: 'module', label: '模组或世设' },
-  { key: 'tool', label: '工具书' },
+  { key: 'tool', label: '实用工具' },
+  { key: 'fun', label: '趣味书籍' },
 ];
-const CATEGORY_LABEL: Record<ResourceCategory, string> = { rulebook: '规则书', module: '模组或世设', tool: '工具书' };
+const CATEGORY_LABEL: Record<ResourceCategory, string> = { rulebook: '规则书', module: '模组或世设', tool: '实用工具', fun: '趣味书籍' };
 const DEFAULT_CATEGORY: ResourceCategory = 'rulebook';
 const categoryOf = (item: RuleResource): ResourceCategory => item.category && CATEGORY_LABEL[item.category] ? item.category : DEFAULT_CATEGORY;
 
