@@ -16,6 +16,7 @@ import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
 import { CampaignEditModal } from './components/CampaignEditModal';
+import { ResourceView } from './components/ResourceView';
 import { CalendarFilter } from './components/CalendarFilter';
 import { InstructionsModal } from './components/InstructionsModal';
 import { TicketsModal } from './components/TicketsModal';
@@ -40,7 +41,10 @@ export function App() {
 
   // UI States
   // 报名通知邮件里的按钮带 ?view=manage，点开直接落在团务管理。
-  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage'>(() => new URLSearchParams(window.location.search).get('view') === 'manage' ? 'manage' : 'board');
+  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage' | 'resources'>(() => {
+    const view = new URLSearchParams(window.location.search).get('view');
+    return view === 'manage' ? 'manage' : view === 'resources' ? 'resources' : 'board';
+  });
   const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
@@ -463,7 +467,7 @@ export function App() {
     return enrichedCampaigns.filter((campaign) => campaign.isSignedUp);
   }, [enrichedCampaigns, currentUser]);
 
-  const isSectionView = activeTab === 'board' && boardView !== 'portal';
+  const isSectionView = (activeTab === 'board' && boardView !== 'portal') || activeTab === 'resources';
   const mainContainerMaxWidth = isSectionView
     ? 'max-w-[1760px]'
     : 'max-w-5xl';
@@ -500,6 +504,7 @@ export function App() {
                   setIsLoginOpen(true);
                 }
               }}
+              onSelectResources={() => setActiveTab('resources')}
             />
           </div>
         )}
@@ -690,6 +695,7 @@ export function App() {
               onSelectCampaign={openCampaign}
               onUploadAvatar={handleUploadAvatar}
               onOpenManage={() => setActiveTab('manage')}
+              onOpenResources={() => setActiveTab('resources')}
               onFeedback={() => openSubmission('feedback')}
               onReport={() => openSubmission('report')}
               onUpdateNameplate={handleUpdateNameplate}
@@ -727,6 +733,11 @@ export function App() {
           </div>
         )}
         {activeTab === 'manage' && !currentUser && <div className="bauhaus-card max-w-xl mx-auto p-10 text-center bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]"><p className="mb-4 font-bold">登录后管理主持和报名的战役</p><button className="bauhaus-btn px-5 py-2 bg-[#004E98] text-white" onClick={() => setIsLoginOpen(true)}>登录</button></div>}
+
+        {/* VIEW 4: 爱心资源（游客可浏览，登录后可分享 / 编辑 / 删除自己的条目） */}
+        {activeTab === 'resources' && (
+          <ResourceView currentUser={currentUser} onOpenLogin={() => setIsLoginOpen(true)} />
+        )}
       </main>
 
       {/* Campaign Detail Modal */}

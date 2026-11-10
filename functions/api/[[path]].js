@@ -101,6 +101,26 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
   return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
 const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
+// 爱心资源：只存规则名 + 自填链接，昵称展示时 JOIN users 取当前值，不下发上传者 QQ。
+const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
+const resourceSelect = 'SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq';
+const resourceDto = (r, viewerQq, admin) => ({
+  id: r.id, name: r.name, url: r.url, type: r.type, note: r.note || '',
+  uploaderName: r.uploader_name || '未命名', uploaderAvatar: assetUrl(r.uploader_avatar_key),
+  createdAt: (r.created_at || '').slice(0, 10), updatedAt: (r.updated_at || '').slice(0, 10),
+  mine: !!viewerQq && viewerQq === r.uploader_qq,
+  canManage: (!!viewerQq && viewerQq === r.uploader_qq) || !!admin,
+});
+const resourceInput = (b, base = {}) => {
+  const name = b.name === undefined ? (base.name || '') : clean(b.name, 60);
+  const link = b.url === undefined ? (base.url || '') : clean(b.url, 500);
+  const type = b.type === undefined ? (base.type || 'other') : b.type;
+  const note = b.note === undefined ? (base.note || '') : clean(b.note, 200);
+  if (!name) return { error: '请填写规则名字' };
+  if (!/^https?:\/\/\S+$/i.test(link)) return { error: '链接地址需以 http:// 或 https:// 开头' };
+  if (!RESOURCE_TYPES.has(type)) return { error: '地址类型无效' };
+  return { name, url: link, type, note };
+};
 // 贴纸广场数据源：只取有效会员（站主或未到期会员）、未被拉黑、排除自己、且本人已勾选「公开贴纸库存」；
 // 每张图片必须格式合法且未被站主下架。广场不下发任何 QQ 号，会员分组只用匿名序号标识。
 const plazaKeyOk = (key, blocked) => /^[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..') && !blocked.has(key);
@@ -681,6 +701,14 @@ export async function onRequest(context) {
       }
       return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
     }
+    // 爱心资源：浏览对所有访客开放，只按规则名字模糊检索，不下发上传者 QQ。
+    if (path[0] === 'resources' && path.length === 1 && method === 'GET') {
+      const q = clean(url.searchParams.get('q') || '', 60).replace(/[%_\\]/g, '');
+      const rows = q
+        ? await db.prepare(`${resourceSelect} WHERE r.name LIKE ? ORDER BY r.created_at DESC, r.id DESC LIMIT 200`).bind(`%${q}%`).all()
+        : await db.prepare(`${resourceSelect} ORDER BY r.created_at DESC, r.id DESC LIMIT 200`).all();
+      return json({ items: rows.results.map((r) => resourceDto(r, user?.qq, isSiteAdmin(user))) });
+    }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'membership' && path.length === 2 && method === 'GET') {
       return json({ isMember: isMember(user), membershipExpiresAt: roleOf(user) === 'owner' ? PERMANENT_MEMBERSHIP : user.membership_expires_at ?? null, renewalContact: '917744498' });
@@ -792,6 +820,37 @@ export async function onRequest(context) {
       }
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
+    }
+    // 爱心资源：上传者可更新 / 删除自己的分享，站主 / 管理员也可处置违规链接。
+    if (path[0] === 'resources' && path[1] === 'mine' && path.length === 2 && method === 'GET') {
+      const rows = await db.prepare(`${resourceSelect} WHERE r.uploader_qq=? ORDER BY r.created_at DESC, r.id DESC LIMIT 100`).bind(user.qq).all();
+      return json({ items: rows.results.map((r) => resourceDto(r, user.qq, isSiteAdmin(user))) });
+    }
+    if (path[0] === 'resources' && path.length === 1 && method === 'POST') {
+      const input = resourceInput(await body(request));
+      if (input.error) return fail(input.error);
+      const total = await db.prepare('SELECT COUNT(*) n FROM rule_resources WHERE uploader_qq=?').bind(user.qq).first();
+      if (Number(total?.n || 0) >= 50) return fail('每人最多分享 50 条资源', 409);
+      const rid = id(), iso = new Date().toISOString();
+      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,uploader_qq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)')
+        .bind(rid, input.name, input.url, input.type, input.note, user.qq, iso, iso).run();
+      const row = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(rid).first();
+      return json({ item: resourceDto(row, user.qq, isSiteAdmin(user)) });
+    }
+    if (path[0] === 'resources' && path[1] && path.length === 2 && (method === 'PATCH' || method === 'DELETE')) {
+      const row = await db.prepare('SELECT * FROM rule_resources WHERE id=?').bind(path[1]).first();
+      if (!row) return fail('这条资源不存在或已被删除', 404);
+      if (row.uploader_qq !== user.qq && !isSiteAdmin(user)) return fail('只能修改或删除自己分享的资源', 403);
+      if (method === 'DELETE') {
+        await db.prepare('DELETE FROM rule_resources WHERE id=?').bind(row.id).run();
+        return json({ ok: true });
+      }
+      const input = resourceInput(await body(request), row);
+      if (input.error) return fail(input.error);
+      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,updated_at=? WHERE id=?')
+        .bind(input.name, input.url, input.type, input.note, new Date().toISOString(), row.id).run();
+      const updated = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(row.id).first();
+      return json({ item: resourceDto(updated, user.qq, isSiteAdmin(user)) });
     }
     // 贴纸广场：会员可浏览其他会员公开的贴纸库，并把某张复制进自己的库存。
     if (path[0] === 'sticker-plaza' && path.length === 1 && method === 'GET') {

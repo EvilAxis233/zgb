@@ -1,4 +1,4 @@
-import type { Campaign, CampaignDetail, UserProfile, UserNameplate, StickerPlazaMember } from '../types';
+import type { Campaign, CampaignDetail, UserProfile, UserNameplate, StickerPlazaMember, RuleResource, RuleResourceInput } from '../types';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // 弱网（如 4G）下 fetch 可能长时间挂起，统一加超时：普通请求 30s，文件上传 90s
@@ -36,6 +36,11 @@ export const api = {
   stickerPlazaCopy: (key: string, replaceKey?: string) => post<{ ok: boolean; already?: boolean; note?: string; user: UserProfile }>('sticker-plaza/copy', { key, replaceKey }),
   stickerPlazaBlock: (key: string) => post<{ ok: boolean }>('sticker-plaza/block', { key }),
   stickerPlazaUnblock: (key: string) => request<{ ok: boolean }>(`sticker-plaza/block/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  resources: (q = '') => request<{ items: RuleResource[] }>(`resources${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  myResources: () => request<{ items: RuleResource[] }>('resources/mine'),
+  createResource: (value: RuleResourceInput) => post<{ item: RuleResource }>('resources', value),
+  updateResource: (id: string, value: RuleResourceInput) => patch<{ item: RuleResource }>(`resources/${encodeURIComponent(id)}`, value),
+  deleteResource: (id: string) => request<{ ok: boolean }>(`resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   checkin: () => post<{ ok: boolean; streak: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, Campaign, UserNameplate } from '../types';
-import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail } from 'lucide-react';
+import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail, Heart } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
 import { AccountSideActions } from './AccountSideActions';
@@ -11,6 +11,7 @@ import { StickerLibrary } from './StickerLibrary';
 import { StickerPlaza } from './StickerPlaza';
 import { api } from '../services/api';
 import { formatDisplayTime } from '../utils/date';
+import { MyResourcesModal } from './ResourceView';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 
 interface ProfileViewProps {
@@ -25,6 +26,7 @@ interface ProfileViewProps {
   onSelectCampaign: (campaign: Campaign) => void;
   onUploadAvatar: (file: File) => void;
   onOpenManage: () => void;
+  onOpenResources?: () => void;
   onFeedback: () => void;
   onReport: () => void;
 }
@@ -42,6 +44,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onSelectCampaign,
   onUploadAvatar,
   onOpenManage,
+  onOpenResources,
   onFeedback,
   onReport,
   onUpdateNameplate,
@@ -57,6 +60,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [nameplateOpen, setNameplateOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [plazaOpen, setPlazaOpen] = useState(false);
+  const [myResourcesOpen, setMyResourcesOpen] = useState(false);
   const [publicBusy, setPublicBusy] = useState(false);
   const [membershipNow, setMembershipNow] = useState(() => Date.now());
   const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
@@ -192,6 +196,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 贴纸
               </button>
             </div>
+            {/* 我的分享：爱心资源里自己发布过的条目，可在这里更新或删除。 */}
+            <button
+              type="button"
+              onClick={() => setMyResourcesOpen(true)}
+              title="查看、更新或删除我分享的规则资源"
+              className="bauhaus-btn w-full cursor-pointer gap-1.5 bg-[#FFF4F4] px-3 py-2 text-xs font-black shadow-[2px_2px_0px_#121212] hover:bg-[#FDE8E8]"
+            >
+              <Heart size={14} className="fill-[#D62828] text-[#D62828]" />
+              我的分享
+            </button>
             {currentUser.nameplate && (
               <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#121212]">
                 <span className="text-[11px] font-bold text-[#666]">当前佩戴：</span>
@@ -641,6 +655,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           onClose={() => setNameplateOpen(false)}
           currentNameplate={currentUser.nameplate}
           onSave={onUpdateNameplate}
+        />
+      )}
+      {myResourcesOpen && (
+        <MyResourcesModal
+          onClose={() => setMyResourcesOpen(false)}
+          onGoResources={onOpenResources ? () => { setMyResourcesOpen(false); onOpenResources(); } : undefined}
         />
       )}
       </div>

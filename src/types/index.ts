@@ -143,6 +143,28 @@ export interface CampaignMember {
 
 export interface CampaignDetail extends Campaign { members: CampaignMember[]; }
 
+// 爱心资源：玩家分享的规则下载地址 / 在线查询地址。
+export interface RuleResource {
+  id: string;
+  name: string;
+  url: string;
+  type: 'pan' | 'wiki' | 'other';
+  note: string;
+  uploaderName: string;
+  uploaderAvatar?: string;
+  createdAt: string;
+  updatedAt: string;
+  mine: boolean;
+  canManage: boolean;
+}
+
+export interface RuleResourceInput {
+  name: string;
+  url: string;
+  type: RuleResource['type'];
+  note: string;
+}
+
 export interface PraiseRecord {
   id: string;
   fromUserId: string;
