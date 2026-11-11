@@ -92,9 +92,6 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
       {/* 不展示网址也不放按钮：点击标题即可打开链接；无有效链接时标题为纯文本。 */}
       {!href && <p className="mt-1 text-[10px] font-black text-[#999]">链接不可用</p>}
       <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-[#CFCBC0] pt-3 text-[11px] font-bold text-[#666]">
-        {item.uploaderAvatar
-          ? <img src={item.uploaderAvatar} alt="" className="h-5 w-5 border-2 border-[#121212] object-cover" />
-          : <span className="flex h-5 w-5 items-center justify-center border-2 border-[#121212] bg-[#F4A261] text-[9px] font-black text-[#121212]">{item.uploaderName.slice(0, 1)}</span>}
         <span>分享者：<strong className="text-[#121212]">{item.uploaderName}</strong></span>
         <span className="ml-auto shrink-0">{item.updatedAt !== item.createdAt ? `${item.updatedAt} 更新` : item.createdAt}</span>
       </div>
@@ -109,9 +106,8 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
 }
 
 /** 分享 / 编辑弹窗。上传者昵称由后端按登录账号记录，前端不允许手改。 */
-export function ResourceEditor({ initial, currentUserName, defaultCategory, onClose, onSaved }: {
+export function ResourceEditor({ initial, defaultCategory, onClose, onSaved }: {
   initial?: RuleResource | null;
-  currentUserName?: string;
   defaultCategory?: ResourceCategory;
   onClose: () => void;
   onSaved: (item: RuleResource) => void;
@@ -177,9 +173,6 @@ export function ResourceEditor({ initial, currentUserName, defaultCategory, onCl
                 <option value="other">其他</option>
               </select>
             </label>
-          </div>
-          <div className="block text-xs font-black">分享者
-            <div className="bauhaus-input mt-1 flex items-center gap-1.5 p-2 text-sm font-bold text-[#666]" title="自动取当前登录账号昵称"><HeartIcon size={14} />{currentUserName || '登录账号昵称'}</div>
           </div>
           <div className="border-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
             <span className="block text-xs font-black">标签</span>
@@ -327,7 +320,6 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       {editor && (
         <ResourceEditor
           initial={editor === 'new' ? null : editor}
-          currentUserName={currentUser?.name}
           defaultCategory={category}
           onClose={() => setEditor(null)}
           onSaved={saved}
@@ -338,7 +330,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
 }
 
 /** 个人档案里的「我的分享」界面：只看自己的条目，可新增、更新、删除。 */
-export function MyResourcesModal({ onClose, onGoResources, currentUserName }: { onClose: () => void; onGoResources?: () => void; currentUserName?: string }) {
+export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => void; onGoResources?: () => void }) {
   const { showAlert, showConfirm } = useDialog();
   const [items, setItems] = useState<RuleResource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -397,7 +389,6 @@ export function MyResourcesModal({ onClose, onGoResources, currentUserName }: { 
       {editor && (
         <ResourceEditor
           initial={editor === 'new' ? null : editor}
-          currentUserName={currentUserName}
           onClose={() => setEditor(null)}
           onSaved={(item) => setItems((prev) => [item, ...prev.filter((x) => x.id !== item.id)])}
         />

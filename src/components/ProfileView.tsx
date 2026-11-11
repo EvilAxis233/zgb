@@ -660,7 +660,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       )}
       {myResourcesOpen && (
         <MyResourcesModal
-          currentUserName={currentUser.name}
           onClose={() => setMyResourcesOpen(false)}
           onGoResources={onOpenResources ? () => { setMyResourcesOpen(false); onOpenResources(); } : undefined}
         />
