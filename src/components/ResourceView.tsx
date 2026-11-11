@@ -162,7 +162,7 @@ export function ResourceEditor({ initial, currentUserName, defaultCategory, onCl
         </header>
         <div className="space-y-3 p-4">
           <label className="block text-xs font-black">规则名字 <span className="text-[#D62828]">*</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="例如：【XX规则】核心规则书 / 快速开始 / XX扩展" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="[规则名] - 内容物" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-xs font-black">所属分页
