@@ -15,7 +15,6 @@
     { "binding": "COVERS", "bucket_name": "zgb-trpg-covers" }
   ],
   "vars": {
-    "RESEND_FROM": "诸告板 <zgb@pigbee.fun>",
-    "MEMBER_VERIFY_PUBLIC_KEY": "MCowBQYDK2VwAyEADBkikobSbTp52yInh1vE08mL3YqotcuRymS5OXQpvBA="
+    "RESEND_FROM": "诸告板 <zgb@pigbee.fun>"
   }
 }

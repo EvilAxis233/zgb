@@ -14,7 +14,7 @@
 
 - **已开放：**会员期间累计签到每满 7 次，获得 2 张 GM 点赞券；中断签到不清零，比普通用户多 1 张。每天签到仍可获得 1 张玩家点赞券。会员到期后恢复普通签到规则，续费后保留此前的会员累计次数。
 - **已上线：**自定义展示铭牌可在个人档案中设置。
-- **开通与续费：**在个人档案输入密钥。每个密钥增加 30 天，多个不同密钥可叠加；同一密钥只能兑换一次。到期时间显示在个人档案。
+- **开通与续费：**加交流群 917744498 联系站长开通或续费，或由站长在后台「账号」直接赠送；玩家端不再提供兑换码入口。到期时间显示在个人档案。
 
 ## 本地开发
 
@@ -30,7 +30,7 @@
 
 **报名邮件通知：**玩家报名成功后，用同一个 Resend 通道给该团 GM 发一封提醒（默认收件地址 `<GM的QQ>@qq.com`，GM 可在个人档案改邮箱或关闭）。逐次发送，每有一位玩家报名发一封；取消报名不通知。发信整段走 `context.waitUntil`，失败只写 `signup_mail_log`，不影响报名结果。`migrations/0025_signup_mail.sql` 添加 `users.notify_email`、`users.signup_notify_enabled` 与日志表，**部署代码前必须先应用该迁移**。邮件正文模板在 `functions/api/[[path]].js` 的 `SIGNUP_MAIL_TEMPLATE` 标记块内，改文案后运行 `node scripts/gen-signup-mail-preview.mjs` 重新生成预览页。
 
-主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`campaigns/:id/finish`、`profile`、`profile/avatar`、`membership/redeem`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回未锁车、未结团且未满员的团；其余团仅对 GM 和已报名玩家保留。弃团会删除该团、成员记录和团内点赞。
+主要 API 在同源 `/api` 下：`auth/request-code`、`auth/verify`、`auth/me`、`auth/logout`、`campaigns`、`campaigns/:id`、`campaigns/:id/signup`、`campaigns/:id/members/:qq`、`campaigns/:id/finish`、`profile`、`profile/avatar`、`checkin`、`praise`、`upload`。写操作以会话身份执行。公开团列表只返回未锁车、未结团且未满员的团；其余团仅对 GM 和已报名玩家保留。弃团会删除该团、成员记录和团内点赞。
 
 `migrations/` 为 D1 模式文件。`users.qq` 是不可修改的身份主键；`users.avatar_key` 指向 R2 头像。`campaign_memberships` 是参团记录的唯一来源，`campaigns.max_players` 不包含 GM。只有主持手动结团后，该团才进入成员个人档案；每日签到按香港日期获得玩家点赞券，普通用户连续签到每满七天获得 1 张 GM 点赞券；有效会员累计签到每满七次获得 2 张，中断不清零。团内点赞必须绑定已结团的团，且只能由该团成员发出。举报须指定站内昵称或 QQ 号，后台按被举报账号统计次数；黑名单支持限时或永久生效，生效期间禁止报名，手动移出后再次加入会重新计时。预定日期过后自动锁车；修改单团时间到未来后，主持可手动重新开放。站点清空浏览器数据不影响这些服务器记录。
 
@@ -60,25 +60,10 @@ Pages 生产环境还需设置独立的加密 Secret `ADMIN_PASSWORD`，替换�
 
 此前用于释放 D1 配额的旧 `ssjz` 数据库已备份至本机 `backups/ssjz-2026-10-15.sql`；该目录被 Git 忽略。旧 `ssjz` Pages 项目仍存在，但原 D1 绑定已失效。
 
-## 会员密钥
+## 会员密钥（已弃用）
 
-每个会员密钥可兑换 30 × 24 小时；从当前到期时间与兑换时间较晚者开始叠加。密钥只能全站兑换一次。会员累计签到奖励与展示铭牌已开放；贴纸功能即将上线。前台 `POST /api/membership/redeem` 接受 `{ "key": "VIP1.…" }`，后台“账号”可查看完整密钥及兑换历史。`0019_member_checkin_count.sql` 保存会员期间的累计签到次数，须先于新版签到接口部署。
+会员兑换码功能已下线：后端不再提供 `POST /api/membership/redeem`，也不再使用 Ed25519 验签；`wrangler.jsonc` 里的 `MEMBER_VERIFY_PUBLIC_KEY` 和 `scripts/membership-keys.mjs` 生成脚本已一并移除。会员改由站长在后台「账号」直接赠送，或加交流群 917744498 联系站长开通 / 续费；玩家端没有输入密钥的入口。
 
-密钥格式为 `VIP1.<nonce>.<signature>`。`nonce` 是 16 字节安全随机数的无填充 Base64URL 编码；`signature` 是 Ed25519 私钥对 UTF-8 字符串 `ZGB-MEMBER|VIP1|30D|<nonce>` 的签名，以无填充 Base64URL 编码。服务器只用公钥验签，不需要预先登记生成的密钥。把此段规则交给 AI 可让其编写兼容生成程序，但生成有效密钥仍须在本机使用私钥；不要向 AI、代码仓库或他人提供私钥。
+`membership_redemptions` 表保留为空表（历史兑换记录为 0 条），仅为不破坏既有迁移与后台查询，不做删表操作；`membership_grants` 记录后台赠送，是当前会员的实际来源。
 
-首次在 **仓库之外** 建立测试与正式环境各自的密钥对（以下以正式环境为例，PowerShell）：
-
-```powershell
-New-Item -ItemType Directory -Force "$env:USERPROFILE\membership-keys" | Out-Null
-node scripts/membership-keys.mjs init --private "$env:USERPROFILE\membership-keys\production.pem" --public "$env:USERPROFILE\membership-keys\production-public.txt"
-```
-
-把 `production-public.txt` 的单行内容配置为 **正式 Pages 环境**的 `MEMBER_VERIFY_PUBLIC_KEY` 环境变量（当前生产值见 `wrangler.jsonc`）。私钥只保存在站长本机的 `$env:USERPROFILE\membership-keys`，公钥可公开，私钥绝不入库、不进 Git、不提供给他人；若私钥丢失，将无法继续生成与已配置公钥匹配的新密钥。修改公钥后必须重新部署 Pages，且更换验签公钥会使所有**尚未兑换**的旧密钥立即失效。
-
-按需生成密钥，每次指定一个新的输出文件名；脚本不会覆盖文件，也不会把密钥打印到终端：
-
-```powershell
-node scripts/membership-keys.mjs generate --private "$env:USERPROFILE\membership-keys\production.pem" --out "$env:USERPROFILE\membership-keys\membership-keys-001.txt" --count 20
-```
-
-`--count` 每次支持 1–10000 个，可重复运行。未兑换的密钥没有失效日期（更换验签公钥除外）。部署时先应用 `0018_membership_keys.sql`，再部署新 Functions；不得用测试密钥在正式环境兑换。
+> 早期文档曾把签发私钥指向旧协作者的本机路径。由于验签与兑换接口都已移除，该私钥已无法用于开通会员，无需再轮换公钥。
