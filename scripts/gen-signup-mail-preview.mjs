@@ -90,7 +90,7 @@ const mails = samples.map((sample) => {
     key: sample.key,
     label: sample.label,
     preview: sample.preview,
-    from: '诸告板 <login@mail.dhvault.top>',
+    from: '诸告板 <zgb@pigbee.fun>',
     to: '892134567@qq.com',
     time: shortTime,
     date: stamp,

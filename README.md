@@ -20,7 +20,7 @@
 
 需要 Node.js 22 和 Wrangler。运行 `npm ci`、`npm run db:migrate:local`、`npm run build`，然后运行 `npm run dev:pages`。Pages Functions 与本地 D1/R2 由 Wrangler 启动；单独运行 `npm run dev` 只适合查看静态 UI。
 
-若要测试登录，在未提交的 `.dev.vars` 中设置 `RESEND_API_KEY` 和 `OTP_SECRET`。`RESEND_API_KEY` 是 Resend API 密钥；`OTP_SECRET` 是独立随机密钥，用于验证码 HMAC。另需为后台设置 `ADMIN_PASSWORD`，机器人测试桥接设置 `BOT_BRIDGE_TOKEN`。邮件发送地址默认 `诸告板 <login@mail.dhvault.top>`。不要把任何密钥加入 Git。
+若要测试登录，在未提交的 `.dev.vars` 中设置 `RESEND_API_KEY` 和 `OTP_SECRET`。`RESEND_API_KEY` 是 Resend API 密钥；`OTP_SECRET` 是独立随机密钥，用于验证码 HMAC。另需为后台设置 `ADMIN_PASSWORD`，机器人测试桥接设置 `BOT_BRIDGE_TOKEN`。邮件发送地址默认 `诸告板 <zgb@pigbee.fun>`（站主自有域名，已在自有 Resend 账号验证）。不要把任何密钥加入 Git。
 
 发布和编辑统一使用最多 6 个自定义标签，每个最多 6 字；不再提供限选标签或后台预设标签配置。历史限选标签在读取时合并为自定义标签，最多保留 6 个，每个超过 6 字的部分截断；原始历史数据保留。网团游戏平台支持 QQ。
 
@@ -46,11 +46,9 @@
 
 ## QQ 新团广播桥接
 
-`POST /api/campaigns` 将团与 `campaign.created` 事件在同一个 D1 事务写入。测试机器人凭独立 Secret `BOT_BRIDGE_TOKEN` 每 15 秒从 `GET /api/internal/bot/events` 领取一个事件，完成原有群发后提交 `POST /api/internal/bot/events/{eventId}/ack`，正文为 `{ "claimId": "..." }`。事件携带 `eventId`、`campaignId`、`kind`、`rule`、`claimId`；`kind` 为 `online`、`offline` 或 `promo`，供机器人区分播报板块，旧机器人可忽略新增字段。广播不含链接。租约为 120 秒，过期事件可重新领取。测试站点须使用与生产不同的 D1、R2 和 Secret，且仅由双测试群机器人消费。网站发布接口不依赖机器人在线；迁移 `0003_bot_outbox.sql` 必须先于新代码应用。
+`POST /api/campaigns` 将团与 `campaign.created` 事件在同一个 D1 事务写入。测试机器人凭独立 Secret `BOT_BRIDGE_TOKEN` 每 15 秒从 `GET /api/internal/bot/events` 领取一个事件，完成原有群发后提交 `POST /api/internal/bot/events/{eventId}/ack`，正文为 `{ "claimId": "..." }`。事件携带 `eventId`、`campaignId`、`kind`、`rule`、`claimId`；`kind` 为 `online`、`offline` 或 `promo`，供机器人区分播报板块，旧机器人可忽略新增字段。广播不含链接。租约为 120 秒，过期事件可重新领取。如需搭建测试站点，必须使用与生产不同的 D1、R2 和 Secret，且仅由双测试群机器人消费。网站发布接口不依赖机器人在线；迁移 `0003_bot_outbox.sql` 必须先于新代码应用。
 
-测试环境使用单独 Pages 项目 `zgb-trpg-staging`、`wrangler.staging.jsonc` 中指定的独立 D1 和 R2，均已创建。运行 `npx wrangler d1 migrations apply zgb-trpg-staging --remote --config wrangler.staging.jsonc`，在**测试 Pages 项目**分别设置独立 `ADMIN_PASSWORD`、`BOT_BRIDGE_TOKEN`、`OTP_SECRET`、`RESEND_API_KEY` Secret，再运行 `pwsh -File scripts/deploy-staging.ps1`。脚本先检查测试绑定，再将构建产物、Functions 和测试配置复制到被 Git 忽略的独立目录部署；Wrangler Pages 不接受 `--config` 自定义配置路径。测试机器人只使用这个站点的 URL 和令牌；不得改用正式 D1 做联调。`0004_memberships.sql` 必须先于新报名代码部署；确认新流程可用后再部署删除凭证代码并应用 `0005_remove_vouchers.sql`。
-
-目前测试项目已设置前三项 Secret 并完成一次使用临时测试会话的 API 发团→QQ 双群验收；临时会话已撤销。`RESEND_API_KEY` 尚未设置，因此测试站的 QQ 邮箱登录暂不可用，需设置测试专用密钥后才能从网页界面登录发团。
+测试环境已移除：Cloudflare 账号下当前只有生产项目 `zgb-abc`，`zgb-trpg-staging` 项目并不存在，配套的 `wrangler.staging.jsonc` 与 `scripts/deploy-staging.ps1` 已从仓库删除（Git 历史可恢复）。如需重建测试站，须另行创建 Pages 项目、独立 D1/R2，并单独设置 `ADMIN_PASSWORD`、`BOT_BRIDGE_TOKEN`、`OTP_SECRET`、`RESEND_API_KEY`；不得复用生产绑定或生产 Secret。Wrangler Pages 不接受 `--config` 自定义配置路径。
 
 ## 生产部署
 
@@ -75,7 +73,7 @@ New-Item -ItemType Directory -Force "$env:USERPROFILE\membership-keys" | Out-Nul
 node scripts/membership-keys.mjs init --private "$env:USERPROFILE\membership-keys\production.pem" --public "$env:USERPROFILE\membership-keys\production-public.txt"
 ```
 
-把 `production-public.txt` 的单行内容配置为 **正式 Pages 环境**的 `MEMBER_VERIFY_PUBLIC_KEY` 环境变量；测试环境另建 `staging.pem`/`staging-public.txt` 并配置测试公钥。本机首次部署已在 `wrangler.jsonc` 和 `wrangler.staging.jsonc` 分别填写公钥，私钥位于 `C:\Users\Dql\membership-keys`。公钥可公开，私钥文件仅在本机保管并做好安全备份；若私钥丢失，将无法继续生成与已配置公钥匹配的新密钥。修改公钥后重新部署 Pages。
+把 `production-public.txt` 的单行内容配置为 **正式 Pages 环境**的 `MEMBER_VERIFY_PUBLIC_KEY` 环境变量（当前生产值见 `wrangler.jsonc`）。私钥只保存在站长本机的 `$env:USERPROFILE\membership-keys`，公钥可公开，私钥绝不入库、不进 Git、不提供给他人；若私钥丢失，将无法继续生成与已配置公钥匹配的新密钥。修改公钥后必须重新部署 Pages，且更换验签公钥会使所有**尚未兑换**的旧密钥立即失效。
 
 按需生成密钥，每次指定一个新的输出文件名；脚本不会覆盖文件，也不会把密钥打印到终端：
 
@@ -83,4 +81,4 @@ node scripts/membership-keys.mjs init --private "$env:USERPROFILE\membership-key
 node scripts/membership-keys.mjs generate --private "$env:USERPROFILE\membership-keys\production.pem" --out "$env:USERPROFILE\membership-keys\membership-keys-001.txt" --count 20
 ```
 
-`--count` 每次支持 1–10000 个，可重复运行。未兑换的密钥没有失效日期。部署时先应用 `0018_membership_keys.sql`（测试环境使用 `wrangler.staging.jsonc`，正式环境使用 `wrangler.jsonc`），再部署新 Functions；测试与正式密钥不可互用。
+`--count` 每次支持 1–10000 个，可重复运行。未兑换的密钥没有失效日期（更换验签公钥除外）。部署时先应用 `0018_membership_keys.sql`，再部署新 Functions；不得用测试密钥在正式环境兑换。
