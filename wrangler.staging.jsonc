@@ -15,7 +15,7 @@
     { "binding": "COVERS", "bucket_name": "zgb-trpg-staging-covers" }
   ],
   "vars": {
-    "RESEND_FROM": "诸告板 <login@mail.dhvault.top>",
+    "RESEND_FROM": "诸告板 <zgb@mail.dhvault.top>",
     "MEMBER_VERIFY_PUBLIC_KEY": "MCowBQYDK2VwAyEA8cAbvAgHJpYa9B+4ET8K6eH/SP14jSHNqBBCtp5Wd54="
   }
 }
