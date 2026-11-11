@@ -191,7 +191,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     return (
     <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasColumnDivider ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
       <div className={`flex items-start gap-3 ${playerGrid ? '' : 'px-4 py-3 justify-center'}`}>
-        {/* 两列对齐：左列头像(跨 ID+铭牌两行) → 获赞点赞在头像正下方；右列 ID → 铭牌贴纸 → QQ 数字。第三行的点赞与 QQ 数字齐平。 */}
+        {/* 两列对齐：左列头像(跨 ID+铭牌两行) → 获赞点赞在头像正下方；右列 ID → 铭牌 → QQ 数字。第三行的点赞与 QQ 数字齐平。贴纸只在发团卡片（简易主界面）展示，团详情不展示。 */}
         <div className={`grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
           <div className="row-span-2 flex justify-center self-center"><Avatar member={member} /></div>
           <div className="flex min-w-0 items-center gap-1.5">
@@ -208,7 +208,6 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
             {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
-            {!!member.stickers?.length && member.stickers.slice(0, 2).map((src, index) => <ImageHoverPreview key={`${src}-${index}`} src={src} label="贴纸原图" className="block h-4 w-14"><img src={src} alt="贴纸" className="h-full w-full rounded-sm border border-[#121212] bg-white object-cover" /></ImageHoverPreview>)}
           </div>
           <div className="flex justify-center">{receivedPraiseBadge}</div>
           <div className="flex min-w-0 items-center">

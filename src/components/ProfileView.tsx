@@ -270,11 +270,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="text-2xl font-black text-[#121212]">{currentUser.name}</h1>
                   {currentUser.nameplate && <NameplateBadge nameplate={currentUser.nameplate} />}
-                  {!!currentUser.stickers?.length && (
-                    <span className="flex items-center gap-1">
-                      {currentUser.stickers.slice(0, 2).map((src, index) => <img key={`${src}-${index}`} src={src} alt="我的贴纸" className="h-6 w-[84px] rounded border-2 border-[#121212] bg-white object-cover" />)}
-                    </span>
-                  )}
                 </div>
               )}
             </div>
