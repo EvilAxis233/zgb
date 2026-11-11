@@ -192,7 +192,7 @@ async function auth(request, db) {
 }
 async function sendCode(env, qq, code) {
   if (!env.RESEND_API_KEY) return { ok: false, reason: 'missing_key' };
-  const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: env.RESEND_FROM || '诸告板 <zgb@mail.dhvault.top>', to: `${qq}@qq.com`, subject: '诸告板登录验证码', text: `验证码：${code}\n十分钟内有效。如非本人操作，请忽略此邮件。` }) });
+  const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: env.RESEND_FROM || '诸告板 <zgb@pigbee.fun>', to: `${qq}@qq.com`, subject: '诸告板登录验证码', text: `验证码：${code}\n十分钟内有效。如非本人操作，请忽略此邮件。` }) });
   if (response.ok) return { ok: true };
   const error = await response.json().catch(() => ({}));
   return { ok: false, status: response.status, reason: typeof error.name === 'string' ? error.name.slice(0, 80) : 'unknown' };
@@ -348,7 +348,7 @@ function queueSignupMail(context, { campaign, actor, siteUrl }) {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: env.RESEND_FROM || '诸告板 <zgb@mail.dhvault.top>', to: recipient, subject: mail.subject, html: mail.html, text: mail.text }),
+        body: JSON.stringify({ from: env.RESEND_FROM || '诸告板 <zgb@pigbee.fun>', to: recipient, subject: mail.subject, html: mail.html, text: mail.text }),
       });
       if (!response.ok) {
         status = 'failed';
