@@ -105,7 +105,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={titles[shape]}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={titles[shape]}>
       <div className="w-full max-w-xl max-h-[95vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212]">
         <div className="bg-[#121212] text-white px-4 py-3 flex items-center justify-between">
           <strong>{titles[shape]}</strong>
