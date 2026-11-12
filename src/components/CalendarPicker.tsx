@@ -10,6 +10,8 @@ import {
   PERIOD_HINT,
   TimePeriod,
   TIME_PERIODS,
+  isSlotClosed,
+  periodCloseLabel,
 } from '../utils/date';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check } from 'lucide-react';
 
@@ -326,16 +328,18 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          {TIME_PERIODS.map(({ key, label, desc }) => {
+          {TIME_PERIODS.map(({ key, label }) => {
             const isChosen = multiple ? !!slotMap.get(selectedDate)?.has(key) : selectedPeriod === key;
+            // 过了封车时间的时段直接不可选：早 12:00 / 午 18:00 / 晚次日 00:00（北京时间）。
+            const closed = selectedDate ? isSlotClosed(selectedDate, key) : false;
             return (
               <button
                 key={key}
                 type="button"
-                disabled={!selectedDate}
+                disabled={!selectedDate || closed}
                 onClick={() => multiple ? toggleSlot(key) : handleSelect(selectedDate, key)}
                 className={`p-2.5 flex flex-col items-center justify-center border-2 transition-all ${
-                  !selectedDate
+                  !selectedDate || closed
                     ? 'opacity-40 cursor-not-allowed border-[#CCCCCC] bg-[#EEEEEE] text-[#888888]'
                     : isChosen
                     ? 'bg-[#004E98] text-white border-[#121212] shadow-[3px_3px_0px_#121212] scale-[1.02]'
@@ -348,6 +352,9 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
                 </div>
                 <span className={`text-[10px] mt-0.5 ${isChosen ? 'text-white/80' : 'text-[#666666]'}`}>
                   {key === '早' ? '上午' : key === '中' ? '下午' : '晚上'}
+                </span>
+                <span className={`text-[10px] ${isChosen ? 'text-white/70' : closed ? 'text-[#D62828]' : 'text-[#999999]'}`}>
+                  {closed ? '已封车' : `${periodCloseLabel(key)} 封车`}
                 </span>
               </button>
             );

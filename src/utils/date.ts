@@ -15,6 +15,22 @@ export function formatPeriod(period: TimePeriod | null | undefined): string {
 
 export const PERIOD_HINT = '早 / 午 / 晚';
 
+// 封车（结算）时间：早场当天 12:00、午场当天 18:00、晚场次日 00:00，统一按北京时间（UTC+8）。
+// 与后端 periodCloseAt 保持同一口径；24 表示「跨到次日零点」。
+export const PERIOD_CLOSE_HOUR: Record<TimePeriod, number> = { 早: 12, 中: 18, 晚: 24 };
+
+/** 该日期时段是否已经过了封车时间（过点后不再允许发布/报名） */
+export function isSlotClosed(dateStr: string, period: TimePeriod, now: Date = new Date()): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const cutoff = new Date(`${dateStr}T00:00:00+08:00`).getTime() + PERIOD_CLOSE_HOUR[period] * 3600 * 1000;
+  return now.getTime() >= cutoff;
+}
+
+/** 封车时间的展示文案，例如「12:00」「次日 00:00」 */
+export function periodCloseLabel(period: TimePeriod): string {
+  return PERIOD_CLOSE_HOUR[period] >= 24 ? '次日 00:00' : `${String(PERIOD_CLOSE_HOUR[period]).padStart(2, '0')}:00`;
+}
+
 const WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
 /**

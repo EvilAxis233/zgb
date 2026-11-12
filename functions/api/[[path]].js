@@ -29,6 +29,13 @@ const clampTag = (value) => {
 };
 const campaignTags = (c) => [...new Set([...parseTags(c.custom_tags), ...parseTags(c.preset_tags)].map(clampTag).filter(Boolean))].slice(0, 6);
 const dateHK = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+// 当前 UTC+8 时间，格式与 SQLite datetime() 一致，便于直接做字符串比较。
+const nowHK = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+const shiftHKDate = (dateStr, days) => {
+  const d = new Date(`${dateStr}T00:00:00+08:00`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+};
 const id = () => crypto.randomUUID();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function sha256(value) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))); }
@@ -75,7 +82,16 @@ const userDto = (u) => {
 };
 // 通知邮箱属于隐私，公开用户列表里不带出这两个字段。
 const publicUserDto = (u) => { const { notifyEmail, signupNotifyEnabled, ...rest } = userDto(u); return { ...rest, role: null, isAdmin: false, isOwner: false, inventory: { gmHearts: 0, playerHearts: 0 }, lastCheckInDate: '', membershipExpiresAt: null, membershipPermanent: false, stickerKeys: [], stickerLibrary: [], stickerLibraryKeys: [] }; };
-const campaignExpired = (c) => (c.scheduled_date || String(c.time_schedule || '').slice(0, 10)) < dateHK();
+// 自动封车（结算）时间：早场当日 12:00、午场当日 18:00、晚场次日 00:00，统一按 UTC+8（北京时间）。
+// 晚场用 24 表示「跨到次日零点」，与旧规则（开团日过后封车）完全一致；时段缺失的存量数据同样按晚场处理。
+const PERIOD_CLOSE_HOUR = { 早: 12, 中: 18, 晚: 24 };
+const periodCloseAt = (c) => {
+  const date = c.scheduled_date || String(c.time_schedule || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+  const hour = PERIOD_CLOSE_HOUR[c.time_period] ?? 24;
+  return hour >= 24 ? `${shiftHKDate(date, 1)} 00:00:00` : `${date} ${String(hour).padStart(2, '0')}:00:00`;
+};
+const campaignExpired = (c) => { const cutoff = periodCloseAt(c); return Boolean(cutoff) && cutoff <= nowHK(); };
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
   return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.sticker_override || c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(c.sticker_override || c.gm_stickers), gmIsMember: c.gm_role === 'owner' || Number(c.gm_membership_expires_at ?? 0) > now(), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10) };
@@ -426,7 +442,14 @@ export async function onRequest(context) {
     // 自动关团扫库按实例节流（60 秒一次），避免每个请求都先跑一条 UPDATE 写查询拖慢响应。
     if (Date.now() - lastSweepAt > 60000) {
       lastSweepAt = Date.now();
-      await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date<?`).bind(new Date().toISOString(), dateHK()).run();
+      // 按早/午/晚各自的封车时间关团：早场当日 12:00、午场当日 18:00、晚场次日 00:00（UTC+8）。
+      await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END
+        WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL
+        AND CASE time_period
+          WHEN '早' THEN datetime(substr(COALESCE(scheduled_date,time_schedule),1,10)||' 12:00:00')
+          WHEN '中' THEN datetime(substr(COALESCE(scheduled_date,time_schedule),1,10)||' 18:00:00')
+          ELSE datetime(substr(COALESCE(scheduled_date,time_schedule),1,10)||' 00:00:00','+1 day')
+        END <= ?`).bind(new Date().toISOString(), nowHK()).run();
       // 弃团记录默认保留 30 天：超过且未被「保留记录」的自动软删除（仅后台封存不可见，数据仍可恢复）。
       const purgeBefore = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       await db.prepare(`UPDATE campaigns SET deleted_at=? WHERE deleted_at IS NULL AND is_abandoned=1 AND is_kept=0 AND closed_at IS NOT NULL AND closed_at < ?`).bind(new Date().toISOString(), purgeBefore).run();
@@ -874,7 +897,7 @@ export async function onRequest(context) {
       const rules = await db.prepare('SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT 10').all();
       const popularCustomTags = await db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all();
       const campaigns = campaignsDto(rows.results);
-      return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
+      return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull && !c.hasExpired), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'campaigns' && path[1] && path.length === 2 && method === 'GET') {
       const c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(path[1]).first();
@@ -1265,6 +1288,11 @@ export async function onRequest(context) {
       latest.setUTCDate(latest.getUTCDate() + 31);
       const latestDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(latest);
       if (new Set(slotKeys).size !== slots.length || slots.some((slot) => slot.scheduledDate < today || (c.kind === 'online' && slot.scheduledDate > latestDate)) || (rawSlots.length > 1 && !slotKeys.includes(`${c.scheduledDate}:${c.period}`))) return fail('所选时段无效或重复');
+      // 已过该时段封车时间的日期不再允许发布：否则一发布就被自动封车，0 人报名还会直接变成弃团。
+      if (!isSiteAdmin(user)) {
+        const missed = slots.find((slot) => campaignExpired({ scheduled_date: slot.scheduledDate, time_period: slot.period }));
+        if (missed) return fail(`「${missed.time}」已过封车时间，请选择后面的时段`, 409);
+      }
       const batchId = slots.length > 1 ? cid : null;
       const statements = slots.map((slot, index) => db.prepare('INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address,sticker_override) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(index === 0 ? cid : id(), user.qq, c.title, c.rule, c.summary || '', c.description, slot.time, slot.scheduledDate, slot.period, imageKey, c.color, c.players, createdAt, contact, c.sessionType, JSON.stringify(c.platforms), JSON.stringify(c.presetTags), JSON.stringify(c.customTags), batchId, c.kind, c.province, c.city, c.address, stickerOverride));
       await db.batch([
@@ -1282,6 +1310,7 @@ export async function onRequest(context) {
       const template = await db.prepare('SELECT kind FROM campaign_batches WHERE id=? AND gm_qq=?').bind(path[1], user.qq).first();
       if (!template) return fail('主团不存在', 404);
       const slot = validateNewSlot((await body(request)).timeSchedule, template.kind !== 'online');
+      if (!isSiteAdmin(user) && campaignExpired({ scheduled_date: slot.date, time_period: slot.period })) return fail(`「${slot.time}」已过封车时间，请选择后面的时段`, 409);
       const cid = id(), createdAt = new Date().toISOString();
       const result = await db.prepare(`INSERT INTO campaigns(id,gm_qq,title,rule,summary,description,time_schedule,scheduled_date,time_period,image_key,banner_color,max_players,created_at,contact,session_type,platforms,preset_tags,custom_tags,batch_id,kind,province,city,address,sticker_override)
         SELECT ?,b.gm_qq,b.title,b.rule,b.summary,b.description,?,?,?,b.image_key,b.banner_color,b.max_players,?,b.contact,b.session_type,b.platforms,b.preset_tags,b.custom_tags,b.id,b.kind,b.province,b.city,b.address,(SELECT x.sticker_override FROM campaigns x WHERE x.batch_id=b.id AND x.deleted_at IS NULL ORDER BY x.created_at LIMIT 1)
@@ -1412,6 +1441,8 @@ export async function onRequest(context) {
         const data = validateCampaign({ ...campDto(c), ...b, kind: nextKind }, nextKind);
         const imageKey = b.imageKey === null ? null : clean(b.imageKey, 100) || c.image_key;
         if (data.scheduledDate < dateHK() && data.time !== c.time_schedule && !siteAdmin) return fail('开团日期不能早于今天');
+        // 改到一个已过封车时间的时段没有意义，直接拦掉（同一天早场 12:00 之后就属于这种情况）。
+        if (data.time !== c.time_schedule && !siteAdmin && campaignExpired({ scheduled_date: data.scheduledDate, time_period: data.period })) return fail('该时段已过封车时间，请选择后面的时段', 409);
         if (imageKey && !await env.COVERS?.head(imageKey)) return fail('图片不存在');
         // 编辑时可补充/更换贴纸，也可清空恢复默认佩戴。
         const sticker = 'stickerKeys' in b
