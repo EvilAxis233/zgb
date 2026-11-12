@@ -174,6 +174,22 @@ export interface RuleResourceInput {
   flags: string[];
 }
 
+// 猪猪客服：玩家与站务的私信对话
+export type ChatFromRole = 'user' | 'admin';
+export interface ChatMessage {
+  id: string;
+  fromRole: ChatFromRole;
+  content: string;
+  createdAt: string;
+}
+export interface ChatConversation {
+  userQq: string;
+  userName: string;
+  lastContent: string;
+  lastAt: string;
+  unread: number;
+}
+
 export interface PraiseRecord {
   id: string;
   fromUserId: string;

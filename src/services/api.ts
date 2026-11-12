@@ -1,4 +1,5 @@
-import type { Campaign, CampaignDetail, UserProfile, UserNameplate, StickerPlazaMember, RuleResource, RuleResourceInput } from '../types';
+import type { Campaign, CampaignDetail, UserProfile, UserNameplate, StickerPlazaMember, RuleResource, RuleResourceInput, ChatMessage, ChatConversation } from '../types';
+export type { ChatMessage, ChatConversation };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // 弱网（如 4G）下 fetch 可能长时间挂起，统一加超时：普通请求 30s，文件上传 90s
@@ -80,6 +81,10 @@ export const api = {
     images.forEach((file) => form.append('images', file));
     return request<{ id: string }>('submissions', { method: 'POST', body: form });
   },
+  // 猪猪客服：玩家侧会话
+  chatThread: () => request<{ messages: ChatMessage[] }>('chat/thread'),
+  sendChat: (content: string) => post<{ ok: boolean; message: ChatMessage }>('chat/send', { content }),
+  clearChat: () => request('chat/thread', { method: 'DELETE' }),
 };
 
 export interface AdminUser {
@@ -161,6 +166,7 @@ export interface AdminArchivedCampaign {
   address: string;
   imageUrl: string;
   status: 'closed' | 'finished';
+  abandoned: boolean;
   closedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -208,8 +214,13 @@ export const adminApi = {
   unblacklist: (qq: string) => request<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { method: 'DELETE' }),
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),
   updateSubmission: (id: string, status: AdminSubmission['status'], adminNote: string) => patch(`admin/submissions/${id}`, { status, adminNote }),
-  archivedCampaigns: (status: 'all' | 'closed' | 'finished', offset: number) => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}`),
+  archivedCampaigns: (status: 'all' | 'closed' | 'finished' | 'abandoned', offset: number) => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}`),
   resources: (status: 'pending' | 'approved' | 'rejected' | 'all', offset: number) => request<{ items: AdminResource[]; total: number; counts: AdminResourceCounts }>(`admin/resources?status=${status}&offset=${offset}`),
   reviewResource: (id: string, status: 'pending' | 'approved' | 'rejected', note = '') => patch<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { status, note }),
   deleteResource: (id: string) => request<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  // 猪猪客服：后台会话管理
+  chatConversations: () => request<{ conversations: ChatConversation[] }>('admin/chat'),
+  chatThreadFor: (qq: string) => request<{ messages: ChatMessage[] }>(`admin/chat/${encodeURIComponent(qq)}`),
+  chatReply: (qq: string, content: string) => post<{ ok: boolean }>(`admin/chat/${encodeURIComponent(qq)}/reply`, { content }),
+  clearChatFor: (qq: string) => request<{ ok: boolean }>(`admin/chat/${encodeURIComponent(qq)}`, { method: 'DELETE' }),
 };

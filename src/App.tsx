@@ -18,6 +18,7 @@ import { HomePortal } from './components/HomePortal';
 import { CampaignEditModal } from './components/CampaignEditModal';
 import { ResourceView } from './components/ResourceView';
 import { CalendarFilter } from './components/CalendarFilter';
+import { CustomerServiceWidget } from './components/CustomerServiceWidget';
 import { InstructionsModal } from './components/InstructionsModal';
 import { TicketsModal } from './components/TicketsModal';
 import { SubmissionModal } from './components/SubmissionModal';
@@ -38,6 +39,7 @@ export function App() {
   const [rules, setRules] = useState<string[]>([]);
   const [popularCustomTags, setPopularCustomTags] = useState<string[]>([]);
   const [currentUserId, setUserIdState] = useState<string | null>(null);
+  const currentUserQq = users.find((u) => u.id === currentUserId)?.qq ?? null;
 
   // UI States
   // 报名通知邮件里的按钮带 ?view=manage，点开直接落在团务管理。
@@ -660,6 +662,9 @@ export function App() {
                     onSelectDate={setDateFilter}
                     activeDatesWithCampaigns={activeDatesWithCampaigns}
                   />
+
+                  {/* 猪猪客服：放在「按日期筛团」下方的站务对话入口 */}
+                  <CustomerServiceWidget userQq={currentUserQq} />
 
                   {/* Reset button */}
                   {(searchQuery ||

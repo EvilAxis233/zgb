@@ -1,19 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Activity, Archive, BarChart3, FileSliders, LayoutDashboard, LogOut, MessageSquareText, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
+import { Activity, Archive, BarChart3, FileSliders, Headphones, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminDashboard, type AdminUser, type MembershipGrant } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
-import { AdminTicketsSection } from './AdminTicketsSection';
+import { AdminSupportSection } from './AdminSupportSection';
 import { AdminArchivedSection } from './AdminArchivedSection';
 import { AdminResourcesSection } from './AdminResourcesSection';
 import { number } from './AdminCommon';
 import { useDialog } from './BauhausDialog';
 
-type AdminSection = 'dashboard' | 'content' | 'users' | 'tickets' | 'archive' | 'resources';
+type AdminSection = 'dashboard' | 'content' | 'users' | 'support' | 'archive' | 'resources';
 const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: '数据看板', icon: LayoutDashboard },
   { id: 'content', label: '内容配置', icon: FileSliders },
   { id: 'users', label: '账号', icon: UsersRound },
-  { id: 'tickets', label: '反馈与举报', icon: MessageSquareText },
+  { id: 'support', label: '客服系统', icon: Headphones },
   { id: 'archive', label: '封存团务', icon: Archive },
   { id: 'resources', label: '资源审核', icon: ShieldCheck },
 ];
@@ -78,7 +78,7 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">团务状态</h3><span className="text-[10px] font-bold text-[#777]">仅网团 / 面团 · 封车与结团各自独立统计</span></div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center"><StatCell label="招募中" value={c.recruiting} color="#004E98" /><StatCell label="封车" value={c.closed} color="#C85C16" /><StatCell label="结团" value={c.finished} color="#D62828" /><StatCell label="弃团" value={c.abandoned} color="#5B5646" /><StatCell label="累计报名" value={e.memberships} /><StatCell label="平均满员率" value={`${number(c.avg_fill_rate)}%`} /></div>
-        <p className="text-[10px] text-[#777] mt-1">弃团 = 主持人删除的团（自本统计上线起累计）· 报名数与满员率均不含宣群</p>
+        <p className="text-[10px] text-[#777] mt-1">弃团 = 0 人报名即封车的团（自本统计上线起累计）· 报名数与满员率均不含宣群</p>
       </section>
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3><span className="text-[10px] font-bold text-[#777]">受理状态</span></div>
@@ -172,7 +172,7 @@ export function AdminPage() {
       {activeSection === 'dashboard' && <div className={fitDashboard ? 'lg:flex-1 lg:min-h-0' : ''}><Dashboard data={dashboard} loading={dashboardLoading} /></div>}
       {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} setNewRule={setNewRule} addRule={addRule} deleteRule={deleteRule} />}
       {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} searchInput={searchInput} userOffset={userOffset} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
-      {activeSection === 'tickets' && <AdminTicketsSection onNotice={setNotice} onError={message} />}
+      {activeSection === 'support' && <AdminSupportSection onNotice={setNotice} onError={message} />}
       {activeSection === 'archive' && <AdminArchivedSection onError={message} />}
       {activeSection === 'resources' && <AdminResourcesSection onNotice={setNotice} onError={message} />}
     </>}

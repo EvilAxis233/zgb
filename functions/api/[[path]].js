@@ -426,7 +426,7 @@ export async function onRequest(context) {
     // 自动关团扫库按实例节流（60 秒一次），避免每个请求都先跑一条 UPDATE 写查询拖慢响应。
     if (Date.now() - lastSweepAt > 60000) {
       lastSweepAt = Date.now();
-      await db.prepare('UPDATE campaigns SET closed_at=? WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date<?').bind(new Date().toISOString(), dateHK()).run();
+      await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date<?`).bind(new Date().toISOString(), dateHK()).run();
     }
     if (path[0] === 'health' && method === 'GET') { await db.prepare('SELECT 1').first(); return json({ ok: true }); }
     if (path[0] === 'internal' && path[1] === 'bot') {
@@ -529,8 +529,8 @@ export async function onRequest(context) {
           db.prepare(`SELECT rule,COUNT(*) total FROM campaigns WHERE deleted_at IS NULL GROUP BY rule ORDER BY total DESC,rule LIMIT 8`),
           db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM users WHERE substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
           db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE kind IN ('online','offline') AND substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
-          // 弃团来自物理删除前的日志；宣群历史记录删除（kind='promo'）不计入。
-          db.prepare(`SELECT COUNT(*) abandoned FROM campaign_abandons WHERE kind IN ('online','offline')`),
+          // 弃团 = 0 人报名即封车的团（网团/面团），自本统计上线起累计。
+          db.prepare(`SELECT COUNT(*) abandoned FROM campaigns WHERE deleted_at IS NULL AND kind IN ('online','offline') AND is_abandoned=1`),
           db.prepare(`SELECT COUNT(*) pending FROM rule_resources WHERE review_status='pending'`)
         ]);
         return json({
@@ -679,7 +679,7 @@ export async function onRequest(context) {
         const status = raw === 'closed' || raw === 'finished' ? raw : 'all';
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
         const where = `WHERE c.deleted_at IS NULL AND c.kind IN ('online','offline') AND (c.closed_at IS NOT NULL OR c.finished_at IS NOT NULL)`
-          + (status === 'closed' ? ' AND c.finished_at IS NULL' : status === 'finished' ? ' AND c.finished_at IS NOT NULL' : '');
+          + (status === 'closed' ? ' AND c.finished_at IS NULL' : status === 'finished' ? ' AND c.finished_at IS NOT NULL' : status === 'abandoned' ? ' AND c.is_abandoned=1' : '');
         const [count, rows] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM campaigns c ${where}`),
           db.prepare(`SELECT c.*,u.name gm_name,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where} ORDER BY COALESCE(c.finished_at,c.closed_at) DESC,c.id DESC LIMIT 30 OFFSET ?`).bind(offset)
@@ -701,6 +701,7 @@ export async function onRequest(context) {
             province: c.province || '', city: c.city || '', address: c.address || '',
             imageUrl: assetUrl(c.image_key),
             status: c.finished_at ? 'finished' : 'closed',
+            abandoned: !!c.is_abandoned,
             closedAt: c.closed_at || null, finishedAt: c.finished_at || null, createdAt: c.created_at || '',
             members: byId.get(c.id) || []
           })),
@@ -738,6 +739,54 @@ export async function onRequest(context) {
       if (path[1] === 'resources' && path[2] && path.length === 3 && method === 'DELETE') {
         const result = await db.prepare('DELETE FROM rule_resources WHERE id=?').bind(path[2]).run();
         return result.meta.changes ? json({ ok: true }) : fail('资源不存在', 404);
+      }
+      // 后台「客服系统」→ 猪猪客服对话
+      if (path[1] === 'chat' && path.length === 2 && method === 'GET') {
+        const rows = await db.prepare(`SELECT m.user_qq, u.name user_name,
+          (SELECT content FROM chat_messages lm WHERE lm.user_qq=m.user_qq ORDER BY lm.created_at DESC, lm.id DESC LIMIT 1) last_content,
+          (SELECT created_at FROM chat_messages lm WHERE lm.user_qq=m.user_qq ORDER BY lm.created_at DESC, lm.id DESC LIMIT 1) last_at,
+          SUM(CASE WHEN m.from_role='user' AND m.read_at IS NULL THEN 1 ELSE 0 END) unread
+          FROM chat_messages m JOIN users u ON u.qq=m.user_qq GROUP BY m.user_qq, u.name ORDER BY last_at DESC`).all();
+        return json({ conversations: rows.results.map((r) => ({ userQq: r.user_qq, userName: r.user_name || '未命名', lastContent: r.last_content || '', lastAt: r.last_at || '', unread: Number(r.unread || 0) })) });
+      }
+      if (path[1] === 'chat' && path[2] && path.length === 3 && method === 'GET') {
+        const qq = String(path[2]);
+        const rows = await db.prepare('SELECT * FROM chat_messages WHERE user_qq=? ORDER BY created_at,id').bind(qq).all();
+        await db.prepare("UPDATE chat_messages SET read_at=? WHERE user_qq=? AND from_role='user' AND read_at IS NULL").bind(new Date().toISOString(), qq).run();
+        return json({ messages: rows.results.map((m) => ({ id: m.id, fromRole: m.from_role, content: m.content, createdAt: m.created_at })) });
+      }
+      if (path[1] === 'chat' && path[2] && path[3] === 'reply' && path.length === 4 && method === 'POST') {
+        const qq = String(path[2]), b = await body(request);
+        const content = clean(String(b?.content || ''), 2000).trim();
+        if (!content) return fail('请输入回复内容');
+        await db.prepare('INSERT INTO chat_messages(id,user_qq,from_role,content,created_at) VALUES(?,?,?,?,?)').bind(id(), qq, 'admin', content, new Date().toISOString()).run();
+        return json({ ok: true });
+      }
+      if (path[1] === 'chat' && path[2] && path.length === 3 && method === 'DELETE') {
+        await db.prepare('DELETE FROM chat_messages WHERE user_qq=?').bind(String(path[2])).run();
+        return json({ ok: true });
+      }
+      return fail('接口不存在', 404);
+    }
+    // === 猪猪客服：玩家侧对话（需登录）===
+    if (path[0] === 'chat') {
+      const user = await auth(request, db);
+      if (!user) return fail('请先登录后再使用客服', 401);
+      if (path[1] === 'send' && path.length === 2 && method === 'POST') {
+        const b = await body(request);
+        const content = clean(String(b?.content || ''), 2000).trim();
+        if (!content) return fail('请输入内容');
+        const mid = id(), iso = new Date().toISOString();
+        await db.prepare('INSERT INTO chat_messages(id,user_qq,from_role,content,created_at) VALUES(?,?,?,?,?)').bind(mid, user.qq, 'user', content, iso).run();
+        return json({ ok: true, message: { id: mid, fromRole: 'user', content, createdAt: iso } });
+      }
+      if (path[1] === 'thread' && path.length === 2 && method === 'GET') {
+        const rows = await db.prepare('SELECT * FROM chat_messages WHERE user_qq=? ORDER BY created_at,id').bind(user.qq).all();
+        return json({ messages: rows.results.map((m) => ({ id: m.id, fromRole: m.from_role, content: m.content, createdAt: m.created_at })) });
+      }
+      if (path[1] === 'thread' && path.length === 2 && method === 'DELETE') {
+        await db.prepare('DELETE FROM chat_messages WHERE user_qq=?').bind(user.qq).run();
+        return json({ ok: true });
       }
       return fail('接口不存在', 404);
     }
@@ -1269,7 +1318,7 @@ export async function onRequest(context) {
         if (c.kind === 'promo') return fail('宣群请使用「结束宣发」', 409);
         if (c.finished_at) return fail('已结团，不能重新开放', 409);
         if (!b.closed && campaignExpired(c)) return fail('预定时间已过，请先修改时间', 409);
-        await db.prepare('UPDATE campaigns SET closed_at=? WHERE id=?').bind(b.closed ? new Date().toISOString() : null, cid).run();
+        await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN ?=1 AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END WHERE id=?`).bind(b.closed ? new Date().toISOString() : null, b.closed ? 1 : 0, cid).run();
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'PATCH') {

@@ -3,11 +3,12 @@ import { Archive, ChevronDown, Clock3, LockKeyhole, MapPin, UsersRound } from 'l
 import { adminApi, type AdminArchivedCampaign } from '../services/api';
 import { Pager, number } from './AdminCommon';
 
-type ArchiveFilter = 'all' | 'closed' | 'finished';
+type ArchiveFilter = 'all' | 'closed' | 'finished' | 'abandoned';
 const FILTERS: Array<{ key: ArchiveFilter; label: string }> = [
   { key: 'all', label: '全部封存' },
   { key: 'closed', label: '已封车' },
   { key: 'finished', label: '已结团' },
+  { key: 'abandoned', label: '弃团' },
 ];
 const hkTime = (value: string | null) => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '—';
 
@@ -48,8 +49,8 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
           const isOpen = expanded === c.id;
           return <article key={c.id} className="bauhaus-card bg-white">
             <button type="button" onClick={() => setExpanded(isOpen ? null : c.id)} className="w-full flex flex-wrap items-center gap-3 p-4 text-left cursor-pointer">
-              <span className={`shrink-0 px-2 py-1 border-2 border-[#121212] text-[11px] font-black ${c.status === 'finished' ? 'bg-[#FAE7E7] text-[#B51F1F]' : 'bg-[#FFF0D6] text-[#8A5A00]'}`}>
-                {c.status === 'finished' ? '已结团' : '已封车'}
+              <span className={`shrink-0 px-2 py-1 border-2 border-[#121212] text-[11px] font-black ${c.status === 'finished' ? 'bg-[#FAE7E7] text-[#B51F1F]' : c.abandoned ? 'bg-[#E8E4DA] text-[#5B5646]' : 'bg-[#FFF0D6] text-[#8A5A00]'}`}>
+                {c.status === 'finished' ? '已结团' : c.abandoned ? '弃团' : '已封车'}
               </span>
               <div className="min-w-0 flex-1">
                 <strong className="block text-sm break-words">{c.title}</strong>
