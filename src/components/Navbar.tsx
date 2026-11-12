@@ -113,9 +113,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         src="/zgb-logo.png"
         alt=""
         aria-hidden="true"
-        className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
+        className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
       />
-      <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
+      <h1 className="text-[28px] sm:text-[34px] font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
         诸告板
       </h1>
     </button>
@@ -123,12 +123,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const actionContent = (
     <div className="flex max-w-full flex-wrap items-center justify-end gap-2 sm:gap-2.5">
-      {currentUser?.isAdmin && <a href="/admin" className="bauhaus-btn bg-[#004E98] text-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm gap-1.5"><Shield size={15} />后台</a>}
+      {currentUser?.isAdmin && <a href="/admin" className="bauhaus-btn h-8 sm:h-9 bg-[#004E98] text-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm gap-1.5"><Shield size={15} />后台</a>}
       {/* 签到按钮：在头像左侧，保留签到交互 */}
       <button
         onClick={onDailyCheckIn}
         disabled={alreadyCheckedIn}
-        className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-bold border-2 border-[#121212] flex items-center gap-1.5 cursor-pointer transition-all ${
+        className={`h-8 sm:h-9 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-bold border-2 border-[#121212] flex items-center gap-1.5 cursor-pointer transition-all ${
           alreadyCheckedIn
             ? 'bg-[#E5E5E0] text-[#888888] cursor-not-allowed border-[#121212]'
             : 'bg-[#F4A261] text-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#e7924d] hover:shadow-[3px_3px_0px_#121212] active:translate-y-0.5'
@@ -155,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => setIsDropdownOpen((prev) => !prev)}
           aria-haspopup="true"
           aria-expanded={isDropdownOpen}
-          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white border-2 border-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#FAF9F5] hover:shadow-[3px_3px_0px_#121212] cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
+          className="flex items-center gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 py-1.5 bg-white border-2 border-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#FAF9F5] hover:shadow-[3px_3px_0px_#121212] cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
           title="用户设置与操作菜单"
         >
           <span className="font-bold text-xs sm:text-sm text-[#121212] max-w-[85px] sm:max-w-[110px] truncate">
@@ -256,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         type="button"
         onClick={() => { if (!currentUser) onOpenLogin(); }}
         title={currentUser ? `${currentUser.name} 的个人头像` : '点击登录'}
-        className={`w-8 h-8 text-white font-black text-xs flex items-center justify-center overflow-hidden shrink-0 ${selfIsMember ? 'gilded-avatar' : 'bg-[#121212] border-2 border-[#121212] shadow-[2px_2px_0px_#121212]'} ${currentUser ? '' : 'cursor-pointer'}`}
+        className={`h-8 w-8 sm:h-9 sm:w-9 text-white font-black text-xs flex items-center justify-center overflow-hidden shrink-0 ${selfIsMember ? 'gilded-avatar' : 'bg-[#121212] border-2 border-[#121212] shadow-[2px_2px_0px_#121212]'} ${currentUser ? '' : 'cursor-pointer'}`}
       >
         {currentUser?.avatar ? (
           <img
@@ -281,7 +281,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => { setActiveTab('board'); setBoardView(view); }}
               aria-current={activeTab === 'board' && boardView === view ? 'page' : undefined}
-              className={`bauhaus-btn px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'board' && boardView === view ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
+              className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'board' && boardView === view ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
             >
               {label}
             </button>
@@ -295,7 +295,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               else onOpenLogin();
             }}
             aria-current={activeTab === 'manage' ? 'page' : undefined}
-            className={`bauhaus-btn px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'manage' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
+            className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'manage' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
           >
             团务管理
           </button>
@@ -304,7 +304,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => { setIsDropdownOpen(false); setActiveTab('resources'); }}
             aria-current={activeTab === 'resources' ? 'page' : undefined}
-            className={`bauhaus-btn px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'resources' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
+            className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'resources' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
           >
             爱心资源
           </button>
