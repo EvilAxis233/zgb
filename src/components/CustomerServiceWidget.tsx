@@ -63,31 +63,24 @@ export function CustomerServiceWidget({ userQq }: { userQq: string | null }) {
   };
 
   return (
-    <div className="bauhaus-card bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] flex flex-col">
-      <div className="p-3">
-        <div className="flex items-center gap-3">
-          <img src="/zgb-logo.png" alt="" aria-hidden="true" className="h-14 w-14 object-contain [image-rendering:pixelated] shrink-0" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-black leading-none">猪猪客服</h3>
-              {unread > 0 && !open && <span className="bg-[#D62828] text-white text-[10px] font-black px-1.5 py-0.5">{unread} 条未读</span>}
-            </div>
-          </div>
-        </div>
-
-        {userQq ? (
-          <button type="button" onClick={() => setOpen(true)} className="mt-3 w-full bauhaus-btn bg-[#D62828] text-white py-2 text-sm gap-1.5">
-            <MessageCircle size={15} />{unread > 0 ? `开始对话（${unread} 未读）` : '开始对话'}
-          </button>
-        ) : (
-          <a href="/" className="mt-3 block text-center bauhaus-btn bg-[#121212] text-white py-2 text-sm">登录后使用客服</a>
-        )}
+    <div className="bauhaus-card bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-3 flex flex-col items-center text-center">
+      {/* 1. 标题（纯文字） */}
+      <div className="flex items-center gap-2">
+        <h3 className="text-base font-black leading-none">猪猪客服</h3>
+        {unread > 0 && !open && <span className="bg-[#D62828] text-white text-[10px] font-black px-1.5 py-0.5">{unread} 条未读</span>}
       </div>
 
-      {/* 右下角放大版站点 LOGO，底边贴住卡片底部分割线 */}
-      <div className="mt-auto flex justify-end pl-3 pr-4 pb-0 -mb-1">
-        <img src="/zgb-logo.png" alt="" aria-hidden="true" className="h-20 w-20 object-contain [image-rendering:pixelated]" />
-      </div>
+      {/* 2. 居中放大的站点 LOGO */}
+      <img src="/zgb-logo.png" alt="" aria-hidden="true" className="my-2 h-24 w-24 object-contain [image-rendering:pixelated]" />
+
+      {/* 3. 开始对话 */}
+      {userQq ? (
+        <button type="button" onClick={() => setOpen(true)} className="w-full bauhaus-btn bg-[#D62828] text-white py-2 text-sm gap-1.5">
+          <MessageCircle size={15} />{unread > 0 ? `开始对话（${unread} 未读）` : '开始对话'}
+        </button>
+      ) : (
+        <a href="/" className="w-full block text-center bauhaus-btn bg-[#121212] text-white py-2 text-sm">登录后使用客服</a>
+      )}
 
       {open && userQq && (
         <div className="fixed bottom-4 right-4 z-[120] w-[min(92vw,380px)] h-[min(78vh,560px)] bg-white border-4 border-[#121212] shadow-[6px_6px_0px_#D62828] flex flex-col">

@@ -679,10 +679,13 @@ export async function onRequest(context) {
       // 后台「封存团务」：已封车 / 已结团的网团与面团（宣群「结束宣发」不在此列）。
       if (path[1] === 'archived-campaigns' && path.length === 2 && method === 'GET') {
         const raw = url.searchParams.get('status');
-        const status = raw === 'closed' || raw === 'finished' ? raw : 'all';
+        const status = raw === 'closed' || raw === 'finished' || raw === 'abandoned' ? raw : 'all';
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        // 三个筛选互斥：已封车（未结团且非弃团）/ 已结团 / 弃团（0 人报名即封车）。
         const where = `WHERE c.deleted_at IS NULL AND c.kind IN ('online','offline') AND (c.closed_at IS NOT NULL OR c.finished_at IS NOT NULL)`
-          + (status === 'closed' ? ' AND c.finished_at IS NULL' : status === 'finished' ? ' AND c.finished_at IS NOT NULL' : status === 'abandoned' ? ' AND c.is_abandoned=1' : '');
+          + (status === 'closed' ? ' AND c.finished_at IS NULL AND c.is_abandoned=0'
+            : status === 'finished' ? ' AND c.finished_at IS NOT NULL'
+              : status === 'abandoned' ? ' AND c.is_abandoned=1 AND c.finished_at IS NULL' : '');
         const [count, rows] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM campaigns c ${where}`),
           db.prepare(`SELECT c.*,u.name gm_name,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where} ORDER BY COALESCE(c.finished_at,c.closed_at) DESC,c.id DESC LIMIT 30 OFFSET ?`).bind(offset)
