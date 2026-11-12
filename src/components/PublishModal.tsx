@@ -171,7 +171,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       return;
     }
     if (!timeSlots.length) {
-      showAlert({ title: '提示', message: `请在日历中选择开团日期及开团时段（${PERIOD_HINT}）`, type: 'warning' });
+      showAlert({ title: '提示', message: kind === 'promo' ? `请在日历中选择宣群截止日期及时段（${PERIOD_HINT}）` : `请在日历中选择开团日期及开团时段（${PERIOD_HINT}）`, type: 'warning' });
       return;
     }
 
@@ -269,13 +269,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="relative flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 my-auto w-full max-w-[1540px]">
-        {/* 左侧悬浮：开团时间设定面板 (与右侧预览等宽 440px，自适应内容高度) */}
+        {/* 左侧悬浮：开团时间 / 宣群截止时间设定面板 (与右侧预览等宽 440px，自适应内容高度) */}
         <div className="hidden lg:flex w-[440px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden self-start">
           {/* Header */}
           <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 bg-[#D62828] inline-block" />
-              <h3 className="text-sm font-black tracking-wider">开团时间</h3>
+              <h3 className="text-sm font-black tracking-wider">{kind === 'promo' ? '宣群截止时间' : '开团时间'}</h3>
             </div>
             <span className="text-[10px] text-[#E0E0E0] bg-[#222] px-2 py-0.5 font-bold border border-[#444]">
               {kind === 'online' ? '今日起 31 天内' : '未来日期不限月数'}
@@ -561,14 +561,17 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
                 {/* Time Schedule (表单内状态提示栏) */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-[#121212]">
-                      开团时间 <span className="text-[#D62828]">*</span>
-                    </label>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
+                      <label className="block font-bold text-[#121212] shrink-0">
+                        {kind === 'promo' ? '宣群截止时间' : '开团时间'} <span className="text-[#D62828]">*</span>
+                      </label>
+                      {kind !== 'promo' && <span className="text-[11px] font-bold text-[#666]">多选时间为同战役模组批量开团</span>}
+                    </div>
                     {kind === 'promo' ? (
-                      <span className="hidden sm:inline text-xs font-bold text-[#D62828]">宣群只能选择 1 个时间</span>
+                      <span className="hidden sm:inline shrink-0 text-xs font-bold text-[#D62828]">宣群只能选择 1 个时间</span>
                     ) : (
-                      <span className="hidden lg:inline text-xs font-bold text-[#004E98]">
+                      <span className="hidden lg:inline shrink-0 text-xs font-bold text-[#004E98]">
                         ← 请在左侧悬浮日历中选择
                       </span>
                     )}
@@ -607,7 +610,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       onClick={() => setShowMobileCalendar(!showMobileCalendar)}
                       className="w-full py-1.5 px-3 text-xs font-bold bg-[#EAE8E0] hover:bg-[#DEDCD2] text-[#121212] border border-[#121212] flex items-center justify-center gap-1 cursor-pointer"
                     >
-                      <span>{showMobileCalendar ? '收起开团日历' : '展开选择开团日历与时段'}</span>
+                      <span>{showMobileCalendar ? (kind === 'promo' ? '收起截止日历' : '收起开团日历') : (kind === 'promo' ? '展开选择宣群截止日历与时段' : '展开选择开团日历与时段')}</span>
                     </button>
                     {showMobileCalendar && (
                       <div className="mt-2 border-2 border-[#121212] p-2 bg-white">
