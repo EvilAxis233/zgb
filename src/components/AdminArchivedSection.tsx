@@ -97,7 +97,7 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
                 </button>
               </div>
 
-              <strong className="block text-sm leading-snug break-words line-clamp-2 min-h-[2.75em]" title={c.title}>{c.title}</strong>
+              <strong className={`block text-sm leading-snug break-words line-clamp-2 ${open ? '' : 'min-h-[2.75em]'}`} title={c.title}>{c.title}</strong>
 
               {open && <div className="flex flex-col gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2 text-[11px] leading-snug text-[#444]">
                 <div className="font-bold text-[#666] min-w-0">
