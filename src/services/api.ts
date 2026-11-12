@@ -206,6 +206,8 @@ export interface AdminNotices {
   chat: number;
   /** 猪猪客服里尚未被查看的玩家消息总数（用于角标参考）。 */
   chatUnread: number;
+  /** 待审核的分享资源条数（审核完才清零）。 */
+  resource: number;
 }
 
 export const adminApi = {

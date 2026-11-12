@@ -14,7 +14,7 @@ const STATUS_STYLE: Record<string, string> = { pending: 'bg-[#FFF4D6] text-[#7A4
 const hkTime = (value: string | null) => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '—';
 
 /** 后台「资源审核」：通过后才会展示在首页爱心资源；改过链接的资源会自动回到待审核。 */
-export function AdminResourcesSection({ onNotice, onError }: { onNotice: (message: string) => void; onError: (error: unknown) => void }) {
+export function AdminResourcesSection({ onNotice, onError, onPendingChange }: { onNotice: (message: string) => void; onError: (error: unknown) => void; onPendingChange?: (pending: number) => void }) {
   const { showConfirm } = useDialog();
   const [filter, setFilter] = useState<ReviewFilter>('pending');
   const [offset, setOffset] = useState(0);
@@ -27,12 +27,15 @@ export function AdminResourcesSection({ onNotice, onError }: { onNotice: (messag
   const [reload, setReload] = useState(0);
   const onErrorRef = useRef(onError);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  // 待审条数同步给父级，导航按钮上的红点能即时消长。
+  const onPendingChangeRef = useRef(onPendingChange);
+  useEffect(() => { onPendingChangeRef.current = onPendingChange; }, [onPendingChange]);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     adminApi.resources(filter, offset)
-      .then((data) => { if (alive) { setItems(data.items); setTotal(data.total); setCounts(data.counts); } })
+      .then((data) => { if (alive) { setItems(data.items); setTotal(data.total); setCounts(data.counts); onPendingChangeRef.current?.(data.counts.pending); } })
       .catch((error) => { if (alive) onErrorRef.current(error); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -67,8 +70,9 @@ export function AdminResourcesSection({ onNotice, onError }: { onNotice: (messag
     <div className="flex flex-wrap items-end justify-between gap-3 mb-4 border-b-2 border-[#121212] pb-3">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="审核状态">
         {tabs.map((tab) => <button key={tab.key} type="button" role="tab" aria-selected={filter === tab.key} onClick={() => changeFilter(tab.key)}
-          className={`bauhaus-btn px-4 py-2 text-sm gap-1.5 ${filter === tab.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>
+          className={`bauhaus-btn relative px-4 py-2 text-sm gap-1.5 ${filter === tab.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>
           {tab.label}<span className="text-[11px]">({number(tab.count)})</span>
+          {tab.key === 'pending' && tab.count > 0 && <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#D62828] border-2 border-white rounded-full" title={`${number(tab.count)} 条资源待审核`} aria-label={`${number(tab.count)} 条资源待审核`} />}
         </button>)}
       </div>
       <p className="text-[11px] font-bold text-[#666]">新分享与「改过链接」的分享需审核 · 只改标题 / 备注 / 标签不重新审核</p>
