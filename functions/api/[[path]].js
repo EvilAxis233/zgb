@@ -443,7 +443,8 @@ export async function onRequest(context) {
     if (Date.now() - lastSweepAt > 60000) {
       lastSweepAt = Date.now();
       // 按早/午/晚各自的封车时间关团：早场当日 12:00、午场当日 18:00、晚场次日 00:00（UTC+8）。
-      await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END
+      // 宣群不参与弃团标记：它本来就没有报名，若按「0 人 = 弃团」处理会在 30 天后连历史记录一起被清理。
+      await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN kind IN ('online','offline') AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END
         WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL
         AND CASE time_period
           WHEN '早' THEN datetime(substr(COALESCE(scheduled_date,time_schedule),1,10)||' 12:00:00')
