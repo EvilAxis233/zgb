@@ -145,6 +145,7 @@ export interface CampaignDetail extends Campaign { members: CampaignMember[]; }
 
 // 爱心资源：玩家分享的规则下载地址 / 在线查询地址。
 export type ResourceCategory = 'rulebook' | 'module' | 'tool' | 'fun';
+export type ResourceReviewStatus = 'pending' | 'approved' | 'rejected';
 export interface RuleResource {
   id: string;
   name: string;
@@ -155,6 +156,9 @@ export interface RuleResource {
   flags: string[];
   uploaderName: string;
   uploaderAvatar?: string;
+  // 新分享 / 改过链接的分享为 pending，管理员通过后才会出现在爱心资源页。
+  reviewStatus: ResourceReviewStatus;
+  reviewNote: string;
   createdAt: string;
   updatedAt: string;
   mine: boolean;

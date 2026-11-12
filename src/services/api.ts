@@ -121,10 +121,11 @@ export interface AdminDashboard {
     total: number; online_total: number; offline_total: number;
     recruiting: number; online_recruiting: number; offline_recruiting: number;
     closed: number; online_closed: number; offline_closed: number;
-    finished: number; deleted: number;
+    finished: number; deleted: number; abandoned: number;
     promo_live: number; promo_history: number; promo_total: number;
     members: number; avg_fill_rate: number;
   };
+  resourceReviews: { pending: number };
   engagement: { memberships: number; praises: number; gm_praises: number; player_praises: number; active_sessions: number; online_now: number };
   submissions: { total: number; feedback: number; reports: number; pending: number; processing: number; resolved: number; rejected: number };
   campaignKinds: Array<{ kind: 'online' | 'offline' | 'promo'; total: number; alive: number; active: number; closed: number; finished: number }>;
@@ -136,6 +137,45 @@ export interface AdminDashboard {
 }
 
 export type UserTicket = Pick<AdminSubmission, 'id' | 'type' | 'content' | 'status' | 'created_at' | 'updated_at' | 'images' | 'reported_name' | 'reported_qq'>;
+
+/** 后台「封存团务」：已封车 / 已结团的团，含主持人、报名名单与完整内容供管理核查。 */
+export interface AdminArchivedCampaign {
+  id: string;
+  title: string;
+  rule: string;
+  kind: 'online' | 'offline';
+  gmQq: string;
+  gmName: string;
+  timeSchedule: string;
+  scheduledDate: string;
+  timePeriod: string;
+  maxPlayers: number;
+  memberCount: number;
+  summary: string;
+  description: string;
+  contact: string;
+  sessionType: string;
+  platforms: string[];
+  province: string;
+  city: string;
+  address: string;
+  imageUrl: string;
+  status: 'closed' | 'finished';
+  closedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  members: Array<{ qq: string; name: string }>;
+}
+
+/** 后台「资源审核」：比公开列表多上传者 QQ 与审核人信息。 */
+export interface AdminResource extends RuleResource {
+  uploaderQq: string;
+  createdAtFull: string;
+  updatedAtFull: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+}
+export interface AdminResourceCounts { pending: number; approved: number; rejected: number }
 
 export interface AdminSubmission {
   id: string;
@@ -168,4 +208,8 @@ export const adminApi = {
   unblacklist: (qq: string) => request<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { method: 'DELETE' }),
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),
   updateSubmission: (id: string, status: AdminSubmission['status'], adminNote: string) => patch(`admin/submissions/${id}`, { status, adminNote }),
+  archivedCampaigns: (status: 'all' | 'closed' | 'finished', offset: number) => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}`),
+  resources: (status: 'pending' | 'approved' | 'rejected' | 'all', offset: number) => request<{ items: AdminResource[]; total: number; counts: AdminResourceCounts }>(`admin/resources?status=${status}&offset=${offset}`),
+  reviewResource: (id: string, status: 'pending' | 'approved' | 'rejected', note = '') => patch<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { status, note }),
+  deleteResource: (id: string) => request<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };

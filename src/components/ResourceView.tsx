@@ -21,6 +21,9 @@ const TYPE_STYLE: Record<RuleResource['type'], string> = {
   wiki: 'bg-[#E6F0FA] text-[#004E98]',
   other: 'bg-[#EEEAE0] text-[#555]',
 };
+// 审核状态只在「我的分享」里显示给分享者本人；公开列表本来只有已通过的资源。
+const REVIEW_LABEL: Record<string, string> = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
+const REVIEW_STYLE: Record<string, string> = { pending: 'bg-[#FFF4D6] text-[#7A4B00]', rejected: 'bg-[#FAF0F0] text-[#B51F1F]' };
 // 标签：语言四选一必选，来源可多选；展示在「网盘下载」等类型标签左边。
 const LANGUAGE_OPTIONS = [
   { key: 'zh', label: '中文' },
@@ -48,7 +51,7 @@ const FLAG_STYLE: Record<string, string> = {
   machine: 'bg-[#F3E9FA] text-[#7A2E9E]',
 };
 // 链接不强制前缀：没有协议时自动补 https:// 供点击；危险协议降级为不可点击文本。
-const safeHref = (raw: string) => {
+export const safeHref = (raw: string) => {
   const value = (raw || '').trim();
   if (!value || /^\s*(javascript|data|vbscript|file)\s*:/i.test(value)) return '';
   return /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
@@ -81,6 +84,9 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
             : <span>{item.name}</span>}
         </h3>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {item.reviewStatus && item.reviewStatus !== 'approved' && (
+            <span className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${REVIEW_STYLE[item.reviewStatus] || REVIEW_STYLE.pending}`}>{REVIEW_LABEL[item.reviewStatus] || '待审核'}</span>
+          )}
           {showCategory && <span className="border-2 border-[#121212] bg-[#FFF0D6] px-1.5 py-0.5 text-[10px] font-black">{CATEGORY_LABEL[categoryOf(item)]}</span>}
           {(item.flags || []).map((flag) => FLAG_LABEL[flag] && (
             <span key={flag} className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${FLAG_STYLE[flag]}`}>{FLAG_LABEL[flag]}</span>
@@ -89,6 +95,8 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
         </div>
       </div>
       <p className="mt-2 min-h-[18px] break-words text-xs leading-relaxed text-[#666]">{item.note || '（未填写备注）'}</p>
+      {item.reviewStatus === 'pending' && <p className="mt-1 text-[10px] font-black text-[#7A4B00]">管理员审核通过后才会展示在爱心资源页。</p>}
+      {item.reviewStatus === 'rejected' && <p className="mt-1 text-[10px] font-black text-[#B51F1F]">未通过审核{item.reviewNote ? `：${item.reviewNote}` : ''}；修改后重新提交即可再审。</p>}
       {/* 不展示网址也不放按钮：点击标题即可打开链接；无有效链接时标题为纯文本。 */}
       {!href && <p className="mt-1 text-[10px] font-black text-[#999]">链接不可用</p>}
       <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-[#CFCBC0] pt-3 text-[11px] font-bold text-[#666]">
@@ -198,6 +206,11 @@ export function ResourceEditor({ initial, defaultCategory, onClose, onSaved }: {
           <label className="block text-xs font-black">链接地址 <span className="text-[#D62828]">*</span>
             <input value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="网盘链接或在线查询页面地址，不强制写前缀" className="bauhaus-input mt-1 w-full p-2 text-sm font-bold" />
           </label>
+          <p className="-mt-1.5 text-[10px] font-black leading-relaxed text-[#B51F1F]">
+            {initial
+              ? '改动链接地址后本条分享会重新进入审核，通过前不会展示；只改标题 / 备注 / 标签 / 分页不会重新审核。'
+              : '提交后需管理员审核通过，才会展示在爱心资源页。'}
+          </p>
           <label className="block text-xs font-black">
             <span className="flex items-end justify-between gap-2">
               <span>备注（选填，最多 30 个中文字符 / 60 个英文字符）</span>
@@ -227,6 +240,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
   const [category, setCategory] = useState<ResourceCategory>(DEFAULT_CATEGORY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [editor, setEditor] = useState<RuleResource | 'new' | null>(null);
   const lastQuery = useRef(query);
 
@@ -262,11 +276,17 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
   };
 
   const saved = (item: RuleResource) => {
+    // 待审核 / 被驳回的分享不会出现在公开列表；给分享者一句明确反馈，避免以为没保存成功。
+    const status = item.reviewStatus || 'approved';
+    setNotice(status === 'pending'
+      ? '已提交！管理员审核通过后才会展示在爱心资源页，可在个人档案「我的分享」里查看状态。'
+      : status === 'rejected' ? '已保存，但仍需管理员重新审核通过后才会展示。' : '');
     // 检索状态下新增/改名可能不再匹配当前关键词，直接按当前关键词重载最稳妥。
     if (query.trim()) { void load(query.trim(), category); return; }
-    setItems((prev) => categoryOf(item) === category
-      ? [item, ...prev.filter((x) => x.id !== item.id)]
-      : prev.filter((x) => x.id !== item.id));
+    setItems((prev) => {
+      const rest = prev.filter((x) => x.id !== item.id);
+      return categoryOf(item) === category && status === 'approved' ? [item, ...rest] : rest;
+    });
   };
 
   return (
@@ -304,6 +324,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
         </div>
         <span className="border-2 border-[#121212] bg-[#F2F0E8] px-3 py-2.5 text-xs font-black">共 {items.length} 条</span>
       </div>
+      {notice && <div className="bauhaus-card mb-4 flex items-start gap-2 border-l-8 border-l-[#004E98] bg-[#F0F5FA] p-3 text-xs font-black leading-relaxed text-[#004E98]"><span className="flex-1">{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="关闭提示" className="cursor-pointer text-[#004E98]"><X className="h-3.5 w-3.5" /></button></div>}
       {error && <div className="bauhaus-card mb-4 bg-[#FAF0F0] p-4 text-sm font-bold text-[#B51F1F]">{error}<button type="button" onClick={() => void load(query.trim(), category)} className="ml-3 underline">重试</button></div>}
       {loading && !error && <div className="bauhaus-card p-10 text-center text-sm font-bold text-[#666]">加载中…</div>}
       {!loading && !error && items.length === 0 && (

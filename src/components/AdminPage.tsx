@@ -1,20 +1,22 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Activity, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileSliders, Flag, LayoutDashboard, LogOut, MessageSquareText, Plus, Shield, Trash2, UsersRound } from 'lucide-react';
-import { adminApi, type AdminDashboard, type AdminSubmission, type AdminUser, type MembershipGrant } from '../services/api';
+import { Activity, Archive, BarChart3, FileSliders, LayoutDashboard, LogOut, MessageSquareText, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
+import { adminApi, type AdminDashboard, type AdminUser, type MembershipGrant } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
-import { statusLabels, statusClasses } from '../utils/submissions';
+import { AdminTicketsSection } from './AdminTicketsSection';
+import { AdminArchivedSection } from './AdminArchivedSection';
+import { AdminResourcesSection } from './AdminResourcesSection';
+import { number } from './AdminCommon';
 import { useDialog } from './BauhausDialog';
 
-const SUBMISSION_PAGE_SIZE = 30;
-type AdminSection = 'dashboard' | 'content' | 'users' | 'feedback' | 'report';
+type AdminSection = 'dashboard' | 'content' | 'users' | 'tickets' | 'archive' | 'resources';
 const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: '数据看板', icon: LayoutDashboard },
   { id: 'content', label: '内容配置', icon: FileSliders },
   { id: 'users', label: '账号', icon: UsersRound },
-  { id: 'feedback', label: '反馈受理', icon: MessageSquareText },
-  { id: 'report', label: '举报受理', icon: Flag },
+  { id: 'tickets', label: '反馈与举报', icon: MessageSquareText },
+  { id: 'archive', label: '封存团务', icon: Archive },
+  { id: 'resources', label: '资源审核', icon: ShieldCheck },
 ];
-const number = (value: unknown) => Number(value || 0).toLocaleString('zh-CN');
 
 function MetricCard({ label, value, note, tone = 'blue', live = false }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black'; live?: boolean }) {
   const color = { red: '#D62828', blue: '#004E98', yellow: '#C85C16', black: '#121212' }[tone];
@@ -75,13 +77,13 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
     <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3 shrink-0">
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">团务状态</h3><span className="text-[10px] font-bold text-[#777]">仅网团 / 面团 · 封车与结团各自独立统计</span></div>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center"><StatCell label="招募中" value={c.recruiting} color="#004E98" /><StatCell label="封车" value={c.closed} color="#C85C16" /><StatCell label="结团" value={c.finished} color="#D62828" /><StatCell label="累计报名" value={e.memberships} /><StatCell label="平均满员率" value={`${number(c.avg_fill_rate)}%`} /></div>
-        <p className="text-[10px] text-[#777] mt-1">已删除团 {number(c.deleted)} · 报名数与满员率均不含宣群</p>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center"><StatCell label="招募中" value={c.recruiting} color="#004E98" /><StatCell label="封车" value={c.closed} color="#C85C16" /><StatCell label="结团" value={c.finished} color="#D62828" /><StatCell label="弃团" value={c.abandoned} color="#5B5646" /><StatCell label="累计报名" value={e.memberships} /><StatCell label="平均满员率" value={`${number(c.avg_fill_rate)}%`} /></div>
+        <p className="text-[10px] text-[#777] mt-1">弃团 = 主持人删除的团（自本统计上线起累计）· 报名数与满员率均不含宣群</p>
       </section>
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3><span className="text-[10px] font-bold text-[#777]">受理状态</span></div>
         <div className="grid grid-cols-4 gap-2 text-center"><StatCell label="反馈总数" value={sub.feedback} color="#004E98" /><StatCell label="举报总数" value={sub.reports} color="#D62828" /><StatCell label="已解决" value={sub.resolved} /><StatCell label="已驳回" value={sub.rejected} /></div>
-        <p className="text-[10px] text-[#777] mt-1">默认展开未处理工单，已处理记录折叠</p>
+        <p className="text-[10px] text-[#777] mt-1">未处理工单默认展开，已解决与已驳回折叠 · 待审资源 {number(data.resourceReviews?.pending)} 条</p>
       </section>
     </div>
   </div>;
@@ -96,10 +98,7 @@ export function AdminPage() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);
   const [myRole, setMyRole] = useState<'owner' | 'admin' | null>(null);
-  const [submissions, setSubmissions] = useState<AdminSubmission[]>([]), [submissionTotal, setSubmissionTotal] = useState(0), [submissionOffset, setSubmissionOffset] = useState(0), [submissionStatus, setSubmissionStatus] = useState('open'), [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
-  const [doneSubmissions, setDoneSubmissions] = useState<AdminSubmission[]>([]), [doneTotal, setDoneTotal] = useState(0), [doneOffset, setDoneOffset] = useState(0);
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
-  const submissionType = activeSection === 'report' ? 'report' : 'feedback';
   const message = (error: unknown) => setNotice(error instanceof Error ? error.message : '操作失败');
   // 用户列表与「会员数量」一起刷新，避免发放会员后统计滞后。
   const applyUsers = (data: { users: AdminUser[]; total: number; memberTotal?: number }) => {
@@ -108,16 +107,6 @@ export function AdminPage() {
   };
   const loadDashboard = async () => { setDashboardLoading(true); try { setDashboard(await adminApi.dashboard()); } catch (error) { message(error); } finally { setDashboardLoading(false); } };
   const loadRules = async () => setRules((await adminApi.rules()).rules);
-  // 主列表默认只显示未处理；已处理单独取一页，放在折叠区里，默认收起。
-  const loadSubmissions = async () => {
-    const [data, done] = await Promise.all([
-      adminApi.submissions(submissionType, submissionStatus, submissionOffset),
-      adminApi.submissions(submissionType, 'done', doneOffset),
-    ]);
-    setSubmissions(data.submissions); setSubmissionTotal(data.total);
-    setDoneSubmissions(done.submissions); setDoneTotal(done.total);
-    setDraftNotes(Object.fromEntries([...data.submissions, ...done.submissions].map((item) => [item.id, item.admin_note])));
-  };
 
   useEffect(() => { adminApi.me().then((data) => { setAuthenticated(data.authenticated); setMyRole(data.role); }).catch(() => setAuthenticated(false)); }, []);
   useEffect(() => { if (authenticated && activeSection === 'dashboard') loadDashboard(); }, [authenticated, activeSection]);
@@ -136,7 +125,6 @@ export function AdminPage() {
   useEffect(() => { if (authenticated && activeSection === 'content') loadRules().catch(message); }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset).then(applyUsers).catch(message); }, [authenticated, activeSection, search, userOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.grants(selected.qq, grantOffset).then((data) => { setGrants(data.records); setGrantTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, grantOffset]);
-  useEffect(() => { if (authenticated && (activeSection === 'feedback' || activeSection === 'report')) loadSubmissions().catch(message); }, [authenticated, activeSection, submissionStatus, submissionOffset, doneOffset]);
 
   const logout = async () => { try { await adminApi.logout(); setAuthenticated(false); setDashboard(null); setSelected(null); } catch (error) { message(error); } };
   const addRule = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { await adminApi.addRule(newRule.trim()); setNewRule(''); await loadRules(); setNotice('规则已添加'); } catch (error) { message(error); } finally { setBusy(false); } };
@@ -165,8 +153,7 @@ export function AdminPage() {
       setNotice(makeAdmin ? '已任命为管理员' : '已取消管理员权限');
     } catch (error) { message(error); } finally { setBusy(false); }
   };
-  const updateSubmission = async (item: AdminSubmission, status: AdminSubmission['status']) => { setBusy(true); try { await adminApi.updateSubmission(item.id, status, draftNotes[item.id] || ''); await loadSubmissions(); setNotice(`${item.type === 'report' ? '举报' : '反馈'}状态已更新`); } catch (error) { message(error); } finally { setBusy(false); } };
-  const changeSection = (id: AdminSection) => { setActiveSection(id); setNotice(''); if (id === 'feedback' || id === 'report') { setSubmissionOffset(0); setDoneOffset(0); setSubmissionStatus('open'); } };
+  const changeSection = (id: AdminSection) => { setActiveSection(id); setNotice(''); };
 
   const fitDashboard = activeSection === 'dashboard' && authenticated === true;
   return <div className={`min-h-screen bg-[#F6F5F0] text-[#121212] font-sans ${fitDashboard ? 'lg:h-screen lg:flex lg:flex-col lg:overflow-hidden' : ''}`}><header className="bg-white border-b-4 border-[#121212] shrink-0"><div className={`${fitDashboard ? 'w-full max-w-none lg:px-6' : 'max-w-7xl mx-auto'} px-4 py-4 flex items-center justify-between gap-3`}><div className="flex items-center gap-3"><span className="w-7 h-7 bg-[#D62828] border-2 border-[#121212]" /><div><h1 className="text-xl font-black leading-none">诸告板 · 后台</h1><p className="text-xs text-[#666] mt-1">数据、配置与内容受理中心</p></div></div><div className="flex items-center gap-2 text-xs font-bold"><a href="/" className="bauhaus-btn bg-white px-3 py-2">返回首页</a>{authenticated && <button onClick={async () => { if (await showConfirm({ title: '退出后台', message: '确定退出后台登录吗？退出后需要重新登录才能管理站点。', confirmText: '确定退出', type: 'warning' })) logout(); }} className="bauhaus-btn bg-[#121212] text-white px-3 py-2 gap-1"><LogOut size={14} />退出</button>}</div></div></header><main className={fitDashboard ? 'w-full max-w-none px-4 lg:px-6 py-3 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden' : 'max-w-7xl mx-auto px-4 py-7'}>
@@ -185,7 +172,9 @@ export function AdminPage() {
       {activeSection === 'dashboard' && <div className={fitDashboard ? 'lg:flex-1 lg:min-h-0' : ''}><Dashboard data={dashboard} loading={dashboardLoading} /></div>}
       {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} setNewRule={setNewRule} addRule={addRule} deleteRule={deleteRule} />}
       {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} searchInput={searchInput} userOffset={userOffset} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
-      {(activeSection === 'feedback' || activeSection === 'report') && <SubmissionsSection key={activeSection} kind={submissionType} submissions={submissions} total={submissionTotal} offset={submissionOffset} status={submissionStatus} busy={busy} notes={draftNotes} doneSubmissions={doneSubmissions} doneTotal={doneTotal} doneOffset={doneOffset} setDoneOffset={setDoneOffset} setStatus={(value) => { setSubmissionStatus(value); setSubmissionOffset(0); }} setOffset={setSubmissionOffset} setNote={(id, value) => setDraftNotes((current) => ({ ...current, [id]: value }))} update={updateSubmission} />}
+      {activeSection === 'tickets' && <AdminTicketsSection onNotice={setNotice} onError={message} />}
+      {activeSection === 'archive' && <AdminArchivedSection onError={message} />}
+      {activeSection === 'resources' && <AdminResourcesSection onNotice={setNotice} onError={message} />}
     </>}
   </main></div>;
 }
@@ -207,21 +196,3 @@ function ContentSection(props: { rules: string[]; newRule: string; busy: boolean
   </div>;
 }
 function ItemList({ items, onDelete, busy }: { items: string[]; onDelete: (v: string) => void; busy: boolean }) { return <ul className="space-y-2 max-h-[520px] overflow-y-auto pr-1">{items.map((item) => <li key={item} className="flex items-center justify-between gap-2 border border-[#121212] bg-[#FAF9F5] px-3 py-2 text-sm"><span className="font-bold break-all">{item}</span><button disabled={busy} onClick={() => onDelete(item)} aria-label={`删除 ${item}`} className="text-[#D62828] cursor-pointer"><Trash2 size={16} /></button></li>)}</ul>; }
-
-function SubmissionsSection(props: { kind: 'feedback' | 'report'; submissions: AdminSubmission[]; total: number; offset: number; status: string; busy: boolean; notes: Record<string, string>; doneSubmissions: AdminSubmission[]; doneTotal: number; doneOffset: number; setDoneOffset: (v: number) => void; setStatus: (v: string) => void; setOffset: (v: number) => void; setNote: (id: string, v: string) => void; update: (item: AdminSubmission, status: AdminSubmission['status']) => void }) {
-  const [showDone, setShowDone] = useState(false);
-  const renderItem = (item: AdminSubmission) => <article key={item.id} className="bauhaus-card bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#CCC] pb-3"><div className="flex items-center gap-3"><span className={`px-2 py-1 border text-xs font-black ${statusClasses[item.status]}`}>{statusLabels[item.status]}</span><div><strong className="block text-sm">{item.user_name} <span className="font-mono text-[#666]">({item.user_qq})</span></strong><time className="text-[11px] text-[#777]">{new Date(item.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div></div><span className="font-mono text-[10px] text-[#888]">{item.id}</span></div>{item.type === 'report' && <p className="mt-4 text-sm font-bold text-[#B51F1F]">被举报人：{item.reported_name || '未关联账号'} {item.reported_qq ? `(${item.reported_qq})` : ''}</p>}<p className="whitespace-pre-wrap text-sm leading-6 py-4">{item.content}</p>{item.images.length > 0 && <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-9 gap-2 mb-4">{item.images.map((src, index) => <a key={src} href={src} target="_blank" rel="noreferrer" className="aspect-square border-2 border-[#121212] overflow-hidden bg-[#EEE]"><img src={src} alt={`提交图片 ${index + 1}`} className="w-full h-full object-cover" /></a>)}</div>}<div className="grid md:grid-cols-[1fr_auto] gap-3 items-end border-t border-[#CCC] pt-4"><div><label htmlFor={`note-${item.id}`} className="block text-xs font-black mb-1">管理员受理备注</label><textarea id={`note-${item.id}`} rows={2} maxLength={2000} value={props.notes[item.id] || ''} onChange={(e) => props.setNote(item.id, e.target.value)} placeholder="填写核查结果、处理方式或内部备注…" className="bauhaus-input w-full px-3 py-2 text-sm" /></div><div className="flex flex-wrap gap-2"><button disabled={props.busy} onClick={() => props.update(item, item.status)} className="bauhaus-btn bg-white px-3 py-2 text-xs">保存备注</button>{item.status !== 'processing' && <button disabled={props.busy} onClick={() => props.update(item, 'processing')} className="bauhaus-btn bg-[#004E98] text-white px-3 py-2 text-xs"><Clock3 size={14} />处理中</button>}<button disabled={props.busy} onClick={() => props.update(item, 'resolved')} className="bauhaus-btn bg-[#176B57] text-white px-3 py-2 text-xs"><CheckCircle2 size={14} />已解决</button><button disabled={props.busy} onClick={() => props.update(item, 'rejected')} className="bauhaus-btn bg-white text-[#B51F1F] px-3 py-2 text-xs">驳回</button></div></div></article>;
-  return <section><div className="flex flex-wrap items-center justify-between gap-3 mb-4"><p className="text-sm text-[#666]">默认只显示未处理的工单；已处理的收在下方折叠区，点开才看。图片可点击查看原图。</p><select aria-label="筛选受理状态" value={props.status} onChange={(e) => props.setStatus(e.target.value)} className="bauhaus-input px-3 py-2 text-sm font-bold"><option value="open">未处理（待受理 + 处理中）</option><option value="done">已处理（已解决 + 已驳回）</option><option value="">全部状态</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><div className="space-y-4">{props.submissions.map(renderItem)}{!props.submissions.length && <div className="bauhaus-card bg-white p-12 text-center text-sm text-[#666]">{props.status === 'open' ? '暂无未处理的' : '当前筛选条件下没有'}{props.kind === 'report' ? '举报' : '反馈'}记录{props.status === 'open' && '，已处理记录见下方折叠区'}</div>}</div><Pager offset={props.offset} total={props.total} size={SUBMISSION_PAGE_SIZE} setOffset={props.setOffset} />{props.status === 'open' && <details onToggle={(e) => setShowDone(e.currentTarget.open)} className="mt-6 border-t-2 border-[#121212] pt-4">
-    <summary className="list-none cursor-pointer flex items-center gap-2 text-sm font-black py-1">
-      <ChevronRight size={16} className={`transition-transform ${showDone ? 'rotate-90' : ''}`} />
-      已处理记录（{props.doneTotal} 条）· 点击展开
-    </summary>
-    <div className="mt-4 space-y-4">
-      {props.doneSubmissions.map(renderItem)}
-      {!props.doneSubmissions.length && <div className="bauhaus-card bg-white p-8 text-center text-sm text-[#666]">暂无已处理记录</div>}
-      <Pager offset={props.doneOffset} total={props.doneTotal} size={SUBMISSION_PAGE_SIZE} setOffset={props.setDoneOffset} />
-    </div>
-  </details>}
-  </section>;
-}
-function Pager({ offset, total, size, setOffset }: { offset: number; total: number; size: number; setOffset: (v: number) => void }) { return <div className="flex items-center justify-end gap-3 mt-5 text-xs font-bold"><button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - size))} className="bauhaus-btn bg-white p-1" aria-label="上一页"><ChevronLeft size={17} /></button><span>{total ? offset + 1 : 0}–{Math.min(offset + size, total)} / {total}</span><button disabled={offset + size >= total} onClick={() => setOffset(offset + size)} className="bauhaus-btn bg-white p-1" aria-label="下一页"><ChevronRight size={17} /></button></div>; }

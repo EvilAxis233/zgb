@@ -119,14 +119,24 @@ const parseResourceFlags = (s) => {
   return RESOURCE_FLAG_ORDER.filter((v) => picked.has(v)); // 固定顺序：语言在前、来源在后
 };
 const resourceSelect = 'SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq';
+const RESOURCE_REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected']);
+const resourceReviewStatus = (r) => RESOURCE_REVIEW_STATUSES.has(r.review_status) ? r.review_status : 'approved';
 const resourceDto = (r, viewerQq, admin) => ({
   id: r.id, name: r.name, url: r.url, type: r.type, note: r.note || '',
   category: RESOURCE_CATEGORIES.has(r.category) ? r.category : RESOURCE_CATEGORY_DEFAULT,
   flags: parseResourceFlags(r.flags),
   uploaderName: r.uploader_name || '未命名', uploaderAvatar: assetUrl(r.uploader_avatar_key),
+  reviewStatus: resourceReviewStatus(r), reviewNote: r.review_note || '',
   createdAt: (r.created_at || '').slice(0, 10), updatedAt: (r.updated_at || '').slice(0, 10),
   mine: !!viewerQq && viewerQq === r.uploader_qq,
   canManage: (!!viewerQq && viewerQq === r.uploader_qq) || !!admin,
+});
+// 后台审核列表专用：管理员可以看到上传者 QQ、审核人与完整时间，不下发给普通访客。
+const adminResourceDto = (r) => ({
+  ...resourceDto(r, null, true),
+  uploaderQq: r.uploader_qq,
+  createdAtFull: r.created_at || '', updatedAtFull: r.updated_at || '',
+  reviewedAt: r.reviewed_at || null, reviewedBy: r.reviewed_by || null,
 });
 const resourceInput = (b, base = {}) => {
   const name = b.name === undefined ? (base.name || '') : clean(b.name, 60);
@@ -469,7 +479,7 @@ export async function onRequest(context) {
         const thirtyDaysAgo = new Date(`${today}T00:00:00+08:00`);
         thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
         const asDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
-        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns] = await db.batch([
+        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources] = await db.batch([
           db.prepare(`SELECT COUNT(*) total,
             SUM(CASE WHEN substr(created_at,1,10)=? THEN 1 ELSE 0 END) today,
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last7,
@@ -518,10 +528,16 @@ export async function onRequest(context) {
             FROM campaigns GROUP BY kind ORDER BY total DESC`).bind(today),
           db.prepare(`SELECT rule,COUNT(*) total FROM campaigns WHERE deleted_at IS NULL GROUP BY rule ORDER BY total DESC,rule LIMIT 8`),
           db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM users WHERE substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
-          db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE kind IN ('online','offline') AND substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo))
+          db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE kind IN ('online','offline') AND substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
+          // 弃团来自物理删除前的日志；宣群历史记录删除（kind='promo'）不计入。
+          db.prepare(`SELECT COUNT(*) abandoned FROM campaign_abandons WHERE kind IN ('online','offline')`),
+          db.prepare(`SELECT COUNT(*) pending FROM rule_resources WHERE review_status='pending'`)
         ]);
         return json({
-          users: users.results[0], campaigns: campaigns.results[0], engagement: engagement.results[0], submissions: submissions.results[0],
+          users: users.results[0],
+          campaigns: { ...campaigns.results[0], abandoned: Number(abandons.results[0].abandoned || 0) },
+          engagement: engagement.results[0], submissions: submissions.results[0],
+          resourceReviews: { pending: Number(pendingResources.results[0].pending || 0) },
           campaignKinds: campaignKinds.results, topRules: topRules.results, dailyUsers: dailyUsers.results, dailyCampaigns: dailyCampaigns.results,
           onlineWindow: 15, generatedAt: new Date().toISOString()
         });
@@ -657,6 +673,72 @@ export async function onRequest(context) {
         const result = await db.prepare(`UPDATE submissions SET status=?,admin_note=?,updated_at=?,resolved_at=CASE WHEN ? IN ('resolved','rejected') THEN ? ELSE NULL END WHERE id=?`).bind(status, adminNote, updatedAt, status, updatedAt, path[2]).run();
         return result.meta.changes ? json({ ok: true }) : fail('记录不存在', 404);
       }
+      // 后台「封存团务」：已封车 / 已结团的网团与面团（宣群「结束宣发」不在此列）。
+      if (path[1] === 'archived-campaigns' && path.length === 2 && method === 'GET') {
+        const raw = url.searchParams.get('status');
+        const status = raw === 'closed' || raw === 'finished' ? raw : 'all';
+        const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        const where = `WHERE c.deleted_at IS NULL AND c.kind IN ('online','offline') AND (c.closed_at IS NOT NULL OR c.finished_at IS NOT NULL)`
+          + (status === 'closed' ? ' AND c.finished_at IS NULL' : status === 'finished' ? ' AND c.finished_at IS NOT NULL' : '');
+        const [count, rows] = await db.batch([
+          db.prepare(`SELECT COUNT(*) n FROM campaigns c ${where}`),
+          db.prepare(`SELECT c.*,u.name gm_name,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where} ORDER BY COALESCE(c.finished_at,c.closed_at) DESC,c.id DESC LIMIT 30 OFFSET ?`).bind(offset)
+        ]);
+        const ids = rows.results.map((row) => row.id);
+        const members = ids.length
+          ? await db.prepare(`SELECT m.campaign_id,u.qq,u.name FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id IN (${ids.map(() => '?').join(',')}) ORDER BY m.joined_at`).bind(...ids).all()
+          : null;
+        const byId = new Map();
+        (members?.results || []).forEach((m) => byId.set(m.campaign_id, [...(byId.get(m.campaign_id) || []), { qq: m.qq, name: m.name }]));
+        return json({
+          items: rows.results.map((c) => ({
+            id: c.id, title: c.title, rule: c.rule, kind: c.kind,
+            gmQq: c.gm_qq, gmName: c.gm_name || '未命名',
+            timeSchedule: c.time_schedule, scheduledDate: c.scheduled_date, timePeriod: c.time_period,
+            maxPlayers: c.max_players, memberCount: Number(c.member_count || 0),
+            summary: c.summary || '', description: c.description || '', contact: c.contact || '',
+            sessionType: c.session_type || '', platforms: parseTags(c.platforms),
+            province: c.province || '', city: c.city || '', address: c.address || '',
+            imageUrl: assetUrl(c.image_key),
+            status: c.finished_at ? 'finished' : 'closed',
+            closedAt: c.closed_at || null, finishedAt: c.finished_at || null, createdAt: c.created_at || '',
+            members: byId.get(c.id) || []
+          })),
+          total: count.results[0].n
+        });
+      }
+      // 后台「资源审核」：默认看待审核，通过后才会出现在爱心资源页。
+      if (path[1] === 'resources' && path.length === 2 && method === 'GET') {
+        const raw = url.searchParams.get('status');
+        const status = ['pending', 'approved', 'rejected', 'all'].includes(raw) ? raw : 'pending';
+        const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        const clause = status === 'all' ? '' : ` WHERE COALESCE(r.review_status,'approved')='${status}'`;
+        const order = ` ORDER BY CASE COALESCE(r.review_status,'approved') WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END,r.created_at DESC,r.id DESC`;
+        const [count, rows] = await db.batch([
+          db.prepare(`SELECT COUNT(*) n FROM rule_resources r${clause}`),
+          db.prepare(`${resourceSelect}${clause}${order} LIMIT 30 OFFSET ?`).bind(offset)
+        ]);
+        const counts = await db.prepare(`SELECT
+          COALESCE(SUM(CASE WHEN review_status='pending' THEN 1 ELSE 0 END),0) pending,
+          COALESCE(SUM(CASE WHEN COALESCE(review_status,'approved')='approved' THEN 1 ELSE 0 END),0) approved,
+          COALESCE(SUM(CASE WHEN review_status='rejected' THEN 1 ELSE 0 END),0) rejected
+          FROM rule_resources`).first();
+        return json({ items: rows.results.map(adminResourceDto), total: count.results[0].n, counts });
+      }
+      if (path[1] === 'resources' && path[2] && path.length === 3 && method === 'PATCH') {
+        const b = await body(request);
+        const status = ['pending', 'approved', 'rejected'].includes(b.status) ? b.status : '';
+        if (!status) return fail('审核状态无效');
+        const note = clean(b.note, 200);
+        const operator = await auth(request, db);
+        const result = await db.prepare('UPDATE rule_resources SET review_status=?,review_note=?,reviewed_at=?,reviewed_by=? WHERE id=?')
+          .bind(status, status === 'approved' ? '' : note, new Date().toISOString(), operator?.qq || 'admin', path[2]).run();
+        return result.meta.changes ? json({ ok: true }) : fail('资源不存在', 404);
+      }
+      if (path[1] === 'resources' && path[2] && path.length === 3 && method === 'DELETE') {
+        const result = await db.prepare('DELETE FROM rule_resources WHERE id=?').bind(path[2]).run();
+        return result.meta.changes ? json({ ok: true }) : fail('资源不存在', 404);
+      }
       return fail('接口不存在', 404);
     }
     if (path[0] === 'auth' && path[1] === 'request-code' && method === 'POST') {
@@ -734,10 +816,11 @@ export async function onRequest(context) {
     if (path[0] === 'resources' && path.length === 1 && method === 'GET') {
       const q = clean(url.searchParams.get('q') || '', 60).replace(/[%_\\]/g, '');
       const cat = url.searchParams.get('cat') || '';
-      const where = [], binds = [];
+      // 公开列表只展示审核通过的资源；待审核 / 已驳回仍可在「我的分享」里看到。
+      const where = [`COALESCE(r.review_status,'approved')='approved'`], binds = [];
       if (q) { where.push('r.name LIKE ?'); binds.push(`%${q}%`); }
       if (RESOURCE_CATEGORIES.has(cat)) { where.push('r.category=?'); binds.push(cat); }
-      const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+      const clause = ` WHERE ${where.join(' AND ')}`;
       const stmt = db.prepare(`${resourceSelect}${clause} ORDER BY r.created_at DESC, r.id DESC LIMIT 200`);
       const rows = binds.length ? await stmt.bind(...binds).all() : await stmt.all();
       return json({ items: rows.results.map((r) => resourceDto(r, user?.qq, isSiteAdmin(user))) });
@@ -864,11 +947,13 @@ export async function onRequest(context) {
       if (input.error) return fail(input.error);
       const total = await db.prepare('SELECT COUNT(*) n FROM rule_resources WHERE uploader_qq=?').bind(user.qq).first();
       if (Number(total?.n || 0) >= 50) return fail('每人最多分享 50 条资源', 409);
-      const rid = id(), iso = new Date().toISOString();
-      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,flags,category,uploader_qq,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-        .bind(rid, input.name, input.url, input.type, input.note, input.flags, input.category, user.qq, iso, iso).run();
+      const rid = id(), iso = new Date().toISOString(), adminPost = isSiteAdmin(user);
+      // 玩家新分享先进待审核；站主 / 管理员自己发布视为已通过。
+      await db.prepare('INSERT INTO rule_resources(id,name,url,type,note,flags,category,uploader_qq,created_at,updated_at,review_status,reviewed_at,reviewed_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .bind(rid, input.name, input.url, input.type, input.note, input.flags, input.category, user.qq, iso, iso,
+          adminPost ? 'approved' : 'pending', adminPost ? iso : null, adminPost ? user.qq : null).run();
       const row = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(rid).first();
-      return json({ item: resourceDto(row, user.qq, isSiteAdmin(user)) });
+      return json({ item: resourceDto(row, user.qq, adminPost) });
     }
     if (path[0] === 'resources' && path[1] && path.length === 2 && (method === 'PATCH' || method === 'DELETE')) {
       const row = await db.prepare('SELECT * FROM rule_resources WHERE id=?').bind(path[1]).first();
@@ -880,10 +965,20 @@ export async function onRequest(context) {
       }
       const input = resourceInput(await body(request), row);
       if (input.error) return fail(input.error);
-      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,flags=?,category=?,updated_at=? WHERE id=?')
-        .bind(input.name, input.url, input.type, input.note, input.flags, input.category, new Date().toISOString(), row.id).run();
+      const adminEdit = isSiteAdmin(user);
+      // 只有链接被改动（或被驳回后重新编辑）才回到待审核；只改标题 / 备注 / 标签 / 分页 / 类型不改变审核状态。
+      const urlChanged = input.url !== (row.url || '');
+      const needsReview = urlChanged || (row.review_status === 'rejected' && !adminEdit);
+      const iso = new Date().toISOString();
+      const nextStatus = needsReview ? (adminEdit ? 'approved' : 'pending') : resourceReviewStatus(row);
+      const nextNote = needsReview ? '' : (row.review_note || '');
+      const nextReviewedAt = needsReview ? (adminEdit ? iso : null) : (row.reviewed_at || null);
+      const nextReviewedBy = needsReview ? (adminEdit ? user.qq : null) : (row.reviewed_by || null);
+      await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,flags=?,category=?,review_status=?,review_note=?,reviewed_at=?,reviewed_by=?,updated_at=? WHERE id=?')
+        .bind(input.name, input.url, input.type, input.note, input.flags, input.category,
+          nextStatus, nextNote, nextReviewedAt, nextReviewedBy, iso, row.id).run();
       const updated = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(row.id).first();
-      return json({ item: resourceDto(updated, user.qq, isSiteAdmin(user)) });
+      return json({ item: resourceDto(updated, user.qq, adminEdit) });
     }
     // 贴纸广场：会员可浏览其他会员公开的贴纸库，并把某张复制进自己的库存。
     if (path[0] === 'sticker-plaza' && path.length === 1 && method === 'GET') {
@@ -1260,7 +1355,10 @@ export async function onRequest(context) {
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'DELETE') {
+        // 团是物理删除的，先留一条弃团日志，后台看板才能统计「弃团」。
         await db.batch([
+          db.prepare('INSERT INTO campaign_abandons(id,campaign_id,gm_qq,actor_qq,title,kind,rule,created_at,abandoned_at) VALUES(?,?,?,?,?,?,?,?,?)')
+            .bind(id(), cid, c.gm_qq, user.qq, c.title, c.kind, c.rule || '', c.created_at || '', new Date().toISOString()),
           db.prepare('UPDATE users SET received_gm=MAX(0,received_gm-(SELECT COUNT(*) FROM praises WHERE campaign_id=? AND to_qq=users.qq AND type=\'gm\')),received_player=MAX(0,received_player-(SELECT COUNT(*) FROM praises WHERE campaign_id=? AND to_qq=users.qq AND type=\'player\'))').bind(cid, cid),
           db.prepare('DELETE FROM praises WHERE campaign_id=?').bind(cid),
           db.prepare('DELETE FROM campaign_memberships WHERE campaign_id=?').bind(cid),
