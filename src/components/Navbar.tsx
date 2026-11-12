@@ -115,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         aria-hidden="true"
         className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 object-contain [image-rendering:pixelated] transition-transform group-hover:-translate-y-0.5"
       />
-      <h1 className="text-[28px] sm:text-[34px] font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
+      <h1 className="text-[26px] sm:text-[30px] font-black tracking-tight leading-none text-[#121212] group-hover:text-[#D62828] transition-colors">
         诸告板
       </h1>
     </button>
