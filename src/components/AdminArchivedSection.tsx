@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Archive, ChevronDown, Clock3, LockKeyhole, MapPin, UsersRound } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Archive, ChevronDown, Clock3, LockKeyhole, MapPin, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminArchivedCampaign } from '../services/api';
 import { Pager, number } from './AdminCommon';
 
@@ -12,6 +12,18 @@ const FILTERS: Array<{ key: ArchiveFilter; label: string }> = [
 ];
 const hkTime = (value: string | null) => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '—';
 
+// 弃团记录默认保留 30 天（与后端自动清理规则一致）。
+const ABANDON_KEEP_DAYS = 30;
+const purgeAt = (closedAt: string | null) => closedAt ? new Date(new Date(closedAt).getTime() + ABANDON_KEEP_DAYS * 86400000) : null;
+const purgeLabel = (closedAt: string | null) => {
+  const p = purgeAt(closedAt);
+  return p ? p.toLocaleDateString('zh-CN', { timeZone: 'Asia/Hong_Kong' }) : '—';
+};
+const daysLeft = (closedAt: string | null) => {
+  const p = purgeAt(closedAt);
+  return p ? Math.max(0, Math.ceil((p.getTime() - Date.now()) / 86400000)) : 0;
+};
+
 /** 后台「封存团务」：查看已封车 / 已结团的网团与面团，可展开看完整内容与报名名单。 */
 export function AdminArchivedSection({ onError }: { onError: (error: unknown) => void }) {
   const [filter, setFilter] = useState<ArchiveFilter>('all');
@@ -20,20 +32,36 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const onErrorRef = useRef(onError);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     setLoading(true);
     adminApi.archivedCampaigns(filter, offset)
-      .then((data) => { if (alive) { setItems(data.items); setTotal(data.total); setExpanded(null); } })
-      .catch((error) => { if (alive) onErrorRef.current(error); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+      .then((data) => { setItems(data.items); setTotal(data.total); setExpanded(null); })
+      .catch((error) => onErrorRef.current(error))
+      .finally(() => setLoading(false));
   }, [filter, offset]);
+  useEffect(() => { load(); }, [load]);
 
   const changeFilter = (next: ArchiveFilter) => { setFilter(next); setOffset(0); };
+
+  const keep = async (id: string) => {
+    setBusy(id);
+    try {
+      await adminApi.keepAbandoned(id);
+      load();
+    } catch (error) { onErrorRef.current(error); } finally { setBusy(null); }
+  };
+  const remove = async (id: string) => {
+    if (!window.confirm('确定直接删除这条弃团记录吗？删除后仅后台封存不可见，数据仍可恢复。')) return;
+    setBusy(id);
+    try {
+      await adminApi.deleteAbandoned(id);
+      load();
+    } catch (error) { onErrorRef.current(error); } finally { setBusy(null); }
+  };
 
   return <section>
     <div className="flex flex-wrap items-end justify-between gap-3 mb-4 border-b-2 border-[#121212] pb-3">
@@ -62,6 +90,16 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
               </div>
               <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
+            {c.abandoned && <div className="flex flex-wrap items-center gap-2 px-4 pb-3 -mt-1">
+              {c.kept
+                ? <span className="text-[11px] font-bold text-[#5B7A4B]">已保留（不自动清理）</span>
+                : <span className="text-[11px] font-bold text-[#8A5A00]">将于 {purgeLabel(c.closedAt)} 自动清理（剩 {daysLeft(c.closedAt)} 天）</span>}
+              <span className="flex-1" />
+              {!c.kept && <button type="button" onClick={() => keep(c.id)} disabled={busy === c.id}
+                className="bauhaus-btn px-3 py-1 text-xs bg-white disabled:opacity-50">保留记录</button>}
+              <button type="button" onClick={() => remove(c.id)} disabled={busy === c.id}
+                className="bauhaus-btn px-3 py-1 text-xs bg-[#B51F1F] text-white disabled:opacity-50 flex items-center gap-1"><Trash2 size={13} />直接删除</button>
+            </div>}
             {isOpen && <div className="border-t-2 border-dashed border-[#CFCBC0] px-4 py-3 grid gap-3 md:grid-cols-[1.4fr_1fr] text-xs">
               <div className="space-y-2 min-w-0">
                 <p><b>详情：</b></p>
@@ -80,6 +118,6 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
           </article>;
         })}</div>}
     <Pager offset={offset} total={total} setOffset={setOffset} />
-    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。</p>
+    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
   </section>;
 }

@@ -78,7 +78,7 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">团务状态</h3><span className="text-[10px] font-bold text-[#777]">仅网团 / 面团 · 封车与结团各自独立统计</span></div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center"><StatCell label="招募中" value={c.recruiting} color="#004E98" /><StatCell label="封车" value={c.closed} color="#C85C16" /><StatCell label="结团" value={c.finished} color="#D62828" /><StatCell label="弃团" value={c.abandoned} color="#5B5646" /><StatCell label="累计报名" value={e.memberships} /><StatCell label="平均满员率" value={`${number(c.avg_fill_rate)}%`} /></div>
-        <p className="text-[10px] text-[#777] mt-1">弃团 = 0 人报名即封车的团（自本统计上线起累计）· 报名数与满员率均不含宣群</p>
+        <p className="text-[10px] text-[#777] mt-1">弃团 = 0 人报名即封车的团，默认保留 30 天后自动清理（可在封存团务里「保留记录」留存）· 报名数与满员率均不含宣群</p>
       </section>
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3><span className="text-[10px] font-bold text-[#777]">受理状态</span></div>

@@ -167,6 +167,7 @@ export interface AdminArchivedCampaign {
   imageUrl: string;
   status: 'closed' | 'finished';
   abandoned: boolean;
+  kept: boolean;
   closedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -215,6 +216,8 @@ export const adminApi = {
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),
   updateSubmission: (id: string, status: AdminSubmission['status'], adminNote: string) => patch(`admin/submissions/${id}`, { status, adminNote }),
   archivedCampaigns: (status: 'all' | 'closed' | 'finished' | 'abandoned', offset: number) => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}`),
+  keepAbandoned: (id: string) => post<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/keep`),
+  deleteAbandoned: (id: string) => request<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/abandoned`, { method: 'DELETE' }),
   resources: (status: 'pending' | 'approved' | 'rejected' | 'all', offset: number) => request<{ items: AdminResource[]; total: number; counts: AdminResourceCounts }>(`admin/resources?status=${status}&offset=${offset}`),
   reviewResource: (id: string, status: 'pending' | 'approved' | 'rejected', note = '') => patch<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { status, note }),
   deleteResource: (id: string) => request<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),

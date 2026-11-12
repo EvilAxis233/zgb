@@ -427,6 +427,9 @@ export async function onRequest(context) {
     if (Date.now() - lastSweepAt > 60000) {
       lastSweepAt = Date.now();
       await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END WHERE deleted_at IS NULL AND closed_at IS NULL AND finished_at IS NULL AND scheduled_date<?`).bind(new Date().toISOString(), dateHK()).run();
+      // 弃团记录默认保留 30 天：超过且未被「保留记录」的自动软删除（仅后台封存不可见，数据仍可恢复）。
+      const purgeBefore = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      await db.prepare(`UPDATE campaigns SET deleted_at=? WHERE deleted_at IS NULL AND is_abandoned=1 AND is_kept=0 AND closed_at IS NOT NULL AND closed_at < ?`).bind(new Date().toISOString(), purgeBefore).run();
     }
     if (path[0] === 'health' && method === 'GET') { await db.prepare('SELECT 1').first(); return json({ ok: true }); }
     if (path[0] === 'internal' && path[1] === 'bot') {
@@ -702,6 +705,7 @@ export async function onRequest(context) {
             imageUrl: assetUrl(c.image_key),
             status: c.finished_at ? 'finished' : 'closed',
             abandoned: !!c.is_abandoned,
+            kept: !!c.is_kept,
             closedAt: c.closed_at || null, finishedAt: c.finished_at || null, createdAt: c.created_at || '',
             members: byId.get(c.id) || []
           })),
@@ -1319,6 +1323,20 @@ export async function onRequest(context) {
         if (c.finished_at) return fail('已结团，不能重新开放', 409);
         if (!b.closed && campaignExpired(c)) return fail('预定时间已过，请先修改时间', 409);
         await db.prepare(`UPDATE campaigns SET closed_at=?, is_abandoned = CASE WHEN ?=1 AND (SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=campaigns.id)=0 THEN 1 ELSE 0 END WHERE id=?`).bind(b.closed ? new Date().toISOString() : null, b.closed ? 1 : 0, cid).run();
+        return json({ ok: true });
+      }
+      // 弃团记录保留：仅站务可「保留记录」或「直接删除」（软删除，仅后台封存不可见）。
+      if (path[2] === 'keep' && path.length === 3 && method === 'POST') {
+        if (!isSiteAdmin(user)) return fail('只有站务可以操作', 403);
+        if (!c) return fail('团不存在', 404);
+        await db.prepare('UPDATE campaigns SET is_kept=1 WHERE id=?').bind(cid).run();
+        return json({ ok: true });
+      }
+      if (path[2] === 'abandoned' && path.length === 3 && method === 'DELETE') {
+        if (!isSiteAdmin(user)) return fail('只有站务可以操作', 403);
+        if (!c) return fail('团不存在', 404);
+        if (!c.is_abandoned) return fail('该团不是弃团', 409);
+        await db.prepare('UPDATE campaigns SET deleted_at=? WHERE id=? AND is_abandoned=1').bind(new Date().toISOString(), cid).run();
         return json({ ok: true });
       }
       if (path.length === 2 && method === 'PATCH') {
