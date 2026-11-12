@@ -475,6 +475,32 @@ export async function onRequest(context) {
         return response;
       }
       if (!await adminAuth(request, db)) return fail('请先登录后台', 401);
+      // 后台「客服系统」未读红点：统计各板块自上次查看后新增的内容数。
+      if (path[1] === 'notices' && path.length === 2 && method === 'GET') {
+        const marks = await db.prepare('SELECT section, read_at FROM admin_read_marks').all();
+        const mark = (section) => marks.results.find((row) => row.section === section)?.read_at || '1970-01-01T00:00:00.000Z';
+        const [feedback, report, chat, chatUnread] = await db.batch([
+          db.prepare(`SELECT COUNT(*) n FROM submissions WHERE type='feedback' AND created_at>?`).bind(mark('feedback')),
+          db.prepare(`SELECT COUNT(*) n FROM submissions WHERE type='report' AND created_at>?`).bind(mark('report')),
+          db.prepare(`SELECT COUNT(*) n FROM chat_messages WHERE from_role='user' AND created_at>?`).bind(mark('chat')),
+          db.prepare(`SELECT COUNT(*) n FROM chat_messages WHERE from_role='user' AND read_at IS NULL`)
+        ]);
+        return json({
+          feedback: Number(feedback.results[0].n || 0),
+          report: Number(report.results[0].n || 0),
+          chat: Number(chat.results[0].n || 0),
+          chatUnread: Number(chatUnread.results[0].n || 0)
+        });
+      }
+      // 标记某板块为已查看（点开对应子页签时调用），红点随之消失。
+      if (path[1] === 'notices' && path[2] === 'view' && path.length === 3 && method === 'POST') {
+        const b = await body(request);
+        const section = ['feedback', 'report', 'chat'].includes(b.section) ? b.section : '';
+        if (!section) return fail('板块无效');
+        await db.prepare('INSERT INTO admin_read_marks(section,read_at) VALUES(?,?) ON CONFLICT(section) DO UPDATE SET read_at=excluded.read_at')
+          .bind(section, new Date().toISOString()).run();
+        return json({ ok: true });
+      }
       if (path[1] === 'dashboard' && path.length === 2 && method === 'GET') {
         const today = dateHK();
         const sevenDaysAgo = new Date(`${today}T00:00:00+08:00`);

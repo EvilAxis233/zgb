@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Activity, Archive, BarChart3, FileSliders, Headphones, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
-import { adminApi, type AdminDashboard, type AdminUser, type MembershipGrant } from '../services/api';
+import { adminApi, type AdminDashboard, type AdminNotices, type AdminUser, type MembershipGrant } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
 import { AdminSupportSection } from './AdminSupportSection';
 import { AdminArchivedSection } from './AdminArchivedSection';
@@ -98,6 +98,9 @@ export function AdminPage() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);
   const [myRole, setMyRole] = useState<'owner' | 'admin' | null>(null);
+  // 客服系统红点：三个板块任一有新内容即亮起，点开看过之后清零。
+  const [notices, setNotices] = useState<AdminNotices>({ feedback: 0, report: 0, chat: 0, chatUnread: 0 });
+  const noticeTotal = notices.feedback + notices.report + notices.chat;
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const message = (error: unknown) => setNotice(error instanceof Error ? error.message : '操作失败');
   // 用户列表与「会员数量」一起刷新，避免发放会员后统计滞后。
@@ -116,6 +119,16 @@ export function AdminPage() {
     const timer = window.setInterval(() => { adminApi.dashboard().then(setDashboard).catch(() => {}); }, 30_000);
     return () => window.clearInterval(timer);
   }, [authenticated, activeSection]);
+  // 客服系统红点：登录后每 30 秒静默拉一次未读数（切到客服系统时也会刷新）。
+  useEffect(() => {
+    if (!authenticated) return;
+    let alive = true;
+    const pull = () => { adminApi.notices().then((data) => { if (alive) setNotices(data); }).catch(() => {}); };
+    pull();
+    const timer = window.setInterval(pull, 30_000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [authenticated]);
+  useEffect(() => { if (authenticated && activeSection === 'support') adminApi.notices().then(setNotices).catch(() => {}); }, [authenticated, activeSection]);
   // 后台其它页面也要保持在线状态，避免切走后 15 分钟被判离线。
   useEffect(() => {
     if (!authenticated) return;
@@ -168,11 +181,11 @@ export function AdminPage() {
         <button type="button" onClick={() => window.location.reload()} className="bauhaus-btn bg-white px-4 py-2 text-sm">我已登录，刷新</button>
       </div>
     </section>}
-    {authenticated && <><nav aria-label="后台功能" className={`grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0 ${activeSection === 'dashboard' ? 'mb-2' : 'mb-6'}`}>{sections.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}</button>; })}</nav><div className={`${activeSection === 'dashboard' ? 'mb-2' : 'mb-5'} flex items-center gap-2 shrink-0`}><span className="w-3 h-3 bg-[#D62828]" /><h2 className={activeSection === 'dashboard' ? 'text-lg font-black' : 'text-2xl font-black'}>{sections.find((item) => item.id === activeSection)?.label}</h2></div>
+    {authenticated && <><nav aria-label="后台功能" className={`grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0 ${activeSection === 'dashboard' ? 'mb-2' : 'mb-6'}`}>{sections.map((item) => { const Icon = item.icon; const dot = item.id === 'support' && noticeTotal > 0; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn relative px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}{dot && <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#D62828] border-2 border-white rounded-full" title={`客服系统有 ${noticeTotal} 条新内容`} aria-label={`客服系统有 ${noticeTotal} 条新内容`} />}</button>; })}</nav><div className={`${activeSection === 'dashboard' ? 'mb-2' : 'mb-5'} flex items-center gap-2 shrink-0`}><span className="w-3 h-3 bg-[#D62828]" /><h2 className={activeSection === 'dashboard' ? 'text-lg font-black' : 'text-2xl font-black'}>{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <div className={fitDashboard ? 'lg:flex-1 lg:min-h-0' : ''}><Dashboard data={dashboard} loading={dashboardLoading} /></div>}
       {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} setNewRule={setNewRule} addRule={addRule} deleteRule={deleteRule} />}
       {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} searchInput={searchInput} userOffset={userOffset} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
-      {activeSection === 'support' && <AdminSupportSection onNotice={setNotice} onError={message} />}
+      {activeSection === 'support' && <AdminSupportSection notices={notices} onSeen={(section) => setNotices((prev) => ({ ...prev, [section]: 0 }))} onNotice={setNotice} onError={message} />}
       {activeSection === 'archive' && <AdminArchivedSection onError={message} />}
       {activeSection === 'resources' && <AdminResourcesSection onNotice={setNotice} onError={message} />}
     </>}

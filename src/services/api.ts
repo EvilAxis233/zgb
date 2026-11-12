@@ -200,9 +200,20 @@ export interface AdminSubmission {
   images: string[];
 }
 
+export interface AdminNotices {
+  feedback: number;
+  report: number;
+  chat: number;
+  /** 猪猪客服里尚未被查看的玩家消息总数（用于角标参考）。 */
+  chatUnread: number;
+}
+
 export const adminApi = {
   me: () => request<{ authenticated: boolean; role: 'owner' | 'admin' | null; name: string }>('admin/me'),
   logout: () => post('admin/logout'),
+  /** 客服系统红点：各板块自上次查看后的新增数。 */
+  notices: () => request<AdminNotices>('admin/notices'),
+  markNoticesViewed: (section: 'feedback' | 'report' | 'chat') => post<{ ok: boolean }>('admin/notices/view', { section }),
   dashboard: () => request<AdminDashboard>('admin/dashboard'),
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
