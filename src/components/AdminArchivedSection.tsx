@@ -63,7 +63,6 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
             </button>
             {isOpen && <div className="border-t-2 border-dashed border-[#CFCBC0] px-4 py-3 grid gap-3 md:grid-cols-[1.4fr_1fr] text-xs">
               <div className="space-y-2 min-w-0">
-                {c.summary && <p><b>简介：</b><span className="whitespace-pre-wrap break-words">{c.summary}</span></p>}
                 <p><b>详情：</b></p>
                 <p className="whitespace-pre-wrap break-words text-[#444] leading-relaxed border border-[#DDD] bg-[#FAF9F5] p-2 max-h-56 overflow-y-auto">{c.description || '（未填写）'}</p>
                 <p><b>联系方式：</b><span className="whitespace-pre-wrap break-words">{c.contact || '（未填写）'}</span></p>
@@ -75,7 +74,6 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
                 {c.kind === 'offline' && <p className="flex items-center gap-1.5"><MapPin size={14} />{[c.province, c.city, c.address].filter(Boolean).join(' ') || '—'}</p>}
                 <p className="flex items-center gap-1.5"><LockKeyhole size={14} />封车 {hkTime(c.closedAt)} · 结团 {hkTime(c.finishedAt)}</p>
                 <div><b>报名名单（{c.members.length}）：</b><div className="mt-1 flex flex-wrap gap-1">{c.members.length ? c.members.map((m) => <span key={m.qq} className="border border-[#121212] bg-[#F2F0E8] px-1.5 py-0.5 text-[10px] font-bold">{m.name}（{m.qq}）</span>) : <span className="text-[#888]">无</span>}</div></div>
-                {c.imageUrl && <a href={c.imageUrl} target="_blank" rel="noreferrer" className="inline-block border-2 border-[#121212] mt-1"><img src={c.imageUrl} alt="团封面" className="h-24 w-auto object-cover" /></a>}
               </div>
             </div>}
           </article>;
