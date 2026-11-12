@@ -75,11 +75,11 @@ export function CustomerServiceWidget({ userQq }: { userQq: string | null }) {
 
       {/* 3. 开始对话 */}
       {userQq ? (
-        <button type="button" onClick={() => setOpen(true)} className="w-full bauhaus-btn bg-[#D62828] text-white py-2 text-sm gap-1.5">
+        <button type="button" onClick={() => setOpen(true)} className="bauhaus-btn bg-[#D62828] text-white px-4 py-2 text-sm gap-1.5">
           <MessageCircle size={15} />{unread > 0 ? `开始对话（${unread} 未读）` : '开始对话'}
         </button>
       ) : (
-        <a href="/" className="w-full block text-center bauhaus-btn bg-[#121212] text-white py-2 text-sm">登录后使用客服</a>
+        <a href="/" className="bauhaus-btn bg-[#121212] text-white px-4 py-2 text-sm">登录后使用客服</a>
       )}
 
       {open && userQq && (
