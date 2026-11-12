@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, ChevronDown, Clock3, LockKeyhole, MapPin, Trash2, UsersRound } from 'lucide-react';
+import { Archive, CalendarDays, ChevronDown, ChevronUp, Clock3, MapPin, Phone, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminArchivedCampaign } from '../services/api';
 import { Pager, number } from './AdminCommon';
 
@@ -10,36 +10,36 @@ const FILTERS: Array<{ key: ArchiveFilter; label: string }> = [
   { key: 'finished', label: '已结团' },
   { key: 'abandoned', label: '弃团' },
 ];
-const hkTime = (value: string | null) => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '—';
+const hkDate = (value: string | null) => value ? new Date(value).toLocaleDateString('zh-CN', { timeZone: 'Asia/Hong_Kong' }) : '—';
 
 // 弃团记录默认保留 30 天（与后端自动清理规则一致）。
 const ABANDON_KEEP_DAYS = 30;
 const purgeAt = (closedAt: string | null) => closedAt ? new Date(new Date(closedAt).getTime() + ABANDON_KEEP_DAYS * 86400000) : null;
-const purgeLabel = (closedAt: string | null) => {
-  const p = purgeAt(closedAt);
-  return p ? p.toLocaleDateString('zh-CN', { timeZone: 'Asia/Hong_Kong' }) : '—';
-};
 const daysLeft = (closedAt: string | null) => {
   const p = purgeAt(closedAt);
   return p ? Math.max(0, Math.ceil((p.getTime() - Date.now()) / 86400000)) : 0;
 };
 
-/** 后台「封存团务」：查看已封车 / 已结团的网团与面团，可展开看完整内容与报名名单。 */
+/**
+ * 后台「封存团务」：已封车 / 已结团 / 弃团的网团与面团。
+ * 紧凑网格排布（宽屏 3 列 / 中屏 2 列 / 窄屏 1 列），不展示团介绍等长文本详情，只保留关键信息。
+ */
 export function AdminArchivedSection({ onError }: { onError: (error: unknown) => void }) {
   const [filter, setFilter] = useState<ArchiveFilter>('all');
   const [offset, setOffset] = useState(0);
   const [items, setItems] = useState<AdminArchivedCampaign[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // 折叠详情：同一时间只展开一张卡，避免网格被拉得高低不齐。
+  const [expanded, setExpanded] = useState<string | null>(null);
   const onErrorRef = useRef(onError);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   const load = useCallback(() => {
     setLoading(true);
     adminApi.archivedCampaigns(filter, offset)
-      .then((data) => { setItems(data.items); setTotal(data.total); setExpanded(null); })
+      .then((data) => { setItems(data.items); setTotal(data.total); })
       .catch((error) => onErrorRef.current(error))
       .finally(() => setLoading(false));
   }, [filter, offset]);
@@ -71,53 +71,77 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
       </div>
       <p className="text-[11px] font-bold text-[#666]">仅网团 / 面团 · 宣群「结束宣发」不在此列 · 共 {number(total)} 条</p>
     </div>
+
     {loading ? <div className="bauhaus-card bg-white p-12 text-center text-sm font-bold text-[#666]">正在读取封存团务…</div>
       : !items.length ? <div className="bauhaus-card bg-white p-12 text-center text-sm text-[#666]">当前筛选下暂无封存团务。团封车或结团后会自动出现在这里。</div>
-        : <div className="space-y-3">{items.map((c) => {
-          const isOpen = expanded === c.id;
-          return <article key={c.id} className="bauhaus-card bg-white">
-            <button type="button" onClick={() => setExpanded(isOpen ? null : c.id)} className="w-full flex flex-wrap items-center gap-3 p-4 text-left cursor-pointer">
-              <span className={`shrink-0 px-2 py-1 border-2 border-[#121212] text-[11px] font-black ${c.status === 'finished' ? 'bg-[#FAE7E7] text-[#B51F1F]' : c.abandoned ? 'bg-[#E8E4DA] text-[#5B5646]' : 'bg-[#FFF0D6] text-[#8A5A00]'}`}>
-                {c.status === 'finished' ? '已结团' : c.abandoned ? '弃团' : '已封车'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <strong className="block text-sm break-words">{c.title}</strong>
-                <span className="text-[11px] font-bold text-[#666]">{c.rule} · {c.kind === 'offline' ? '面团' : '网团'} · GM {c.gmName}（{c.gmQq}）</span>
+        : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+          {items.map((c) => {
+            const tag = c.status === 'finished'
+              ? { text: '已结团', cls: 'bg-[#FAE7E7] text-[#B51F1F]' }
+              : c.abandoned ? { text: '弃团', cls: 'bg-[#E8E4DA] text-[#5B5646]' } : { text: '已封车', cls: 'bg-[#FFF0D6] text-[#8A5A00]' };
+            const open = expanded === c.id;
+            // 平台/地址：网团看平台，面团看省市地址（直辖市/地址已含城市时不重复拼接）。
+            const region = c.province && c.city && (c.city.startsWith(c.province) || c.province.startsWith(c.city))
+              ? c.city : [c.province, c.city].filter(Boolean).join(' ');
+            const place = c.kind === 'offline'
+              ? (c.address && region && c.address.startsWith(region) ? c.address : [region, c.address].filter(Boolean).join(' ')) || '—'
+              : (c.platforms?.length ? c.platforms.join('、') : '—');
+            return <article key={c.id} className="bauhaus-card bg-white p-3 flex flex-col gap-2 min-w-0">
+              {/* 折叠态只留：状态标签 + 封存日期 + 团名，其余全部进「详情」 */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`shrink-0 px-2 py-0.5 border-2 border-[#121212] text-[11px] font-black ${tag.cls}`}>{tag.text}</span>
+                <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]">{hkDate(c.status === 'finished' ? c.finishedAt : c.closedAt)}</span>
+                <button type="button" onClick={() => setExpanded(open ? null : c.id)} aria-expanded={open}
+                  className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-black text-[#004E98] hover:text-[#D62828] cursor-pointer">
+                  {open ? <>收起<ChevronUp size={12} /></> : <>详情<ChevronDown size={12} /></>}
+                </button>
               </div>
-              <div className="shrink-0 text-[11px] font-bold text-[#666] text-right">
-                <span className="block">{c.scheduledDate} {c.timePeriod} · {c.timeSchedule}</span>
-                <span className="block">{c.status === 'finished' ? hkTime(c.finishedAt) : hkTime(c.closedAt)} 封存</span>
-              </div>
-              <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {c.abandoned && <div className="flex flex-wrap items-center gap-2 px-4 pb-3 -mt-1">
-              {c.kept
-                ? <span className="text-[11px] font-bold text-[#5B7A4B]">已保留（不自动清理）</span>
-                : <span className="text-[11px] font-bold text-[#8A5A00]">将于 {purgeLabel(c.closedAt)} 自动清理（剩 {daysLeft(c.closedAt)} 天）</span>}
-              <span className="flex-1" />
-              {!c.kept && <button type="button" onClick={() => keep(c.id)} disabled={busy === c.id}
-                className="bauhaus-btn px-3 py-1 text-xs bg-white disabled:opacity-50">保留记录</button>}
-              <button type="button" onClick={() => remove(c.id)} disabled={busy === c.id}
-                className="bauhaus-btn px-3 py-1 text-xs bg-[#B51F1F] text-white disabled:opacity-50 flex items-center gap-1"><Trash2 size={13} />直接删除</button>
-            </div>}
-            {isOpen && <div className="border-t-2 border-dashed border-[#CFCBC0] px-4 py-3 grid gap-3 md:grid-cols-[1.4fr_1fr] text-xs">
-              <div className="space-y-2 min-w-0">
-                <p><b>详情：</b></p>
-                <p className="whitespace-pre-wrap break-words text-[#444] leading-relaxed border border-[#DDD] bg-[#FAF9F5] p-2 max-h-56 overflow-y-auto">{c.description || '（未填写）'}</p>
-                <p><b>联系方式：</b><span className="whitespace-pre-wrap break-words">{c.contact || '（未填写）'}</span></p>
-                <p className="text-[11px] text-[#777]">团 ID：<span className="font-mono">{c.id}</span> · 发布时间 {hkTime(c.createdAt)}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="flex items-center gap-1.5"><UsersRound size={14} />报名 <b>{c.memberCount}/{c.maxPlayers}</b> 人</p>
-                <p className="flex items-center gap-1.5"><Clock3 size={14} />形式：{c.sessionType || '—'} · 平台：{c.platforms.length ? c.platforms.join(' / ') : '—'}</p>
-                {c.kind === 'offline' && <p className="flex items-center gap-1.5"><MapPin size={14} />{[c.province, c.city, c.address].filter(Boolean).join(' ') || '—'}</p>}
-                <p className="flex items-center gap-1.5"><LockKeyhole size={14} />封车 {hkTime(c.closedAt)} · 结团 {hkTime(c.finishedAt)}</p>
-                <div><b>报名名单（{c.members.length}）：</b><div className="mt-1 flex flex-wrap gap-1">{c.members.length ? c.members.map((m) => <span key={m.qq} className="border border-[#121212] bg-[#F2F0E8] px-1.5 py-0.5 text-[10px] font-bold">{m.name}（{m.qq}）</span>) : <span className="text-[#888]">无</span>}</div></div>
-              </div>
-            </div>}
-          </article>;
-        })}</div>}
+
+              <strong className="block text-sm leading-snug break-words line-clamp-2 min-h-[2.75em]" title={c.title}>{c.title}</strong>
+
+              {open && <div className="flex flex-col gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2 text-[11px] leading-snug text-[#444]">
+                <div className="font-bold text-[#666] min-w-0">
+                  <p className="truncate"><span className="text-[#121212]">{c.rule}</span> · {c.kind === 'offline' ? '面团' : '网团'}</p>
+                  <p className="truncate">GM {c.gmName}（{c.gmQq}）</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-bold text-[#444]">
+                  <span className="inline-flex items-center gap-1" title={`开团日期 ${c.scheduledDate}`}><CalendarDays size={12} />{c.scheduledDate.slice(5)}</span>
+                  <span className="inline-flex items-center gap-1" title={`时段 ${c.timePeriod}（${c.timeSchedule}）`}><Clock3 size={12} />{c.timePeriod}</span>
+                  <span className="inline-flex items-center gap-1" title="报名人数 / 满员人数"><UsersRound size={12} />{c.memberCount}/{c.maxPlayers}</span>
+                </div>
+
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <Phone size={12} className="mt-0.5 shrink-0" />
+                  <p className="min-w-0 break-all"><span className="font-black text-[#121212]">联系方式 </span>{c.contact || '—'}</p>
+                </div>
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <MapPin size={12} className="mt-0.5 shrink-0" />
+                  <p className="min-w-0 break-words"><span className="font-black text-[#121212]">{c.kind === 'offline' ? '地址 ' : '平台 '}</span>{place}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5"><UsersRound size={12} /><span className="font-black text-[#121212]">报名名单 {c.memberCount}/{c.maxPlayers}</span></p>
+                  {c.members.length
+                    ? <ul className="mt-1 pl-4 space-y-0.5">{c.members.map((m) => <li key={m.qq} className="truncate text-[#666]" title={`${m.name}（${m.qq}）`}>{m.name}（{m.qq}）</li>)}</ul>
+                    : <p className="mt-0.5 pl-4 text-[#888]">暂无报名成员</p>}
+                </div>
+
+                {c.abandoned && <div className="flex flex-wrap items-center gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2">
+                  {c.kept
+                    ? <span className="text-[10px] font-bold text-[#5B7A4B]">已保留（不自动清理）</span>
+                    : <span className="text-[10px] font-bold text-[#8A5A00]">剩 {daysLeft(c.closedAt)} 天自动清理</span>}
+                  <span className="flex-1" />
+                  {!c.kept && <button type="button" onClick={() => keep(c.id)} disabled={busy === c.id}
+                    className="bauhaus-btn px-2 py-0.5 text-[10px] bg-white disabled:opacity-50">保留记录</button>}
+                  <button type="button" onClick={() => remove(c.id)} disabled={busy === c.id}
+                    className="bauhaus-btn px-2 py-0.5 text-[10px] bg-[#B51F1F] text-white disabled:opacity-50 flex items-center gap-1"><Trash2 size={11} />直接删除</button>
+                </div>}
+              </div>}
+            </article>;
+          })}
+        </div>}
+
     <Pager offset={offset} total={total} setOffset={setOffset} />
-    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
+    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。卡片默认只显示团名与封存日期，点右上「详情」展开规则、GM、开团时间、联系方式、平台/地址与报名名单（团介绍不展示）。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
   </section>;
 }
