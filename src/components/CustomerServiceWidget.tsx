@@ -85,7 +85,7 @@ export function CustomerServiceWidget({ userQq }: { userQq: string | null }) {
       </div>
 
       {/* 右下角放大版站点 LOGO，底边贴住卡片底部分割线 */}
-      <div className="mt-auto flex justify-end px-3 pb-0">
+      <div className="mt-auto flex justify-end pl-3 pr-4 pb-0 -mb-1">
         <img src="/zgb-logo.png" alt="" aria-hidden="true" className="h-20 w-20 object-contain [image-rendering:pixelated]" />
       </div>
 
