@@ -577,7 +577,7 @@ export function App() {
               </section>
 
               {/* Right Column: 筛选检索（保持原先宽度与日历组件） */}
-              <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:order-3 lg:sticky lg:top-20">
+              <aside className="w-full lg:w-60 xl:w-64 shrink-0 order-1 lg:order-3 lg:sticky lg:top-20 space-y-3">
                 <div className="bauhaus-card p-4 sm:p-5 bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] space-y-4">
                   <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2.5">
                     <div className="flex items-center gap-2">
@@ -663,9 +663,6 @@ export function App() {
                     activeDatesWithCampaigns={activeDatesWithCampaigns}
                   />
 
-                  {/* 猪猪客服：放在「按日期筛团」下方的站务对话入口 */}
-                  <CustomerServiceWidget userQq={currentUserQq} />
-
                   {/* Reset button */}
                   {(searchQuery ||
                     ruleFilter !== 'all' ||
@@ -684,6 +681,9 @@ export function App() {
                     </button>
                   )}
                 </div>
+
+                {/* 猪猪客服：独立放在「筛选检索」（含日期检索）整块结束后的下方，不占检索框 */}
+                <CustomerServiceWidget userQq={currentUserQq} />
               </aside>
             </div>
           </div>

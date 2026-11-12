@@ -63,7 +63,7 @@ export function CustomerServiceWidget({ userQq }: { userQq: string | null }) {
   };
 
   return (
-    <div className="bauhaus-card bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] p-3 flex flex-col items-center text-center">
+    <div className="flex flex-col items-center text-center px-1 py-1">
       {/* 1. 标题（纯文字） */}
       <div className="flex items-center gap-2">
         <h3 className="text-base font-black leading-none">猪猪客服</h3>
