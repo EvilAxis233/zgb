@@ -63,25 +63,31 @@ export function CustomerServiceWidget({ userQq }: { userQq: string | null }) {
   };
 
   return (
-    <div className="bauhaus-card bg-white p-3 border-2 border-[#121212] shadow-[4px_4px_0px_#121212]">
-      <div className="flex items-center gap-3">
-        <img src="/zgb-logo.png" alt="" aria-hidden="true" className="h-14 w-14 object-contain [image-rendering:pixelated] shrink-0" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-black leading-none">猪猪客服</h3>
-            {unread > 0 && !open && <span className="bg-[#D62828] text-white text-[10px] font-black px-1.5 py-0.5">{unread} 条未读</span>}
+    <div className="bauhaus-card bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212] flex flex-col">
+      <div className="p-3">
+        <div className="flex items-center gap-3">
+          <img src="/zgb-logo.png" alt="" aria-hidden="true" className="h-14 w-14 object-contain [image-rendering:pixelated] shrink-0" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-black leading-none">猪猪客服</h3>
+              {unread > 0 && !open && <span className="bg-[#D62828] text-white text-[10px] font-black px-1.5 py-0.5">{unread} 条未读</span>}
+            </div>
           </div>
-          <p className="text-[11px] text-[#666] mt-1 leading-tight">有疑问？直接找站务聊聊</p>
         </div>
+
+        {userQq ? (
+          <button type="button" onClick={() => setOpen(true)} className="mt-3 w-full bauhaus-btn bg-[#D62828] text-white py-2 text-sm gap-1.5">
+            <MessageCircle size={15} />{unread > 0 ? `开始对话（${unread} 未读）` : '开始对话'}
+          </button>
+        ) : (
+          <a href="/" className="mt-3 block text-center bauhaus-btn bg-[#121212] text-white py-2 text-sm">登录后使用客服</a>
+        )}
       </div>
 
-      {userQq ? (
-        <button type="button" onClick={() => setOpen(true)} className="mt-3 w-full bauhaus-btn bg-[#D62828] text-white py-2 text-sm gap-1.5">
-          <MessageCircle size={15} />{unread > 0 ? `开始对话（${unread} 未读）` : '开始对话'}
-        </button>
-      ) : (
-        <a href="/" className="mt-3 block text-center bauhaus-btn bg-[#121212] text-white py-2 text-sm">登录后使用客服</a>
-      )}
+      {/* 右下角放大版站点 LOGO，底边贴住卡片底部分割线 */}
+      <div className="mt-auto flex justify-end px-3 pb-0">
+        <img src="/zgb-logo.png" alt="" aria-hidden="true" className="h-20 w-20 object-contain [image-rendering:pixelated]" />
+      </div>
 
       {open && userQq && (
         <div className="fixed bottom-4 right-4 z-[120] w-[min(92vw,380px)] h-[min(78vh,560px)] bg-white border-4 border-[#121212] shadow-[6px_6px_0px_#D62828] flex flex-col">
@@ -101,7 +107,7 @@ export function CustomerServiceWidget({ userQq }: { userQq: string | null }) {
 
           <div ref={listRef} className="flex-1 overflow-y-auto space-y-2 p-3 bg-[#FAF9F5]">
             {loading && messages.length === 0 ? <p className="text-xs text-[#666] text-center py-6">加载中…</p>
-              : messages.length === 0 ? <p className="text-xs text-[#666] text-center py-6">还没有消息，发送第一条问问站务吧～</p>
+              : messages.length === 0 ? <p className="text-xs text-[#666] text-center py-6 leading-relaxed px-2">请问有什么问题，猪主人看见后会立刻回复！如果问题解决，点击右上角删除标记可以删除本次对话。</p>
                 : messages.map((m) => (
                   <div key={m.id} className={`flex ${m.fromRole === 'admin' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[82%] px-3 py-2 text-sm ${m.fromRole === 'admin' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] border-2 border-[#121212]'}`}>
