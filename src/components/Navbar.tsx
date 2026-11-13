@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   UserRound,
+  Bell,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -26,6 +27,9 @@ interface NavbarProps {
   onLogout: () => void;
   onOpenTickets: () => void;
   onOpenInstructions: () => void;
+  // 猪猪客服新消息：全站常驻提醒，点击直接打开对话窗。
+  chatUnread: number;
+  onOpenChat: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -39,6 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenTickets,
   onOpenInstructions,
+  chatUnread,
+  onOpenChat,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { showConfirm } = useDialog();
@@ -124,6 +130,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const actionContent = (
     <div className="flex max-w-full flex-wrap items-center justify-end gap-2 sm:gap-2.5">
       {currentUser?.isAdmin && <a href="/admin" className="bauhaus-btn h-8 sm:h-9 bg-[#004E98] text-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm gap-1.5"><Shield size={15} />后台</a>}
+      {/* 客服消息铃铛：登录后全站常驻，有站务新回复时显示红点数字 */}
+      {currentUser && (
+        <button
+          type="button"
+          onClick={onOpenChat}
+          title={chatUnread > 0 ? `猪猪客服有 ${chatUnread} 条新消息，点击查看` : '猪猪客服消息'}
+          aria-label={chatUnread > 0 ? `猪猪客服有 ${chatUnread} 条新消息` : '打开猪猪客服对话'}
+          className="relative h-8 sm:h-9 px-2 sm:px-2.5 py-1.5 border-2 border-[#121212] bg-white text-[#121212] shadow-[2px_2px_0px_#121212] hover:bg-[#FAF0F0] flex items-center justify-center cursor-pointer"
+        >
+          <Bell className="w-4 h-4" />
+          {chatUnread > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-[#D62828] text-white border-2 border-white rounded-full text-[10px] font-black leading-none flex items-center justify-center">{chatUnread > 9 ? '9+' : chatUnread}</span>}
+        </button>
+      )}
       {/* 签到按钮：在头像左侧，保留签到交互 */}
       <button
         onClick={onDailyCheckIn}

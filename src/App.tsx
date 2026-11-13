@@ -18,7 +18,7 @@ import { HomePortal } from './components/HomePortal';
 import { CampaignEditModal } from './components/CampaignEditModal';
 import { ResourceView } from './components/ResourceView';
 import { CalendarFilter } from './components/CalendarFilter';
-import { CustomerServiceWidget } from './components/CustomerServiceWidget';
+import { useChatInbox, CustomerServiceEntry, CustomerServiceDialog } from './components/CustomerServiceWidget';
 import { InstructionsModal } from './components/InstructionsModal';
 import { TicketsModal } from './components/TicketsModal';
 import { SubmissionModal } from './components/SubmissionModal';
@@ -54,6 +54,10 @@ export function App() {
   const [adminEditingCampaign, setAdminEditingCampaign] = useState<Campaign | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  // 客服收件箱放在 App 顶层：全站轮询站务回复，顶栏铃铛 / 首页提示条 / 对话窗共享状态。
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatInbox = useChatInbox(currentUserQq, chatOpen);
+  const openChat = () => { if (!currentUserQq) setIsLoginOpen(true); else setChatOpen(true); };
   const [submissionType, setSubmissionType] = useState<'feedback' | 'report' | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingActions, setPendingActions] = useState(0);
@@ -488,10 +492,21 @@ export function App() {
         onLogout={() => run(() => api.logout(), '已退出登录').then(() => { setActiveTab('board'); setBoardView('portal'); })}
         onOpenTickets={() => currentUser ? setIsTicketsOpen(true) : setIsLoginOpen(true)}
         onOpenInstructions={() => setIsInstructionsOpen(true)}
+        chatUnread={chatInbox.unread}
+        onOpenChat={openChat}
       />
 
       {/* Main Container: 网团保持原先宽裕宽度(max-w-[1760px])，主页四个矩形大厅保持 60%(max-w-[864px]) */}
       <main className={`flex-1 ${mainContainerMaxWidth} w-full mx-auto px-4 sm:px-6 py-6 transition-all duration-150`}>
+        {/* 客服新消息首页提醒：未读时置顶显示，点击查看后自动消失 */}
+        {chatInbox.unread > 0 && (
+          <button type="button" onClick={openChat} className="mb-4 flex w-full items-center justify-between gap-3 border-2 border-[#D62828] bg-[#FAF0F0] px-4 py-3 text-left shadow-[4px_4px_0px_#D62828] hover:bg-[#F7DDDD]">
+            <span className="flex items-center gap-2 text-sm font-black text-[#B51F1F]">
+              <MessageSquareText size={17} />猪猪客服回复了你（{chatInbox.unread} 条新消息）
+            </span>
+            <span className="shrink-0 text-xs font-black text-[#B51F1F] underline">点击查看 →</span>
+          </button>
+        )}
         {/* VIEW 1-A: Home Portal (主页：四个长矩形纵向排列) */}
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
@@ -683,7 +698,7 @@ export function App() {
                 </div>
 
                 {/* 猪猪客服：独立放在「筛选检索」（含日期检索）整块结束后的下方，不占检索框 */}
-                <CustomerServiceWidget userQq={currentUserQq} />
+                <CustomerServiceEntry userQq={currentUserQq} unread={chatInbox.unread} onOpen={openChat} />
               </aside>
             </div>
           </div>
@@ -744,6 +759,9 @@ export function App() {
           <ResourceView currentUser={currentUser} onOpenLogin={() => setIsLoginOpen(true)} />
         )}
       </main>
+
+      {/* 猪猪客服对话窗：全局常驻，顶栏铃铛 / 首页提示条 / 首页客服块都能唤起 */}
+      <CustomerServiceDialog open={chatOpen && !!currentUserQq} onClose={() => setChatOpen(false)} inbox={chatInbox} />
 
       {/* Campaign Detail Modal */}
       <CampaignDetailModal

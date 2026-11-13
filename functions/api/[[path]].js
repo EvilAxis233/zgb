@@ -963,6 +963,9 @@ export async function onRequest(context) {
         const qq = String(path[2]), b = await body(request);
         const content = clean(String(b?.content || ''), 2000).trim();
         if (!content) return fail('请输入回复内容');
+        // 客服可从账号列表主动联系任意注册用户：目标必须是真实账号，避免写到不存在的 QQ 上。
+        const target = await db.prepare('SELECT name FROM users WHERE qq=?').bind(qq).first();
+        if (!target) return fail('该账号不存在，无法发送消息', 404);
         await db.prepare('INSERT INTO chat_messages(id,user_qq,from_role,content,created_at) VALUES(?,?,?,?,?)').bind(id(), qq, 'admin', content, new Date().toISOString()).run();
         return json({ ok: true });
       }
