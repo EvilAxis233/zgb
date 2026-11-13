@@ -851,14 +851,29 @@ export async function onRequest(context) {
         const raw = url.searchParams.get('status');
         const status = raw === 'closed' || raw === 'finished' || raw === 'abandoned' ? raw : 'all';
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        const q = String(url.searchParams.get('q') || '').trim().slice(0, 60);
         // 三个筛选互斥：已封车（未结团且非弃团）/ 已结团 / 弃团（0 人报名即封车）。
-        const where = `WHERE c.deleted_at IS NULL AND c.kind IN ('online','offline') AND (c.closed_at IS NOT NULL OR c.finished_at IS NOT NULL)`
+        let where = `WHERE c.deleted_at IS NULL AND c.kind IN ('online','offline') AND (c.closed_at IS NOT NULL OR c.finished_at IS NOT NULL)`
           + (status === 'closed' ? ' AND c.finished_at IS NULL AND c.is_abandoned=0'
             : status === 'finished' ? ' AND c.finished_at IS NOT NULL'
               : status === 'abandoned' ? ' AND c.is_abandoned=1 AND c.finished_at IS NULL' : '');
+        // 封存团务检索：团名 / 规则 / 简介 / 详情 / GM / 联系方式 / 平台地址 / 报名名单成员。
+        const binds = [];
+        if (q) {
+          const escaped = q.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+          const like = `%${escaped}%`;
+          const fields = ['c.title', 'c.rule', 'c.summary', 'c.description', 'u.name', 'c.gm_qq', 'c.contact',
+            "COALESCE(c.platforms,'')", "COALESCE(c.province,'')", "COALESCE(c.city,'')", "COALESCE(c.address,'')"];
+          const clauses = fields.map((field) => `${field} LIKE ? ESCAPE '\\'`);
+          clauses.push(`EXISTS (SELECT 1 FROM campaign_memberships m JOIN users mu ON mu.qq=m.user_qq WHERE m.campaign_id=c.id AND (mu.name LIKE ? ESCAPE '\\' OR mu.qq LIKE ? ESCAPE '\\'))`);
+          where += ` AND (${clauses.join(' OR ')})`;
+          for (let i = 0; i < fields.length + 2; i++) binds.push(like);
+        }
+        const countSql = `SELECT COUNT(*) n FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where}`;
+        const rowSql = `SELECT c.*,u.name gm_name,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where} ORDER BY COALESCE(c.finished_at,c.closed_at) DESC,c.id DESC LIMIT 30 OFFSET ?`;
         const [count, rows] = await db.batch([
-          db.prepare(`SELECT COUNT(*) n FROM campaigns c ${where}`),
-          db.prepare(`SELECT c.*,u.name gm_name,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where} ORDER BY COALESCE(c.finished_at,c.closed_at) DESC,c.id DESC LIMIT 30 OFFSET ?`).bind(offset)
+          binds.length ? db.prepare(countSql).bind(...binds) : db.prepare(countSql),
+          db.prepare(rowSql).bind(...binds, offset)
         ]);
         const ids = rows.results.map((row) => row.id);
         const members = ids.length

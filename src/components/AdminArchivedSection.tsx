@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, CalendarDays, ChevronDown, ChevronUp, Clock3, MapPin, Phone, Trash2, UsersRound } from 'lucide-react';
+import { Archive, CalendarDays, ChevronDown, ChevronUp, Clock3, MapPin, Phone, Search, Trash2, UsersRound, X } from 'lucide-react';
 import { adminApi, type AdminArchivedCampaign } from '../services/api';
 import { Pager, number } from './AdminCommon';
 
@@ -23,10 +23,13 @@ const daysLeft = (closedAt: string | null) => {
 /**
  * 后台「封存团务」：已封车 / 已结团 / 弃团的网团与面团。
  * 紧凑网格排布（宽屏 3 列 / 中屏 2 列 / 窄屏 1 列），不展示团介绍等长文本详情，只保留关键信息。
+ * 支持按团名 / 规则 / 简介 / GM / 联系方式 / 平台地址 / 报名成员检索，280ms 防抖。
  */
 export function AdminArchivedSection({ onError }: { onError: (error: unknown) => void }) {
   const [filter, setFilter] = useState<ArchiveFilter>('all');
   const [offset, setOffset] = useState(0);
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [items, setItems] = useState<AdminArchivedCampaign[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -36,13 +39,18 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
   const onErrorRef = useRef(onError);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setSearch(query.trim()); setOffset(0); }, 280);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const load = useCallback(() => {
     setLoading(true);
-    adminApi.archivedCampaigns(filter, offset)
+    adminApi.archivedCampaigns(filter, offset, search)
       .then((data) => { setItems(data.items); setTotal(data.total); })
       .catch((error) => onErrorRef.current(error))
       .finally(() => setLoading(false));
-  }, [filter, offset]);
+  }, [filter, offset, search]);
   useEffect(() => { load(); }, [load]);
 
   const changeFilter = (next: ArchiveFilter) => { setFilter(next); setOffset(0); };
@@ -65,15 +73,25 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
 
   return <section>
     <div className="flex flex-wrap items-end justify-between gap-3 mb-4 border-b-2 border-[#121212] pb-3">
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="封存状态">
-        {FILTERS.map((item) => <button key={item.key} type="button" role="tab" aria-selected={filter === item.key} onClick={() => changeFilter(item.key)}
-          className={`bauhaus-btn px-4 py-2 text-sm ${filter === item.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>{item.label}</button>)}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="封存状态">
+          {FILTERS.map((item) => <button key={item.key} type="button" role="tab" aria-selected={filter === item.key} onClick={() => changeFilter(item.key)}
+            className={`bauhaus-btn px-4 py-2 text-sm ${filter === item.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>{item.label}</button>)}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#666]" aria-hidden="true" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="检索团名 / GM / 规则 / 成员"
+            className="bauhaus-input w-full pl-7 pr-7 py-1.5 text-xs" aria-label="检索封存团务" />
+          {query && <button type="button" onClick={() => setQuery('')}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#666] cursor-pointer" aria-label="清空检索"><X size={13} /></button>}
+        </div>
       </div>
-      <p className="text-[11px] font-bold text-[#666]">仅网团 / 面团 · 宣群「结束宣发」不在此列 · 共 {number(total)} 条</p>
+      <p className="text-[11px] font-bold text-[#666]">仅网团 / 面团 · 宣群「结束宣发」不在此列 · {search ? `检索「${search}」命中 ${number(total)} 条` : `共 ${number(total)} 条`}</p>
     </div>
 
     {loading ? <div className="bauhaus-card bg-white p-12 text-center text-sm font-bold text-[#666]">正在读取封存团务…</div>
-      : !items.length ? <div className="bauhaus-card bg-white p-12 text-center text-sm text-[#666]">当前筛选下暂无封存团务。团封车或结团后会自动出现在这里。</div>
+      : !items.length ? <div className="bauhaus-card bg-white p-12 text-center text-sm text-[#666]">{search ? `没有匹配「${search}」的封存团务，换个关键词试试。` : '当前筛选下暂无封存团务。团封车或结团后会自动出现在这里。'}</div>
         : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
           {items.map((c) => {
             const tag = c.status === 'finished'
@@ -142,6 +160,6 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
         </div>}
 
     <Pager offset={offset} total={total} setOffset={setOffset} />
-    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。卡片默认只显示团名与封存日期，点右上「详情」展开规则、GM、开团时间、联系方式、平台/地址与报名名单（团介绍不展示）。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
+    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。卡片默认只显示团名与封存日期，点右上「详情」展开规则、GM、开团时间、联系方式、平台/地址与报名名单（团介绍不展示）。检索支持团名、规则、简介、GM 昵称或 QQ、联系方式、平台地址与报名成员，可与状态筛选组合。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
   </section>;
 }

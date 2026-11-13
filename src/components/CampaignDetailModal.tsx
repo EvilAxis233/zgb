@@ -24,11 +24,11 @@ interface Props {
   onEndPromo?: (campaignId: string) => void;
 }
 
-function Avatar({ member }: { member: CampaignMember }) {
+function Avatar({ member, stretch = false }: { member: CampaignMember; stretch?: boolean }) {
   const tint = member.role === 'gm' ? 'bg-[#D62828]' : 'bg-[#004E98]';
   return (
     <span
-      className={`w-11 h-11 shrink-0 overflow-hidden flex items-center justify-center text-lg font-black text-white ${member.isMember ? 'gilded-avatar' : `border-2 border-[#121212] ${member.avatar ? 'bg-white' : tint}`}`}
+      className={`${stretch ? 'w-11 self-stretch' : 'w-11 h-11'} shrink-0 overflow-hidden flex items-center justify-center text-lg font-black text-white ${member.isMember ? 'gilded-avatar' : `border-2 border-[#121212] ${member.avatar ? 'bg-white' : tint}`}`}
     >
       {member.avatar ? (
         <img src={member.avatar} alt={`${member.name}的头像`} className="h-full w-full object-cover bg-white" />
@@ -142,52 +142,46 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         {member.receivedPraises}
       </span>
     );
-    // 发布者 / GM 行：ID → 铭牌 → 获赞数量；喜好与雷区全部展示，不再折叠成 +N。
-    // 标签较多（合计超过 3 个）时整块换行到下一行、跨整行左对齐，避免挤压昵称与「个人档案」按钮；
-    // 单行内标签仍然自动换行，超长标签本身也允许折行。GM 这一行不显示贴纸。
+    // 发布者 / GM 详情区：左头像 / 中信息 / 右「个人档案」三列等高。
+    // 喜好、雷区一律排在中间列的独立行，不再贴在「个人档案」按钮左边；
+    // 头像与按钮拉伸到约 4 行高（min-h-[4.5rem]），标签多时随内容自然增高并自动换行。
     if (member.role === 'gm') {
       const prefs = member.preferences ?? [];
       const tabooList = member.taboos ?? [];
-      const hasTraits = prefs.length > 0 || tabooList.length > 0;
-      const traitsWrap = prefs.length + tabooList.length > 3;
-      const traitsBlock = hasTraits && (
-        <div className={`flex min-w-0 flex-col gap-1 text-[11px] font-bold ${traitsWrap ? 'w-full items-start' : 'items-end'}`}>
-          {prefs.length > 0 && <div className={`flex min-w-0 flex-wrap items-center gap-1 ${traitsWrap ? 'justify-start' : 'justify-end'}`}>
-            <span className="shrink-0 text-[#004E98]">喜好</span>
-            {prefs.map((tag, i) => <span key={`gm-pref-${i}-${tag}`} className="max-w-full break-all border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[#004E98]">{tag}</span>)}
-          </div>}
-          {tabooList.length > 0 && <div className={`flex min-w-0 flex-wrap items-center gap-1 ${traitsWrap ? 'justify-start' : 'justify-end'}`}>
-            <span className="shrink-0 text-[#D62828]">雷区</span>
-            {tabooList.map((tag, i) => <span key={`gm-taboo-${i}-${tag}`} className="max-w-full break-all border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[#D62828]">{tag}</span>)}
-          </div>}
+      const traitRow = (label: string, list: string[], textCls: string, tagCls: string, keyPrefix: string) => list.length > 0 && (
+        <div className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-bold">
+          <span className={`shrink-0 ${textCls}`}>{label}</span>
+          {list.map((tag, i) => <span key={`${keyPrefix}-${i}-${tag}`} className={`max-w-full break-all border px-1.5 py-0.5 ${tagCls}`}>{tag}</span>)}
         </div>
       );
       return (
         <div key={member.id} className="border-b border-[#D8D5CC] last:border-b-0">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Avatar member={member} />
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex items-stretch gap-3 px-4 py-3">
+            <div className="flex w-11 shrink-0 self-stretch min-h-[4.5rem]">
+              <Avatar member={member} stretch />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <strong className="min-w-0 break-all text-sm">{member.name}</strong>
                 {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
                 {receivedPraiseBadge}
               </div>
-              <div className="flex min-w-0 shrink-0 items-center gap-2.5">
-                {!traitsWrap && traitsBlock}
-                <button
-                  type="button"
-                  onClick={() => setProfileMember(member)}
-                  title={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
-                  aria-label={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
-                  className="bauhaus-btn inline-flex h-11 w-11 shrink-0 cursor-pointer flex-col items-center justify-center gap-0 leading-none border-[#004E98] bg-white px-0 py-0 text-[10px] font-black text-[#004E98] hover:bg-[#F0F5FA]"
-                >
-                  <span>个人</span>
-                  <span className="mt-0.5">档案</span>
-                </button>
-              </div>
-              {traitsWrap && <div className="min-w-0 basis-full">{traitsBlock}</div>}
+              {traitRow('喜好', prefs, 'text-[#004E98]', 'border-[#004E98] bg-[#F0F5FA] text-[#004E98]', 'gm-pref')}
+              {traitRow('雷区', tabooList, 'text-[#D62828]', 'border-[#D62828] bg-[#FAF0F0] text-[#D62828]', 'gm-taboo')}
             </div>
-            <div className="flex shrink-0 items-center gap-2">{praiseButton(member)}</div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setProfileMember(member)}
+                title={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
+                aria-label={`查看${campaign.kind === 'promo' ? '发布者' : 'GM'}的个人档案与简介`}
+                className="bauhaus-btn inline-flex w-11 min-h-[4.5rem] shrink-0 cursor-pointer flex-col items-center justify-center gap-0 self-stretch leading-none border-[#004E98] bg-white px-0 py-0 text-[10px] font-black text-[#004E98] hover:bg-[#F0F5FA]"
+              >
+                <span>个人</span>
+                <span className="mt-0.5">档案</span>
+              </button>
+              {praiseButton(member)}
+            </div>
           </div>
         </div>
       );
