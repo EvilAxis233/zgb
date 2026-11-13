@@ -35,20 +35,25 @@ const LANGUAGE_KEYS = new Set(LANGUAGE_OPTIONS.map((option) => option.key));
 // 备注限 30 个中文字符（60 个英文字符）：按中文 1、ASCII 0.5 加权。
 const NOTE_WEIGHT_LIMIT = 30;
 const noteWeight = (value: string) => Array.from(value).reduce((n, ch) => n + (/[\u0000-\u007F]/.test(ch) ? 0.5 : 1), 0);
+// 来源顺序与后端 RESOURCE_FLAG_ORDER 保持一致：官方在最前，网络搜集在最后。
 const SOURCE_OPTIONS = [
+  { key: 'official', label: '官方' },
   { key: 'reprint', label: '转载' },
   { key: 'self', label: '自译' },
   { key: 'machine', label: '机翻' },
+  { key: 'collected', label: '网络搜集' },
 ];
-const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', reprint: '转载', self: '自译', machine: '机翻' };
+const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', official: '官方', reprint: '转载', self: '自译', machine: '机翻', collected: '网络搜集' };
 const FLAG_STYLE: Record<string, string> = {
   zh: 'bg-[#004E98] text-white',
   en: 'bg-[#3A3A3A] text-white',
   ja: 'bg-[#B51F1F] text-white',
   other_lang: 'bg-[#5B5646] text-white',
+  official: 'bg-[#D62828] text-white',
   reprint: 'bg-[#E6F0FA] text-[#004E98]',
   self: 'bg-[#E7F4E9] text-[#1B7A3D]',
   machine: 'bg-[#F3E9FA] text-[#7A2E9E]',
+  collected: 'bg-[#EEEAE0] text-[#5B5646]',
 };
 // 链接不强制前缀：没有协议时自动补 https:// 供点击；危险协议降级为不可点击文本。
 export const safeHref = (raw: string) => {
@@ -327,7 +332,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-4 border-[#121212] pb-3">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">爱心资源</h2>
-          <p className="mt-1 text-xs font-bold text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址，网盘请填写提取码，不要强制导向到某视频某群获取等！转载请获得原作者的同意或遵守分享协议！</p>
+          <p className="mt-1 text-xs font-bold leading-relaxed text-[#666]">玩家互助 · 分享小众规则的下载地址或在线查询地址，网盘请填写提取码！转载请获得原作者的同意或遵守分享协议！如有违规请立刻举报下架！</p>
           <p className="mt-1 text-[11px] font-black leading-relaxed text-[#B51F1F]">请不要分享国内官方代理的正版文件，不要分享与TRPG无关的文件，不要分享不符合公序良俗的文件！感谢！</p>
         </div>
         <button

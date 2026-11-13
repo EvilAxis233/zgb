@@ -129,9 +129,10 @@ const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: asse
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
 const RESOURCE_CATEGORIES = new Set(['rulebook', 'module', 'tool', 'fun']); // 规则书 / 模组或世设 / 实用工具 / 趣味书籍
 const RESOURCE_CATEGORY_DEFAULT = 'rulebook';
-const RESOURCE_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang', 'reprint', 'self', 'machine']); // 中文 / 英文 / 日文 / 其它语言 / 转载 / 自译 / 机翻
+const RESOURCE_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang', 'official', 'reprint', 'self', 'machine', 'collected']); // 中文 / 英文 / 日文 / 其它语言 / 官方 / 转载 / 自译 / 机翻 / 网络搜集
 const RESOURCE_LANG_FLAGS = new Set(['zh', 'en', 'ja', 'other_lang']); // 语言标签：必选，四选一
-const RESOURCE_FLAG_ORDER = ['zh', 'en', 'ja', 'other_lang', 'reprint', 'self', 'machine'];
+// 固定顺序：语言在前、来源在后；来源中「官方」最前、「网络搜集」最后，与前端 SOURCE_OPTIONS 一致。
+const RESOURCE_FLAG_ORDER = ['zh', 'en', 'ja', 'other_lang', 'official', 'reprint', 'self', 'machine', 'collected'];
 // 备注限 30 个中文字符（60 个英文字符）：按中文 1、ASCII 0.5 加权计算，上限 30。
 const RESOURCE_NOTE_WEIGHT = 30;
 const resourceNoteWeight = (s) => [...String(s || '')].reduce((n, ch) => n + (/[\u0000-\u007F]/.test(ch) ? 0.5 : 1), 0);

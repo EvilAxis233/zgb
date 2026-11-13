@@ -8,7 +8,7 @@ import { safeHref } from './ResourceView';
 type ReviewFilter = 'pending' | 'approved' | 'rejected' | 'all';
 const CATEGORY_LABEL: Record<string, string> = { rulebook: '规则书', module: '模组或世设', tool: '实用工具', fun: '趣味书籍' };
 const TYPE_LABEL: Record<string, string> = { pan: '网盘下载', wiki: '在线查询', other: '其他' };
-const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', reprint: '转载', self: '自译', machine: '机翻' };
+const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', official: '官方', reprint: '转载', self: '自译', machine: '机翻', collected: '网络搜集' };
 const STATUS_LABEL: Record<string, string> = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
 const STATUS_STYLE: Record<string, string> = { pending: 'bg-[#FFF4D6] text-[#7A4B00] border-[#7A4B00]', approved: 'bg-[#E7F5F1] text-[#176B57] border-[#176B57]', rejected: 'bg-[#FAF0F0] text-[#B51F1F] border-[#B51F1F]' };
 const hkTime = (value: string | null) => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '—';
