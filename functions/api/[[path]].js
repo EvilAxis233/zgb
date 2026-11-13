@@ -585,16 +585,14 @@ export async function onRequest(context) {
           for (let i = 0; i < 5; i++) binds.push(`%${escaped}%`);
         }
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const countStmt = db.prepare(`SELECT COUNT(*) n FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where}`);
-        const rowStmt = db.prepare(`SELECT k.*,u.name redeemed_name FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where} ORDER BY k.created_at DESC,k.key_norm LIMIT 30 OFFSET ?`);
-        if (binds.length) countStmt.bind(...binds);
-        rowStmt.bind(...binds, offset);
+        const countSql = `SELECT COUNT(*) n FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where}`;
+        const rowSql = `SELECT k.*,u.name redeemed_name FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where} ORDER BY k.created_at DESC,k.key_norm LIMIT 30 OFFSET ?`;
         const [count, counts, rows] = await db.batch([
-          countStmt,
+          binds.length ? db.prepare(countSql).bind(...binds) : db.prepare(countSql),
           db.prepare(`SELECT COALESCE(SUM(CASE WHEN redeemed_by IS NULL AND revoked_at IS NULL THEN 1 ELSE 0 END),0) unused,
             COALESCE(SUM(CASE WHEN redeemed_by IS NOT NULL THEN 1 ELSE 0 END),0) used,
             COALESCE(SUM(CASE WHEN revoked_at IS NOT NULL THEN 1 ELSE 0 END),0) revoked FROM membership_keys`),
-          rowStmt
+          db.prepare(rowSql).bind(...binds, offset)
         ]);
         return json({ items: rows.results, total: Number(count.results[0].n || 0), counts: {
           unused: Number(counts.results[0].unused || 0), used: Number(counts.results[0].used || 0), revoked: Number(counts.results[0].revoked || 0)
