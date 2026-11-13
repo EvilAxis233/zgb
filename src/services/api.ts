@@ -20,9 +20,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 const post = <T>(path: string, value?: unknown) => request<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value ?? {}) });
 const patch = <T>(path: string, value: unknown) => request<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+const put = <T>(path: string, value: unknown) => request<T>(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
 
 export const api = {
   me: () => request<{ user: UserProfile | null }>('auth/me'),
+  /** 赞助会员弹窗：爱发电链接与交流群号（公开，未登录也可读）。 */
+  siteSettings: () => request<{ afdianUrl: string; groupQq: string }>('site/settings'),
+  /** 用爱发电发来的会员 Key 激活，成功后返回新的会员到期时间。 */
+  redeemMembershipKey: (code: string) => post<{ ok: boolean; months: number; days: number; membershipExpiresAt: number }>('membership/redeem', { code }),
   campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[]; popularCustomTags: string[] }>('campaigns'),
   bootstrap: () => request<{ user: UserProfile; users: UserProfile[]; campaigns: Campaign[]; rules: string[]; popularCustomTags: string[] }>('bootstrap'),
   requestCode: (qq: string) => post<{ ok: boolean }>('auth/request-code', { qq }),
@@ -200,6 +205,22 @@ export interface AdminSubmission {
   images: string[];
 }
 
+export interface MembershipKeyRecord {
+  key_norm: string;
+  code: string;
+  months: number;
+  days: number;
+  batch: string;
+  created_by: string;
+  created_at: string;
+  redeemed_by: string | null;
+  redeemed_at: string | null;
+  expires_at: number | null;
+  revoked_at: string | null;
+  redeemed_name?: string | null;
+}
+export interface MembershipKeyCounts { unused: number; used: number; revoked: number }
+
 export interface AdminNotices {
   feedback: number;
   report: number;
@@ -217,6 +238,13 @@ export const adminApi = {
   notices: () => request<AdminNotices>('admin/notices'),
   markNoticesViewed: (section: 'feedback' | 'report' | 'chat') => post<{ ok: boolean }>('admin/notices/view', { section }),
   dashboard: () => request<AdminDashboard>('admin/dashboard'),
+  afdianSettings: () => request<{ afdianUrl: string }>('admin/settings'),
+  saveAfdianSettings: (afdianUrl: string) => put<{ ok: boolean; afdianUrl: string }>('admin/settings', { afdianUrl }),
+  membershipKeys: (status: 'unused' | 'used' | 'revoked' | 'all', offset: number) => request<{ items: MembershipKeyRecord[]; total: number; counts: MembershipKeyCounts }>(`admin/membership-keys?status=${status}&offset=${offset}`),
+  generateMembershipKeys: (count: number, months: number) => post<{ ok: boolean; batch: string; months: number; codes: string[] }>('admin/membership-keys', { count, months }),
+  importMembershipKeys: (codes: string, months: number) => post<{ ok: boolean; batch: string; imported: number; skipped: number }>('admin/membership-keys/import', { codes, months }),
+  exportMembershipKeys: (status: 'unused' | 'all') => request<{ codes: string[] }>(`admin/membership-keys/export?status=${status}`),
+  revokeMembershipKey: (keyNorm: string) => request<{ ok: boolean }>(`admin/membership-keys/${encodeURIComponent(keyNorm)}`, { method: 'DELETE' }),
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),

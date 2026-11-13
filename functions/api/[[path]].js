@@ -38,6 +38,14 @@ const shiftHKDate = (dateStr, days) => {
 };
 const id = () => crypto.randomUUID();
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+// 赞助会员 Key：去掉 0/O/1/I 等易混字符，输入时统一大写并忽略连字符与空格。
+const KEY_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const normKey = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const newKeyCode = () => {
+  const raw = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => KEY_CHARS[b % KEY_CHARS.length]).join('');
+  return `PB-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+};
+const keyDays = (months) => (months === 12 ? 365 : months * 30);
 async function sha256(value) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))); }
 async function botAuth(request, secret) {
   if (!secret) return false;
@@ -499,6 +507,92 @@ export async function onRequest(context) {
         return response;
       }
       if (!await adminAuth(request, db)) return fail('请先登录后台', 401);
+      // 赞助会员配置：爱发电主页链接。
+      if (path[1] === 'settings' && path.length === 2 && method === 'GET') {
+        const row = await db.prepare("SELECT setting_value FROM site_settings WHERE setting_key='afdian_url'").first();
+        return json({ afdianUrl: row?.setting_value || '' });
+      }
+      if (path[1] === 'settings' && path.length === 2 && method === 'PUT') {
+        const value = String((await body(request)).afdianUrl || '').trim();
+        if (value && !/^https?:\/\/[^\s]+\.[^\s]+/i.test(value)) return fail('请填写完整的 http(s) 链接');
+        if (value.length > 300) return fail('链接过长');
+        await db.prepare("INSERT INTO site_settings(setting_key,setting_value,updated_at) VALUES('afdian_url',?,?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at")
+          .bind(value, new Date().toISOString()).run();
+        return json({ ok: true, afdianUrl: value });
+      }
+      // 会员 Key：批量生成 / 导入已有 Key / 导出（粘贴到爱发电）/ 作废 / 列表（列表即激活记录）。
+      if (path[1] === 'membership-keys' && path.length === 2 && method === 'POST') {
+        const b = await body(request);
+        const count = Math.floor(Number(b.count)), months = Math.floor(Number(b.months));
+        if (!Number.isInteger(count) || count < 1 || count > 100) return fail('每次可生成 1–100 个 Key');
+        if (!Number.isInteger(months) || months < 1 || months > 12) return fail('时长请选 1–12 个月');
+        const operator = await auth(request, db);
+        const createdAt = new Date().toISOString();
+        const batch = `K${now().toString(36).toUpperCase()}`;
+        const codes = [], stmts = [];
+        for (let i = 0; i < count; i++) {
+          const code = newKeyCode(), keyNorm = normKey(code);
+          codes.push(code);
+          stmts.push(db.prepare('INSERT OR IGNORE INTO membership_keys(key_norm,code,months,days,batch,created_by,created_at) VALUES(?,?,?,?,?,?,?)')
+            .bind(keyNorm, code, months, keyDays(months), batch, operator?.qq || 'admin', createdAt));
+        }
+        for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
+        return json({ ok: true, batch, months, codes });
+      }
+      if (path[1] === 'membership-keys' && path[2] === 'import' && path.length === 3 && method === 'POST') {
+        const b = await body(request);
+        const months = Math.floor(Number(b.months));
+        if (!Number.isInteger(months) || months < 1 || months > 12) return fail('时长请选 1–12 个月');
+        const lines = String(b.codes || '').split(/[\r\n,，;；\s]+/).map((s) => s.trim()).filter(Boolean);
+        const entries = [];
+        for (const line of lines) {
+          const keyNorm = normKey(line);
+          if (keyNorm.length < 8 || keyNorm.length > 64) continue;
+          if (!entries.some((e) => e.keyNorm === keyNorm)) entries.push({ keyNorm, code: line.toUpperCase() });
+        }
+        if (!entries.length) return fail('没有识别到有效的 Key（每行一个，至少 8 位）');
+        if (entries.length > 100) return fail('单次最多导入 100 个 Key');
+        const operator = await auth(request, db);
+        const createdAt = new Date().toISOString();
+        const batch = `I${now().toString(36).toUpperCase()}`;
+        const before = await db.prepare('SELECT COUNT(*) n FROM membership_keys').first();
+        const stmts = entries.map((e) => db.prepare('INSERT OR IGNORE INTO membership_keys(key_norm,code,months,days,batch,created_by,created_at) VALUES(?,?,?,?,?,?,?)')
+          .bind(e.keyNorm, e.code, months, keyDays(months), batch, operator?.qq || 'admin', createdAt));
+        for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
+        const after = await db.prepare('SELECT COUNT(*) n FROM membership_keys').first();
+        const imported = Number(after.n) - Number(before.n);
+        return json({ ok: true, batch, months, imported, skipped: entries.length - imported });
+      }
+      if (path[1] === 'membership-keys' && path[2] === 'export' && path.length === 3 && method === 'GET') {
+        const onlyUnused = url.searchParams.get('status') !== 'all';
+        const rows = await db.prepare(`SELECT code FROM membership_keys ${onlyUnused ? 'WHERE redeemed_by IS NULL AND revoked_at IS NULL' : ''} ORDER BY created_at DESC, key_norm LIMIT 500`).all();
+        return json({ codes: rows.results.map((r) => r.code) });
+      }
+      if (path[1] === 'membership-keys' && path.length === 2 && method === 'GET') {
+        const raw = url.searchParams.get('status');
+        const status = ['unused', 'used', 'revoked', 'all'].includes(raw) ? raw : 'all';
+        const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        const where = status === 'unused' ? 'WHERE k.redeemed_by IS NULL AND k.revoked_at IS NULL'
+          : status === 'used' ? 'WHERE k.redeemed_by IS NOT NULL'
+          : status === 'revoked' ? 'WHERE k.revoked_at IS NOT NULL' : '';
+        const [count, counts, rows] = await db.batch([
+          db.prepare(`SELECT COUNT(*) n FROM membership_keys k ${where}`),
+          db.prepare(`SELECT COALESCE(SUM(CASE WHEN redeemed_by IS NULL AND revoked_at IS NULL THEN 1 ELSE 0 END),0) unused,
+            COALESCE(SUM(CASE WHEN redeemed_by IS NOT NULL THEN 1 ELSE 0 END),0) used,
+            COALESCE(SUM(CASE WHEN revoked_at IS NOT NULL THEN 1 ELSE 0 END),0) revoked FROM membership_keys`),
+          db.prepare(`SELECT k.*,u.name redeemed_name FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where} ORDER BY k.created_at DESC,k.key_norm LIMIT 30 OFFSET ?`).bind(offset)
+        ]);
+        return json({ items: rows.results, total: Number(count.results[0].n || 0), counts: {
+          unused: Number(counts.results[0].unused || 0), used: Number(counts.results[0].used || 0), revoked: Number(counts.results[0].revoked || 0)
+        } });
+      }
+      if (path[1] === 'membership-keys' && path[2] && path.length === 3 && method === 'DELETE') {
+        const keyNorm = normKey(decodeURIComponent(path[2]));
+        const result = await db.prepare('UPDATE membership_keys SET revoked_at=? WHERE key_norm=? AND redeemed_by IS NULL AND revoked_at IS NULL')
+          .bind(new Date().toISOString(), keyNorm).run();
+        if (!result.meta.changes) return fail('该 Key 不存在、已激活或已作废', 409);
+        return json({ ok: true });
+      }
       // 后台红点：客服系统统计各板块自上次查看后的新增数；资源审核直接统计待审条数。
       if (path[1] === 'notices' && path.length === 2 && method === 'GET') {
         const marks = await db.prepare('SELECT section, read_at FROM admin_read_marks').all();
@@ -895,6 +989,11 @@ export async function onRequest(context) {
       if (token) await db.prepare('DELETE FROM sessions WHERE token_hash=?').bind(await sha256(token)).run();
       return json({ ok: true }, 200, { 'Set-Cookie': sessionCookie('', 0) });
     }
+    // 赞助会员弹窗用的公开配置：爱发电主页链接（后台可改，未配置时前端不显示入口）。
+    if (path[0] === 'site' && path[1] === 'settings' && path.length === 2 && method === 'GET') {
+      const row = await db.prepare("SELECT setting_value FROM site_settings WHERE setting_key='afdian_url'").first();
+      return json({ afdianUrl: row?.setting_value || '', groupQq: '917744498' });
+    }
     if (path[0] === 'campaigns' && path.length === 1 && method === 'GET') {
       const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
       const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
@@ -937,6 +1036,30 @@ export async function onRequest(context) {
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'membership' && path.length === 2 && method === 'GET') {
       return json({ isMember: isMember(user), membershipExpiresAt: roleOf(user) === 'owner' ? PERMANENT_MEMBERSHIP : user.membership_expires_at ?? null, renewalContact: '917744498' });
+    }
+    // 赞助会员 Key 激活：一次性使用，会员时长叠加到当前到期日，写入后台发放记录。
+    if (path[0] === 'membership' && path[1] === 'redeem' && path.length === 2 && method === 'POST') {
+      const keyNorm = normKey((await body(request)).code);
+      if (keyNorm.length < 8 || keyNorm.length > 64) return fail('请输入完整的会员 Key');
+      if (roleOf(user) === 'owner' || user.membership_expires_at === PERMANENT_MEMBERSHIP) return fail('当前账号是永久会员，无需激活');
+      const key = await db.prepare('SELECT * FROM membership_keys WHERE key_norm=?').bind(keyNorm).first();
+      if (!key) return fail('会员 Key 无效，请核对后重试');
+      if (key.revoked_at) return fail('该会员 Key 已作废，请联系站长');
+      if (key.redeemed_by) return fail('该会员 Key 已被使用');
+      const redeemedAt = new Date().toISOString();
+      // 条件更新抢占，避免同一个 Key 被并发激活两次。
+      const claimed = await db.prepare('UPDATE membership_keys SET redeemed_by=?, redeemed_at=? WHERE key_norm=? AND redeemed_by IS NULL AND revoked_at IS NULL')
+        .bind(user.qq, redeemedAt, keyNorm).run();
+      if (!claimed.meta.changes) return fail('该会员 Key 已被使用');
+      const base = Math.max(now(), user.membership_expires_at || 0);
+      const expiresAt = base + Number(key.days) * 86400;
+      await db.batch([
+        db.prepare('UPDATE users SET membership_expires_at=? WHERE qq=?').bind(expiresAt, user.qq),
+        db.prepare('UPDATE membership_keys SET expires_at=? WHERE key_norm=?').bind(expiresAt, keyNorm),
+        db.prepare('INSERT INTO membership_grants(id,user_qq,months,days,granted_by,expires_at,created_at) VALUES(?,?,?,?,?,?,?)')
+          .bind(id(), user.qq, key.months, key.days, `key:${key.code}`, expiresAt, redeemedAt)
+      ]);
+      return json({ ok: true, months: key.months, days: key.days, membershipExpiresAt: expiresAt });
     }
     if (path[0] === 'submissions' && path.length === 1 && method === 'GET') {
       const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));

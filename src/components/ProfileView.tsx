@@ -649,7 +649,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </section>
         </div>
       )}
-      {membershipOpen && <MembershipModal active={membershipActive} onClose={() => setMembershipOpen(false)} />}
+      {membershipOpen && <MembershipModal active={membershipActive} currentUser={currentUser} onUserUpdate={onUserUpdate} onClose={() => setMembershipOpen(false)} />}
       {nameplateOpen && (
         <NameplateModal
           isOpen={nameplateOpen}

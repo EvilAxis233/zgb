@@ -1,18 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Activity, Archive, BarChart3, FileSliders, Headphones, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
+import { Activity, Archive, BarChart3, FileSliders, Headphones, KeyRound, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminDashboard, type AdminNotices, type AdminUser, type MembershipGrant } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
 import { AdminSupportSection } from './AdminSupportSection';
 import { AdminArchivedSection } from './AdminArchivedSection';
 import { AdminResourcesSection } from './AdminResourcesSection';
+import { AdminMembershipKeysSection } from './AdminMembershipKeysSection';
 import { number } from './AdminCommon';
 import { useDialog } from './BauhausDialog';
 
-type AdminSection = 'dashboard' | 'content' | 'users' | 'support' | 'archive' | 'resources';
+type AdminSection = 'dashboard' | 'content' | 'users' | 'keys' | 'support' | 'archive' | 'resources';
 const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: '数据看板', icon: LayoutDashboard },
   { id: 'content', label: '内容配置', icon: FileSliders },
   { id: 'users', label: '账号', icon: UsersRound },
+  { id: 'keys', label: '会员激活', icon: KeyRound },
   { id: 'support', label: '客服系统', icon: Headphones },
   { id: 'archive', label: '封存团务', icon: Archive },
   { id: 'resources', label: '资源审核', icon: ShieldCheck },
@@ -93,7 +95,7 @@ export function AdminPage() {
   const { showConfirm } = useDialog();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null), [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null), [dashboardLoading, setDashboardLoading] = useState(false);
-  const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState('');
+  const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState(''), [afdianUrl, setAfdianUrl] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]), [userTotal, setUserTotal] = useState(0), [memberTotal, setMemberTotal] = useState(0), [searchInput, setSearchInput] = useState(''), [search, setSearch] = useState(''), [userOffset, setUserOffset] = useState(0);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);
@@ -135,12 +137,20 @@ export function AdminPage() {
     const timer = window.setInterval(() => { adminApi.me().catch(() => {}); }, 60_000);
     return () => window.clearInterval(timer);
   }, [authenticated]);
-  useEffect(() => { if (authenticated && activeSection === 'content') loadRules().catch(message); }, [authenticated, activeSection]);
+  useEffect(() => { if (authenticated && activeSection === 'content') { loadRules().catch(message); adminApi.afdianSettings().then((data) => setAfdianUrl(data.afdianUrl)).catch(message); } }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset).then(applyUsers).catch(message); }, [authenticated, activeSection, search, userOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.grants(selected.qq, grantOffset).then((data) => { setGrants(data.records); setGrantTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, grantOffset]);
 
   const logout = async () => { try { await adminApi.logout(); setAuthenticated(false); setDashboard(null); setSelected(null); } catch (error) { message(error); } };
   const addRule = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { await adminApi.addRule(newRule.trim()); setNewRule(''); await loadRules(); setNotice('规则已添加'); } catch (error) { message(error); } finally { setBusy(false); } };
+  const saveAfdian = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true);
+    try {
+      const data = await adminApi.saveAfdianSettings(afdianUrl.trim());
+      setAfdianUrl(data.afdianUrl);
+      setNotice(data.afdianUrl ? '爱发电链接已保存，赞助会员弹窗现在会显示赞助入口' : '已清空爱发电链接，弹窗将只显示交流群与 Key 激活');
+    } catch (error) { message(error); } finally { setBusy(false); }
+  };
   const deleteRule = async (name: string) => { if (!await showConfirm({ title: '删除规则', message: `确定删除规则「${name}」？已有团的历史规则名称仍会保留。`, confirmText: '确定删除', type: 'danger' })) return; setBusy(true); try { await adminApi.deleteRule(name); await loadRules(); setNotice('规则已删除'); } catch (error) { message(error); } finally { setBusy(false); } };
   const changeBlacklist = async (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent' | null) => { setBusy(true); try { if (duration) await adminApi.blacklist(qq, duration); else await adminApi.unblacklist(qq); const data = applyUsers(await adminApi.users(search, userOffset)); setSelected(data.users.find((item) => item.qq === qq) || null); setNotice(duration ? '已加入黑名单' : '已移出黑名单'); } catch (error) { message(error); } finally { setBusy(false); } };
   const grantMembership = async (qq: string, months: number) => {
@@ -183,8 +193,9 @@ export function AdminPage() {
     </section>}
     {authenticated && <><nav aria-label="后台功能" className={`grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0 ${activeSection === 'dashboard' ? 'mb-2' : 'mb-6'}`}>{sections.map((item) => { const Icon = item.icon; const dot = item.id === 'support' ? noticeTotal : item.id === 'resources' ? notices.resource : 0; const dotLabel = item.id === 'support' ? `客服系统有 ${noticeTotal} 条新内容` : `有 ${notices.resource} 条资源待审核`; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn relative px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}{dot > 0 && <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#D62828] border-2 border-white rounded-full" title={dotLabel} aria-label={dotLabel} />}</button>; })}</nav><div className={`${activeSection === 'dashboard' ? 'mb-2' : 'mb-5'} flex items-center gap-2 shrink-0`}><span className="w-3 h-3 bg-[#D62828]" /><h2 className={activeSection === 'dashboard' ? 'text-lg font-black' : 'text-2xl font-black'}>{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <div className={fitDashboard ? 'lg:flex-1 lg:min-h-0' : ''}><Dashboard data={dashboard} loading={dashboardLoading} /></div>}
-      {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} setNewRule={setNewRule} addRule={addRule} deleteRule={deleteRule} />}
+      {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} afdianUrl={afdianUrl} setNewRule={setNewRule} setAfdianUrl={setAfdianUrl} addRule={addRule} deleteRule={deleteRule} saveAfdian={saveAfdian} />}
       {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} searchInput={searchInput} userOffset={userOffset} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
+      {activeSection === 'keys' && <AdminMembershipKeysSection onNotice={setNotice} onError={message} />}
       {activeSection === 'support' && <AdminSupportSection notices={notices} onSeen={(section) => setNotices((prev) => ({ ...prev, [section]: 0 }))} onNotice={setNotice} onError={message} />}
       {activeSection === 'archive' && <AdminArchivedSection onError={message} />}
       {activeSection === 'resources' && <AdminResourcesSection onPendingChange={(pending) => setNotices((prev) => (prev.resource === pending ? prev : { ...prev, resource: pending }))} onNotice={setNotice} onError={message} />}
@@ -192,10 +203,19 @@ export function AdminPage() {
   </main></div>;
 }
 
-function ContentSection(props: { rules: string[]; newRule: string; busy: boolean; setNewRule: (v: string) => void; addRule: (e: FormEvent) => void; deleteRule: (v: string) => void; }) {
+function ContentSection(props: { rules: string[]; newRule: string; busy: boolean; afdianUrl: string; setNewRule: (v: string) => void; setAfdianUrl: (v: string) => void; addRule: (e: FormEvent) => void; deleteRule: (v: string) => void; saveAfdian: (e: FormEvent) => void; }) {
   const weight = (value: string) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
   const length = weight(props.newRule);
   return <div className="grid gap-6 items-start">
+    <section className="bauhaus-card p-5 bg-white">
+      <div className="flex justify-between border-b-2 border-[#121212] pb-3 mb-2"><h3 className="font-black">赞助会员设置</h3><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">爱发电</span></div>
+      <p className="text-[11px] text-[#666] mb-3">填入爱发电主页链接后，「升级会员 / 续费会员」弹窗会显示赞助入口，交流群与 Key 激活通道始终保留。留空则只显示后两者。</p>
+      <form onSubmit={props.saveAfdian} className="flex gap-2">
+        <input aria-label="爱发电主页链接" value={props.afdianUrl} onChange={(event) => props.setAfdianUrl(event.target.value)} placeholder="https://afdian.com/a/你的主页" className="bauhaus-input min-w-0 flex-1 px-2 py-2 text-sm" />
+        <button disabled={props.busy} className="bauhaus-btn bg-[#004E98] text-white px-4 text-sm">保存</button>
+      </form>
+      <p className="mt-2 text-[11px] text-[#777]">会员 Key 在「会员激活」页批量生成与导出；把导出的 Key 一行一个粘贴到爱发电方案「高级选项 → 添加自动随机回复」即可自动发货。</p>
+    </section>
     <section className="bauhaus-card p-5 bg-white">
       <div className="flex justify-between border-b-2 border-[#121212] pb-3 mb-2"><h3 className="font-black">规则系统</h3><span className="text-xs font-bold bg-[#121212] text-white px-2 py-1">最近 {props.rules.length} / 10 个</span></div>
       <p className="text-[11px] text-[#666] mb-3">只保留最近使用的 10 个标签，与发车下拉选项保持一致；更早的会自动清理。每个标签最多 10 个中文字符或 20 个英文字符。</p>
