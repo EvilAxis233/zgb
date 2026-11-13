@@ -730,7 +730,7 @@ export async function onRequest(context) {
           // 弃团 = 0 人报名即封车的团（网团/面团），自本统计上线起累计。
           db.prepare(`SELECT COUNT(*) abandoned FROM campaigns WHERE deleted_at IS NULL AND kind IN ('online','offline') AND is_abandoned=1`),
           db.prepare(`SELECT COUNT(*) pending FROM rule_resources WHERE review_status='pending'`),
-          // 浏览统计：今日 / 本月分开统计注册用户与游客，另给近 7 天的每日明细给柱状图。
+          // 浏览统计：今日 / 本月分开统计注册用户与游客，另给近 30 天的每日明细给柱状图。
           db.prepare(`SELECT
             COALESCE(SUM(CASE WHEN day=? AND visitor='user' THEN 1 ELSE 0 END),0) today_user,
             COALESCE(SUM(CASE WHEN day=? AND visitor='guest' THEN 1 ELSE 0 END),0) today_guest,
@@ -740,7 +740,7 @@ export async function onRequest(context) {
           db.prepare(`SELECT day,
             COALESCE(SUM(CASE WHEN visitor='user' THEN 1 ELSE 0 END),0) users,
             COALESCE(SUM(CASE WHEN visitor='guest' THEN 1 ELSE 0 END),0) guests
-            FROM page_views WHERE day>=? GROUP BY day ORDER BY day`).bind(asDate(sevenDaysAgo))
+            FROM page_views WHERE day>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo))
         ]);
         return json({
           users: users.results[0],
