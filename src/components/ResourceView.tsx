@@ -71,11 +71,13 @@ function HeartIcon({ size = 16, color = '#D62828' }: { size?: number; color?: st
 }
 
 /** 一条资源卡片。左上角可点赞并显示点赞数；上传者本人（或管理员）会看到「编辑」「删除」。 */
-export function ResourceCard({ item, onEdit, onDelete, showCategory = false, onToggleLike, likeBusy = false }: {
+export function ResourceCard({ item, onEdit, onDelete, showCategory = false, showUploader = true, onToggleLike, likeBusy = false }: {
   item: RuleResource;
   onEdit?: (item: RuleResource) => void;
   onDelete?: (item: RuleResource) => void;
   showCategory?: boolean;
+  // 「我的分享」里全是自己的条目，分享者名字是冗余信息，可隐藏（日期仍保留）。
+  showUploader?: boolean;
   onToggleLike?: (item: RuleResource) => void;
   likeBusy?: boolean;
 }) {
@@ -122,7 +124,7 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false, onT
       {/* 不展示网址也不放按钮：点击标题即可打开链接；无有效链接时标题为纯文本。 */}
       {!href && <p className="mt-1 text-[10px] font-black text-[#999]">链接不可用</p>}
       <div className="mt-auto flex items-center gap-2 border-t-2 border-dashed border-[#CFCBC0] pt-3 text-[11px] font-bold text-[#666]">
-        <span>分享者：<strong className="text-[#121212]">{item.uploaderName}</strong></span>
+        {showUploader && <span>分享者：<strong className="text-[#121212]">{item.uploaderName}</strong></span>}
         <span className="ml-auto shrink-0">{item.updatedAt !== item.createdAt ? `${item.updatedAt} 更新` : item.createdAt}</span>
       </div>
       {item.canManage && (onEdit || onDelete) && (
@@ -388,7 +390,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
   );
 }
 
-/** 个人档案里的「我的分享」界面：只看自己的条目，可新增、更新、删除。 */
+/** 个人档案里的「我的分享」界面：只看自己的条目，可新增、更新、删除、检索。 */
 export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => void; onGoResources?: () => void }) {
   const { showAlert, showConfirm } = useDialog();
   const [items, setItems] = useState<RuleResource[]>([]);
@@ -396,6 +398,17 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<RuleResource | 'new' | null>(null);
   const [likeBusy, setLikeBusy] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+
+  // 「我的分享」最多 100 条，前端即时检索即可：规则名 / 备注 / 链接 / 分页 / 标签 / 类型。
+  const keyword = query.trim().toLowerCase();
+  const filtered = keyword
+    ? items.filter((item) => [
+        item.name, item.note, item.url,
+        CATEGORY_LABEL[categoryOf(item)], TYPE_LABEL[item.type],
+        ...(item.flags || []).map((flag) => FLAG_LABEL[flag] || ''),
+      ].join(' ').toLowerCase().includes(keyword))
+    : items;
 
   const toggleLike = async (item: RuleResource) => {
     if (likeBusy) return;
@@ -436,7 +449,7 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-3 sm:p-5" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label="我的分享" className="flex max-h-[90vh] w-full max-w-4xl flex-col border-4 border-[#121212] bg-white shadow-[10px_10px_0px_#121212]">
+      <section role="dialog" aria-modal="true" aria-label="我的分享" className="flex max-h-[90vh] w-full max-w-6xl flex-col border-4 border-[#121212] bg-white shadow-[10px_10px_0px_#121212]">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-[#121212] px-4 py-2.5 text-white">
           <h2 className="flex items-center gap-2 text-sm font-black tracking-wider"><HeartIcon size={15} />我的分享（{items.length}）</h2>
           <div className="flex items-center gap-2">
@@ -450,9 +463,21 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
           {error && <p className="bauhaus-card bg-[#FAF0F0] p-4 text-sm font-bold text-[#B51F1F]">{error}<button type="button" onClick={() => void load()} className="ml-3 underline">重试</button></p>}
           {!loading && !error && items.length === 0 && <p className="bauhaus-card border-dashed p-12 text-center text-sm font-bold text-[#666]">你还没有分享过规则资源，点右上角「分享新规则」发第一条吧。</p>}
           {!loading && !error && items.length > 0 && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory onToggleLike={toggleLike} likeBusy={likeBusy === item.id} />)}
-            </div>
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#777]" />
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="检索我的分享" placeholder="按规则名 / 备注 / 链接 / 标签检索" className="bauhaus-input w-full py-2 pl-9 pr-3 text-xs font-bold" />
+                </div>
+                {query && <button type="button" onClick={() => setQuery('')} className="bauhaus-btn bg-white px-2.5 py-1.5 text-[11px] font-black">清空</button>}
+                <span className="border-2 border-[#121212] bg-[#F2F0E8] px-2.5 py-1.5 text-[11px] font-black">{keyword ? `检索「${query.trim()}」：${filtered.length} 条` : `共 ${items.length} 条`}</span>
+              </div>
+              {filtered.length === 0
+                ? <p className="bauhaus-card border-dashed p-10 text-center text-sm font-bold text-[#666]">没有匹配「{query.trim()}」的分享，换个关键词试试。</p>
+                : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {filtered.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory showUploader={false} onToggleLike={toggleLike} likeBusy={likeBusy === item.id} />)}
+                  </div>}
+            </>
           )}
         </div>
         <footer className="flex shrink-0 justify-end border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-2.5">
