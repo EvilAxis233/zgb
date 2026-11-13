@@ -64,13 +64,13 @@ export function AdminChatSection({ onNotice, onError }: { onNotice: (message: st
     const qq = selected, version = ++threadVersion.current;
     setBusy(true);
     try {
-      await adminApi.chatReply(qq, content);
+      // 后端直接回传新消息：不再写完后立刻 GET 会话，规避 D1 读副本短暂落后导致的空白 / 覆盖。
+      const result = await adminApi.chatReply(qq, content);
       setDraft('');
-      // 先把刚发出的消息立即显示出来，再用服务端会话覆盖，避免弱网下对话框空白。
-      setMessages((prev) => [...prev, { id: `local-${Date.now()}`, fromRole: 'admin', content, createdAt: new Date().toISOString() }]);
-      const data = await adminApi.chatThreadFor(qq);
-      if (version === threadVersion.current) setMessages(data.messages);
+      if (version === threadVersion.current) setMessages((prev) => [...prev, result.message]);
       await loadList();
+      // 会话列表的 lastContent 可能还在旧快照，稍后补刷一次。
+      window.setTimeout(() => { void loadList(); }, 1200);
       onNotice('已发送，玩家会在首页收到新消息提醒');
     } catch (error) { onError(error); } finally { setBusy(false); }
   };

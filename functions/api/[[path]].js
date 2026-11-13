@@ -966,8 +966,10 @@ export async function onRequest(context) {
         // 客服可从账号列表主动联系任意注册用户：目标必须是真实账号，避免写到不存在的 QQ 上。
         const target = await db.prepare('SELECT name FROM users WHERE qq=?').bind(qq).first();
         if (!target) return fail('该账号不存在，无法发送消息', 404);
-        await db.prepare('INSERT INTO chat_messages(id,user_qq,from_role,content,created_at) VALUES(?,?,?,?,?)').bind(id(), qq, 'admin', content, new Date().toISOString()).run();
-        return json({ ok: true });
+        const mid = id(), iso = new Date().toISOString();
+        await db.prepare('INSERT INTO chat_messages(id,user_qq,from_role,content,created_at) VALUES(?,?,?,?,?)').bind(mid, qq, 'admin', content, iso).run();
+        // 直接回传新消息，后台不必在写完后立刻再查一次（D1 读副本可能短暂落后）。
+        return json({ ok: true, message: { id: mid, fromRole: 'admin', content, createdAt: iso } });
       }
       if (path[1] === 'chat' && path[2] && path.length === 3 && method === 'DELETE') {
         await db.prepare('DELETE FROM chat_messages WHERE user_qq=?').bind(String(path[2])).run();

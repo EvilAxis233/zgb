@@ -269,6 +269,6 @@ export const adminApi = {
   // 猪猪客服：后台会话管理
   chatConversations: () => request<{ conversations: ChatConversation[] }>('admin/chat'),
   chatThreadFor: (qq: string) => request<{ messages: ChatMessage[] }>(`admin/chat/${encodeURIComponent(qq)}`),
-  chatReply: (qq: string, content: string) => post<{ ok: boolean }>(`admin/chat/${encodeURIComponent(qq)}/reply`, { content }),
+  chatReply: (qq: string, content: string) => post<{ ok: boolean; message: ChatMessage }>(`admin/chat/${encodeURIComponent(qq)}/reply`, { content }),
   clearChatFor: (qq: string) => request<{ ok: boolean }>(`admin/chat/${encodeURIComponent(qq)}`, { method: 'DELETE' }),
 };
