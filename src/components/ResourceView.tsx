@@ -57,32 +57,42 @@ export const safeHref = (raw: string) => {
   return /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
 };
 
-function HeartIcon({ size = 16 }: { size?: number }) {
+function HeartIcon({ size = 16, color = '#D62828' }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="#D62828" aria-hidden="true" className="shrink-0">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true" className="shrink-0">
       <path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" />
     </svg>
   );
 }
 
-/** 一条资源卡片。上传者本人（或管理员）会看到「编辑」「删除」。 */
-export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
+/** 一条资源卡片。左上角可点赞并显示点赞数；上传者本人（或管理员）会看到「编辑」「删除」。 */
+export function ResourceCard({ item, onEdit, onDelete, showCategory = false, onToggleLike, likeBusy = false }: {
   item: RuleResource;
   onEdit?: (item: RuleResource) => void;
   onDelete?: (item: RuleResource) => void;
   showCategory?: boolean;
+  onToggleLike?: (item: RuleResource) => void;
+  likeBusy?: boolean;
 }) {
   const href = safeHref(item.url);
+  const likes = item.likesCount ?? 0;
   return (
     <article className="bauhaus-card flex flex-col p-4">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">
-          {href
-            ? <a href={href} target="_blank" rel="noopener noreferrer" title="打开链接" className="underline decoration-2 underline-offset-4 hover:text-[#004E98] hover:decoration-[#004E98]">
-                {item.name}
-              </a>
-            : <span>{item.name}</span>}
-        </h3>
+      {/* 左上角点赞按钮：心形 + 当前点赞数；已点赞时整块变红。 */}
+      <div className="mb-2 flex items-start justify-between gap-2">
+        {onToggleLike ? (
+          <button
+            type="button"
+            onClick={() => onToggleLike(item)}
+            disabled={likeBusy}
+            title={item.likedByMe ? '取消点赞' : '给这条分享点赞'}
+            aria-label={`${item.likedByMe ? '取消点赞' : '点赞'}，当前 ${likes} 个赞`}
+            className={`bauhaus-btn inline-flex shrink-0 cursor-pointer items-center gap-1 px-2 py-1 text-[11px] font-black shadow-[2px_2px_0px_#121212] disabled:opacity-60 ${item.likedByMe ? 'bg-[#D62828] text-white' : 'bg-white text-[#D62828] hover:bg-[#FAF0F0]'}`}
+          >
+            <HeartIcon size={13} color={item.likedByMe ? '#FFFFFF' : '#D62828'} />
+            <span>{likes}</span>
+          </button>
+        ) : <span />}
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           {item.reviewStatus && item.reviewStatus !== 'approved' && (
             <span className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${REVIEW_STYLE[item.reviewStatus] || REVIEW_STYLE.pending}`}>{REVIEW_LABEL[item.reviewStatus] || '待审核'}</span>
@@ -94,6 +104,13 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false }: {
           <span className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${TYPE_STYLE[item.type]}`}>{TYPE_LABEL[item.type]}</span>
         </div>
       </div>
+      <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">
+        {href
+          ? <a href={href} target="_blank" rel="noopener noreferrer" title="打开链接" className="underline decoration-2 underline-offset-4 hover:text-[#004E98] hover:decoration-[#004E98]">
+              {item.name}
+            </a>
+          : <span>{item.name}</span>}
+      </h3>
       <p className="mt-2 min-h-[18px] break-words text-xs leading-relaxed text-[#666]">{item.note || '（未填写备注）'}</p>
       {item.reviewStatus === 'pending' && <p className="mt-1 text-[10px] font-black text-[#7A4B00]">管理员审核通过后才会展示在爱心资源页。</p>}
       {item.reviewStatus === 'rejected' && <p className="mt-1 text-[10px] font-black text-[#B51F1F]">未通过审核{item.reviewNote ? `：${item.reviewNote}` : ''}；修改后重新提交即可再审。</p>}
@@ -242,7 +259,23 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [editor, setEditor] = useState<RuleResource | 'new' | null>(null);
+  const [likeBusy, setLikeBusy] = useState<string | null>(null);
   const lastQuery = useRef(query);
+
+  // 卡片左上角点赞：游客先引导登录；登录用户按当前状态切换，成功后只更新这一条的点赞数。
+  const toggleLike = async (item: RuleResource) => {
+    if (!currentUser) { onOpenLogin(); return; }
+    if (likeBusy) return;
+    setLikeBusy(item.id);
+    try {
+      const result = await api.toggleResourceLike(item.id);
+      setItems((prev) => prev.map((x) => x.id === item.id ? { ...x, likesCount: result.likesCount, likedByMe: result.liked } : x));
+    } catch (e) {
+      await showAlert({ title: '点赞失败', message: e instanceof Error ? e.message : '请稍后重试', type: 'warning' });
+    } finally {
+      setLikeBusy(null);
+    }
+  };
 
   const load = async (q: string, cat: ResourceCategory) => {
     try {
@@ -334,7 +367,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       )}
       {!loading && !error && items.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} />)}
+          {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} onToggleLike={toggleLike} likeBusy={likeBusy === item.id} />)}
         </div>
       )}
 
@@ -357,6 +390,20 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editor, setEditor] = useState<RuleResource | 'new' | null>(null);
+  const [likeBusy, setLikeBusy] = useState<string | null>(null);
+
+  const toggleLike = async (item: RuleResource) => {
+    if (likeBusy) return;
+    setLikeBusy(item.id);
+    try {
+      const result = await api.toggleResourceLike(item.id);
+      setItems((prev) => prev.map((x) => x.id === item.id ? { ...x, likesCount: result.likesCount, likedByMe: result.liked } : x));
+    } catch (e) {
+      await showAlert({ title: '点赞失败', message: e instanceof Error ? e.message : '请稍后重试', type: 'warning' });
+    } finally {
+      setLikeBusy(null);
+    }
+  };
 
   const load = async () => {
     try {
@@ -399,7 +446,7 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
           {!loading && !error && items.length === 0 && <p className="bauhaus-card border-dashed p-12 text-center text-sm font-bold text-[#666]">你还没有分享过规则资源，点右上角「分享新规则」发第一条吧。</p>}
           {!loading && !error && items.length > 0 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory />)}
+              {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory onToggleLike={toggleLike} likeBusy={likeBusy === item.id} />)}
             </div>
           )}
         </div>

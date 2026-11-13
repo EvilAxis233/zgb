@@ -142,10 +142,18 @@ const parseResourceFlags = (s) => {
   if (langs.length > 1) langs.slice(1).forEach((v) => picked.delete(v)); // 语言互斥，只保留先出现的
   return RESOURCE_FLAG_ORDER.filter((v) => picked.has(v)); // 固定顺序：语言在前、来源在后
 };
-const resourceSelect = 'SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq';
+const resourceSelect = `SELECT r.*, u.name uploader_name, u.avatar_key uploader_avatar_key,
+  (SELECT COUNT(*) FROM resource_likes l WHERE l.resource_id=r.id) likes_count
+  FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq`;
 const RESOURCE_REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected']);
 const resourceReviewStatus = (r) => RESOURCE_REVIEW_STATUSES.has(r.review_status) ? r.review_status : 'approved';
-const resourceDto = (r, viewerQq, admin) => ({
+// 一次查出当前访客点过赞的资源 id，避免逐条 EXISTS 查询。
+const likedResourceIds = async (db, qq) => {
+  if (!qq) return new Set();
+  const rows = await db.prepare('SELECT resource_id FROM resource_likes WHERE user_qq=?').bind(qq).all();
+  return new Set(rows.results.map((r) => r.resource_id));
+};
+const resourceDto = (r, viewerQq, admin, likedIds = null) => ({
   id: r.id, name: r.name, url: r.url, type: r.type, note: r.note || '',
   category: RESOURCE_CATEGORIES.has(r.category) ? r.category : RESOURCE_CATEGORY_DEFAULT,
   flags: parseResourceFlags(r.flags),
@@ -154,6 +162,8 @@ const resourceDto = (r, viewerQq, admin) => ({
   createdAt: (r.created_at || '').slice(0, 10), updatedAt: (r.updated_at || '').slice(0, 10),
   mine: !!viewerQq && viewerQq === r.uploader_qq,
   canManage: (!!viewerQq && viewerQq === r.uploader_qq) || !!admin,
+  likesCount: Number(r.likes_count || 0),
+  likedByMe: !!likedIds && likedIds.has(r.id),
 });
 // 后台审核列表专用：管理员可以看到上传者 QQ、审核人与完整时间，不下发给普通访客。
 const adminResourceDto = (r) => ({
@@ -930,7 +940,9 @@ export async function onRequest(context) {
       }
       if (path[1] === 'resources' && path[2] && path.length === 3 && method === 'DELETE') {
         const result = await db.prepare('DELETE FROM rule_resources WHERE id=?').bind(path[2]).run();
-        return result.meta.changes ? json({ ok: true }) : fail('资源不存在', 404);
+        if (!result.meta.changes) return fail('资源不存在', 404);
+        await db.prepare('DELETE FROM resource_likes WHERE resource_id=?').bind(path[2]).run();
+        return json({ ok: true });
       }
       // 后台「客服系统」→ 猪猪客服对话
       if (path[1] === 'chat' && path.length === 2 && method === 'GET') {
@@ -1069,7 +1081,8 @@ export async function onRequest(context) {
       const clause = ` WHERE ${where.join(' AND ')}`;
       const stmt = db.prepare(`${resourceSelect}${clause} ORDER BY r.created_at DESC, r.id DESC LIMIT 200`);
       const rows = binds.length ? await stmt.bind(...binds).all() : await stmt.all();
-      return json({ items: rows.results.map((r) => resourceDto(r, user?.qq, isSiteAdmin(user))) });
+      const liked = await likedResourceIds(db, user?.qq);
+      return json({ items: rows.results.map((r) => resourceDto(r, user?.qq, isSiteAdmin(user), liked)) });
     }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'membership' && path.length === 2 && method === 'GET') {
@@ -1220,10 +1233,22 @@ export async function onRequest(context) {
       const updated = await db.prepare('SELECT * FROM users WHERE qq=?').bind(user.qq).first();
       return json({ user: userDto(updated) });
     }
+    // 爱心资源点赞：登录用户点一次点赞、再点一次取消；每人每条资源最多一条记录，不消耗点赞券。
+    if (path[0] === 'resources' && path[1] && path[2] === 'like' && path.length === 3 && method === 'POST') {
+      const target = await db.prepare('SELECT id FROM rule_resources WHERE id=?').bind(path[1]).first();
+      if (!target) return fail('这条资源不存在或已被删除', 404);
+      const inserted = await db.prepare('INSERT OR IGNORE INTO resource_likes(resource_id,user_qq,created_at) VALUES(?,?,?)')
+        .bind(target.id, user.qq, new Date().toISOString()).run();
+      const liked = !!inserted.meta.changes;
+      if (!liked) await db.prepare('DELETE FROM resource_likes WHERE resource_id=? AND user_qq=?').bind(target.id, user.qq).run();
+      const count = await db.prepare('SELECT COUNT(*) n FROM resource_likes WHERE resource_id=?').bind(target.id).first();
+      return json({ ok: true, liked, likesCount: Number(count?.n || 0) });
+    }
     // 爱心资源：上传者可更新 / 删除自己的分享，站主 / 管理员也可处置违规链接。
     if (path[0] === 'resources' && path[1] === 'mine' && path.length === 2 && method === 'GET') {
       const rows = await db.prepare(`${resourceSelect} WHERE r.uploader_qq=? ORDER BY r.created_at DESC, r.id DESC LIMIT 100`).bind(user.qq).all();
-      return json({ items: rows.results.map((r) => resourceDto(r, user.qq, isSiteAdmin(user))) });
+      const liked = await likedResourceIds(db, user.qq);
+      return json({ items: rows.results.map((r) => resourceDto(r, user.qq, isSiteAdmin(user), liked)) });
     }
     if (path[0] === 'resources' && path.length === 1 && method === 'POST') {
       const input = resourceInput(await body(request));
@@ -1243,7 +1268,10 @@ export async function onRequest(context) {
       if (!row) return fail('这条资源不存在或已被删除', 404);
       if (row.uploader_qq !== user.qq && !isSiteAdmin(user)) return fail('只能修改或删除自己分享的资源', 403);
       if (method === 'DELETE') {
-        await db.prepare('DELETE FROM rule_resources WHERE id=?').bind(row.id).run();
+        await db.batch([
+          db.prepare('DELETE FROM rule_resources WHERE id=?').bind(row.id),
+          db.prepare('DELETE FROM resource_likes WHERE resource_id=?').bind(row.id)
+        ]);
         return json({ ok: true });
       }
       const input = resourceInput(await body(request), row);
@@ -1261,7 +1289,8 @@ export async function onRequest(context) {
         .bind(input.name, input.url, input.type, input.note, input.flags, input.category,
           nextStatus, nextNote, nextReviewedAt, nextReviewedBy, iso, row.id).run();
       const updated = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(row.id).first();
-      return json({ item: resourceDto(updated, user.qq, adminEdit) });
+      const liked = await likedResourceIds(db, user.qq);
+      return json({ item: resourceDto(updated, user.qq, adminEdit, liked) });
     }
     // 贴纸广场：会员可浏览其他会员公开的贴纸库，并把某张复制进自己的库存。
     if (path[0] === 'sticker-plaza' && path.length === 1 && method === 'GET') {

@@ -163,6 +163,9 @@ export interface RuleResource {
   updatedAt: string;
   mine: boolean;
   canManage: boolean;
+  // 爱心资源点赞：卡片左上角显示数量，当前登录用户是否已点过。
+  likesCount: number;
+  likedByMe: boolean;
 }
 
 export interface RuleResourceInput {

@@ -53,6 +53,8 @@ export const api = {
   createResource: (value: RuleResourceInput) => post<{ item: RuleResource }>('resources', value),
   updateResource: (id: string, value: RuleResourceInput) => patch<{ item: RuleResource }>(`resources/${encodeURIComponent(id)}`, value),
   deleteResource: (id: string) => request<{ ok: boolean }>(`resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  // 点赞 / 取消点赞：同一接口按当前状态切换，返回切换后的最新点赞数。
+  toggleResourceLike: (id: string) => post<{ ok: boolean; liked: boolean; likesCount: number }>(`resources/${encodeURIComponent(id)}/like`),
   checkin: () => post<{ ok: boolean; streak: number; checkinCount: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),
