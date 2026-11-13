@@ -27,6 +27,8 @@ export function AdminChatSection({ onNotice, onError }: { onNotice: (message: st
   const [threadLoading, setThreadLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const onErrorRef = useRef(onError);
+  // 点选账号后立即发消息时，较慢的旧会话请求不能覆盖刚发出的新消息列表。
+  const threadVersion = useRef(0);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   const loadList = async () => {
@@ -45,21 +47,29 @@ export function AdminChatSection({ onNotice, onError }: { onNotice: (message: st
 
   // 会话列表与账号列表共用同一个打开动作：账号列表让客服能主动联系从未发过消息的玩家。
   const openThread = async (qq: string, name: string) => {
+    const version = ++threadVersion.current;
     setSelected(qq); setSelectedName(name); setThreadLoading(true);
-    try { const data = await adminApi.chatThreadFor(qq); setMessages(data.messages); await loadList(); }
-    catch (error) { onErrorRef.current(error); } finally { setThreadLoading(false); }
+    try {
+      const data = await adminApi.chatThreadFor(qq);
+      if (version === threadVersion.current) setMessages(data.messages);
+      await loadList();
+    } catch (error) { onErrorRef.current(error); }
+    finally { if (version === threadVersion.current) setThreadLoading(false); }
   };
 
   const reply = async (event: FormEvent) => {
     event.preventDefault();
     const content = draft.trim();
     if (!content || !selected) return;
+    const qq = selected, version = ++threadVersion.current;
     setBusy(true);
     try {
-      await adminApi.chatReply(selected, content);
+      await adminApi.chatReply(qq, content);
       setDraft('');
-      const data = await adminApi.chatThreadFor(selected);
-      setMessages(data.messages);
+      // 先把刚发出的消息立即显示出来，再用服务端会话覆盖，避免弱网下对话框空白。
+      setMessages((prev) => [...prev, { id: `local-${Date.now()}`, fromRole: 'admin', content, createdAt: new Date().toISOString() }]);
+      const data = await adminApi.chatThreadFor(qq);
+      if (version === threadVersion.current) setMessages(data.messages);
       await loadList();
       onNotice('已发送，玩家会在首页收到新消息提醒');
     } catch (error) { onError(error); } finally { setBusy(false); }

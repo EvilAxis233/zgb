@@ -55,6 +55,19 @@ export function useChatInbox(userQq: string | null, open: boolean): ChatInbox {
     return () => window.clearInterval(timer);
   }, [userQq, open, load]);
 
+  // 用户切回标签页或窗口重新获得焦点时立刻检查一次，不必等下一轮 30 秒轮询。
+  useEffect(() => {
+    if (!userQq) return;
+    const onFocus = () => { void load(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [userQq, load]);
+
   const unread = userQq ? messages.filter((m) => m.fromRole === 'admin' && m.createdAt > lastSeen).length : 0;
 
   const send = (event: FormEvent) => {
