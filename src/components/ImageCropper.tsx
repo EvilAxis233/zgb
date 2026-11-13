@@ -14,14 +14,16 @@ export const STICKER_ASPECT = 3.5;
 const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 }, sticker: { width: 720, height: Math.round(720 / STICKER_ASPECT) } };
 const titles = { avatar: '裁剪头像', cover: '裁剪团封面', sticker: '裁剪贴纸' };
 
-// 缩放滑块用「相对铺满裁剪框的百分比」表示：0% = 刚好铺满（原来的 100%），
-// -100% 缩到四分之一，竖图/长图也能整张完整显示、四周留白；+100% = 放大到 3 倍（原来的上限）。
-// 负区间是后来补的：以前滑块只能从「铺满」往放大方向拉，没有缩小档位。
+// 缩放滑块刻度为 -100% ~ +300%：0% = 刚好铺满裁剪框（原来的 100%）。
+// -100% 缩到四分之一，竖图/长图也能整张完整显示、四周留白；
+// +300% 放大到 3 倍（沿用原来的最大放大倍数，不把图片拉得过糊）。
+const MIN_PERCENT = -100;
+const MAX_PERCENT = 300;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const zoomOf = (percent: number) => percent >= 0
-  ? 1 + (MAX_ZOOM - 1) * (percent / 100)
-  : 1 - (1 - MIN_ZOOM) * (-percent / 100);
+  ? 1 + (MAX_ZOOM - 1) * (percent / MAX_PERCENT)
+  : 1 - (1 - MIN_ZOOM) * (percent / MIN_PERCENT);
 
 export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -85,7 +87,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   }, [image, zoom, offset, width, height, shape]);
 
   const changeZoom = (nextPercent: number) => {
-    const value = Math.max(-100, Math.min(100, Math.round(nextPercent)));
+    const value = Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, Math.round(nextPercent)));
     setZoomPercent(value);
     setOffset((current) => clampOffset(current, zoomOf(value)));
   };
@@ -130,7 +132,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
-          <p className="flex items-start gap-2 text-xs text-[#555]"><Move className="mt-0.5 h-4 w-4 shrink-0 text-[#004E98]" /><span>{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪。' : ''}拖动图片调整取景位置；下方滑块 0% 为刚好铺满，往左到 -100% 可把整张图缩小完整显示（四周补白底），往右到 +100% 放大。{shape === 'sticker' ? '下面可预览发团后的实际效果。' : '也可聚焦图片后用方向键微调。'}</span></p>
+          <p className="flex items-start gap-2 text-xs text-[#555]"><Move className="mt-0.5 h-4 w-4 shrink-0 text-[#004E98]" /><span>{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪。' : ''}拖动图片调整取景位置；下方滑块 0% 为刚好铺满，往左到 -100% 可把整张图缩小完整显示（四周补白底），往右到 +300% 放大。{shape === 'sticker' ? '下面可预览发团后的实际效果。' : '也可聚焦图片后用方向键微调。'}</span></p>
           <canvas
             ref={canvasRef}
             width={width}
@@ -180,12 +182,13 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
             </div>
           )}
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => changeZoom(zoomPercent - 10)} disabled={zoomPercent <= -100} className="bauhaus-btn w-8 h-8 bg-white disabled:opacity-40" aria-label="缩小"><Minus className="w-4 h-4" /></button>
-            <input type="range" min="-100" max="100" step="1" value={zoomPercent} onChange={(event) => changeZoom(Number(event.target.value))} className="flex-1 accent-[#004E98]" aria-label="缩放图片" />
-            <button type="button" onClick={() => changeZoom(zoomPercent + 10)} disabled={zoomPercent >= 100} className="bauhaus-btn w-8 h-8 bg-white disabled:opacity-40" aria-label="放大"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={() => changeZoom(zoomPercent - 20)} disabled={zoomPercent <= MIN_PERCENT} className="bauhaus-btn w-8 h-8 bg-white disabled:opacity-40" aria-label="缩小"><Minus className="w-4 h-4" /></button>
+            <input type="range" min={MIN_PERCENT} max={MAX_PERCENT} step="1" value={zoomPercent} onChange={(event) => changeZoom(Number(event.target.value))} className="flex-1 accent-[#004E98]" aria-label="缩放图片" />
+            <button type="button" onClick={() => changeZoom(zoomPercent + 20)} disabled={zoomPercent >= MAX_PERCENT} className="bauhaus-btn w-8 h-8 bg-white disabled:opacity-40" aria-label="放大"><Plus className="w-4 h-4" /></button>
             <span className="w-14 text-right text-xs font-bold">{zoomPercent > 0 ? '+' : ''}{zoomPercent}%</span>
           </div>
-          <p className="-mt-2 flex justify-between px-11 text-[10px] font-bold text-[#666]"><span>-100% 缩小</span><span>0% 铺满</span><span>+100% 放大</span></p>
+          {/* 0% 位于整条滑块的 1/4 处（-100~+300 共 400 格），按真实位置标注 */}
+          <div className="relative -mt-2 ml-11 mr-[112px] h-3 text-[10px] font-bold text-[#666]"><span className="absolute left-0 whitespace-nowrap">-100% 缩小</span><span className="absolute left-1/4 -translate-x-1/2 whitespace-nowrap">0% 铺满</span><span className="absolute right-0 whitespace-nowrap">+300% 放大</span></div>
           <div className="flex justify-center">
             <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#004E98] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004E98]"><RotateCcw className="h-3.5 w-3.5" />恢复居中</button>
           </div>
