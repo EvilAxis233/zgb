@@ -36,6 +36,22 @@ const nicknameLength = (value: string) => Array.from(value).reduce(
   0,
 );
 
+// 喜好 / 雷区：各最多 3 个，每个最多 6 个中文字（中文及全角按 2、英文数字按 1，上限 12）。
+const TRAIT_LIMIT = 3;
+const TRAIT_WIDTH = 12;
+const limitTrait = (value: string) => {
+  let out = '', width = 0;
+  for (const character of Array.from(value)) {
+    const size = /^[\x00-\x7F]$/.test(character) ? 1 : 2;
+    if (width + size > TRAIT_WIDTH) break;
+    out += character;
+    width += size;
+  }
+  return out;
+};
+const normalizeTraits = (list?: string[]) =>
+  [...new Set((list || []).map((tag) => limitTrait(String(tag).trim())).filter(Boolean))].slice(0, TRAIT_LIMIT);
+
 export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   myCampaigns,
@@ -85,19 +101,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   }, []);
   const [name, setName] = useState(currentUser.name);
   const [bio, setBio] = useState(currentUser.bio);
-  const [preferences, setPreferences] = useState<string[]>(currentUser.preferences || []);
-  const [taboos, setTaboos] = useState<string[]>(currentUser.taboos || []);
+  const [preferences, setPreferences] = useState<string[]>(normalizeTraits(currentUser.preferences));
+  const [taboos, setTaboos] = useState<string[]>(normalizeTraits(currentUser.taboos));
   const [newPref, setNewPref] = useState('');
   const [newTaboo, setNewTaboo] = useState('');
   const [notifyEmail, setNotifyEmail] = useState(currentUser.notifyEmail || '');
   const [signupNotifyEnabled, setSignupNotifyEnabled] = useState(currentUser.signupNotifyEnabled !== false);
   const nameLength = nicknameLength(name.trim());
+  // 老档案里可能有超出新规则的标签：编辑时先规范化展示，并提示保存后会收敛到新上限。
+  const originalTraits = [...(currentUser.preferences || []), ...(currentUser.taboos || [])];
+  const traitsOverLimit = (currentUser.preferences || []).length > TRAIT_LIMIT
+    || (currentUser.taboos || []).length > TRAIT_LIMIT
+    || originalTraits.some((tag) => nicknameLength(String(tag)) > TRAIT_WIDTH || String(tag) !== String(tag).trim());
 
   React.useEffect(() => {
     setName(currentUser.name);
     setBio(currentUser.bio);
-    setPreferences(currentUser.preferences || []);
-    setTaboos(currentUser.taboos || []);
+    setPreferences(normalizeTraits(currentUser.preferences));
+    setTaboos(normalizeTraits(currentUser.taboos));
     setNotifyEmail(currentUser.notifyEmail || '');
     setSignupNotifyEnabled(currentUser.signupNotifyEnabled !== false);
   }, [currentUser]);
@@ -128,8 +149,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       const success = await onUpdateProfile({
         name: name.trim(),
         bio,
-        preferences,
-        taboos,
+        preferences: normalizeTraits(preferences),
+        taboos: normalizeTraits(taboos),
         notifyEmail: notifyEmail.trim(),
         signupNotifyEnabled,
       });
@@ -140,10 +161,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   const addPreference = () => {
-    if (newPref.trim() && !preferences.includes(newPref.trim())) {
-      setPreferences([...preferences, newPref.trim()]);
-      setNewPref('');
+    const value = limitTrait(newPref.trim());
+    if (!value) return;
+    if (preferences.length >= TRAIT_LIMIT) {
+      void showAlert({ title: '已达上限', message: '喜好最多填写 3 个，请先删除一个再添加。', type: 'warning' });
+      return;
     }
+    if (preferences.includes(value)) {
+      void showAlert({ title: '提示', message: '这个喜好已经添加过了。', type: 'warning' });
+      return;
+    }
+    setPreferences([...preferences, value]);
+    setNewPref('');
   };
 
   const removePreference = (tag: string) => {
@@ -151,10 +180,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   const addTaboo = () => {
-    if (newTaboo.trim() && !taboos.includes(newTaboo.trim())) {
-      setTaboos([...taboos, newTaboo.trim()]);
-      setNewTaboo('');
+    const value = limitTrait(newTaboo.trim());
+    if (!value) return;
+    if (taboos.length >= TRAIT_LIMIT) {
+      void showAlert({ title: '已达上限', message: '雷区最多填写 3 个，请先删除一个再添加。', type: 'warning' });
+      return;
     }
+    if (taboos.includes(value)) {
+      void showAlert({ title: '提示', message: '这个雷区已经添加过了。', type: 'warning' });
+      return;
+    }
+    setTaboos([...taboos, value]);
+    setNewTaboo('');
   };
 
   const removeTaboo = (tag: string) => {
@@ -355,9 +392,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {/* Preferences (喜好) */}
           <div className="md:col-span-3">
+            {isEditing && traitsOverLimit && (
+              <p className="mb-2 px-2 py-1.5 border border-[#C85C16] bg-[#FFF4D6] text-[11px] font-bold leading-snug text-[#7A4B00]">
+                原有标签超出新上限，已保留前 3 个并把过长标签裁到 6 个中文字；保存档案后正式生效。
+              </p>
+            )}
             <h3 className="text-xs font-black tracking-wider text-[#004E98] mb-2 flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 bg-[#004E98]" />
               喜好偏好
+              <span className="ml-auto text-[10px] font-bold text-[#666]">{preferences.length}/{TRAIT_LIMIT}</span>
             </h3>
             <div className="flex flex-wrap gap-1.5">
               {preferences.map((p) => (
@@ -378,15 +421,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               ))}
             </div>
             {isEditing && (
-              <div className="mt-2 flex gap-1">
+              <div className="mt-2">
                 <input
                   type="text"
                   value={newPref}
-                  onChange={(e) => setNewPref(e.target.value)}
+                  onChange={(e) => setNewPref(limitTrait(e.target.value))}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPreference())}
-                  placeholder="输入后回车"
-                  className="bauhaus-input flex-1 px-2 py-1 text-xs"
+                  disabled={preferences.length >= TRAIT_LIMIT}
+                  placeholder={preferences.length >= TRAIT_LIMIT ? '已达 3 个上限，删除后可再添加' : '输入后回车添加'}
+                  className="bauhaus-input w-full px-2 py-1 text-xs disabled:opacity-60"
+                  aria-label="添加喜好"
                 />
+                <p className="mt-1 text-[10px] text-[#666]">最多 3 个，每个最多 6 个中文字（或 12 个英文字母）</p>
               </div>
             )}
           </div>
@@ -396,6 +442,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <h3 className="text-xs font-black tracking-wider text-[#D62828] mb-2 flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 bg-[#D62828]" />
               雷区禁忌
+              <span className="ml-auto text-[10px] font-bold text-[#666]">{taboos.length}/{TRAIT_LIMIT}</span>
             </h3>
             <div className="flex flex-wrap gap-1.5">
               {taboos.map((t) => (
@@ -416,15 +463,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               ))}
             </div>
             {isEditing && (
-              <div className="mt-2 flex gap-1">
+              <div className="mt-2">
                 <input
                   type="text"
                   value={newTaboo}
-                  onChange={(e) => setNewTaboo(e.target.value)}
+                  onChange={(e) => setNewTaboo(limitTrait(e.target.value))}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTaboo())}
-                  placeholder="输入后回车"
-                  className="bauhaus-input flex-1 px-2 py-1 text-xs"
+                  disabled={taboos.length >= TRAIT_LIMIT}
+                  placeholder={taboos.length >= TRAIT_LIMIT ? '已达 3 个上限，删除后可再添加' : '输入后回车添加'}
+                  className="bauhaus-input w-full px-2 py-1 text-xs disabled:opacity-60"
+                  aria-label="添加雷区"
                 />
+                <p className="mt-1 text-[10px] text-[#666]">最多 3 个，每个最多 6 个中文字（或 12 个英文字母）</p>
               </div>
             )}
           </div>

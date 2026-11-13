@@ -1148,7 +1148,20 @@ export async function onRequest(context) {
     }
     if (path[0] === 'profile' && path.length === 1 && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 100);
-      const tags = (v) => Array.isArray(v) ? [...new Set(v.map((x) => clean(x, 40)).filter(Boolean))].slice(0, 20) : [];
+      // 个人档案喜好 / 雷区：各最多 3 个，每个最多 6 个中文字（中文及全角按 2、ASCII 按 1，上限 12）。
+      const TRAIT_LIMIT = 3, TRAIT_WIDTH = 12;
+      const cutWidth = (value, max) => {
+        let out = '', width = 0;
+        for (const ch of Array.from(value)) {
+          const w = /^[\x00-\x7F]$/.test(ch) ? 1 : 2;
+          if (width + w > max) break;
+          out += ch; width += w;
+        }
+        return out;
+      };
+      const tags = (v) => Array.isArray(v)
+        ? [...new Set(v.map((x) => cutWidth(clean(x, 40), TRAIT_WIDTH)).filter(Boolean))].slice(0, TRAIT_LIMIT)
+        : [];
       if (!name) return fail('昵称不能为空');
       if (nicknameLength(name) > 20) return fail('昵称最多 10 个中文字符或 20 个英文字符，中文及全角字符按 2 个计算');
       const duplicate = await db.prepare('SELECT 1 FROM users WHERE name=? COLLATE NOCASE AND qq!=?').bind(name, user.qq).first();
