@@ -502,7 +502,7 @@ export function App() {
         {chatInbox.unread > 0 && (
           <button type="button" onClick={openChat} className="mb-4 flex w-full items-center justify-between gap-3 border-2 border-[#D62828] bg-[#FAF0F0] px-4 py-3 text-left shadow-[4px_4px_0px_#D62828] hover:bg-[#F7DDDD]">
             <span className="flex items-center gap-2 text-sm font-black text-[#B51F1F]">
-              <MessageSquareText size={17} />猪猪客服回复了你（{chatInbox.unread} 条新消息）
+              <MessageSquareText size={17} />猪猪客服有{chatInbox.unread}条新消息请查收
             </span>
             <span className="shrink-0 text-xs font-black text-[#B51F1F] underline">点击查看 →</span>
           </button>

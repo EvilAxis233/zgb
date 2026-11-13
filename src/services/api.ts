@@ -263,7 +263,7 @@ export const adminApi = {
   archivedCampaigns: (status: 'all' | 'closed' | 'finished' | 'abandoned', offset: number, q = '') => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}&q=${encodeURIComponent(q)}`),
   keepAbandoned: (id: string) => post<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/keep`),
   deleteAbandoned: (id: string) => request<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/abandoned`, { method: 'DELETE' }),
-  resources: (status: 'pending' | 'approved' | 'rejected' | 'all', offset: number) => request<{ items: AdminResource[]; total: number; counts: AdminResourceCounts }>(`admin/resources?status=${status}&offset=${offset}`),
+  resources: (status: 'pending' | 'approved' | 'rejected' | 'all', offset: number, q = '') => request<{ items: AdminResource[]; total: number; counts: AdminResourceCounts }>(`admin/resources?status=${status}&offset=${offset}&q=${encodeURIComponent(q)}`),
   reviewResource: (id: string, status: 'pending' | 'approved' | 'rejected', note = '') => patch<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { status, note }),
   deleteResource: (id: string) => request<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   // 猪猪客服：后台会话管理

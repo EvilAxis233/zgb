@@ -915,11 +915,23 @@ export async function onRequest(context) {
         const raw = url.searchParams.get('status');
         const status = ['pending', 'approved', 'rejected', 'all'].includes(raw) ? raw : 'pending';
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
-        const clause = status === 'all' ? '' : ` WHERE COALESCE(r.review_status,'approved')='${status}'`;
+        // 后台资源审核检索：名称 / 链接 / 备注 / 标签 / 分享者昵称或 QQ / 审核备注 / 审核人，可与状态筛选组合。
+        const q = String(url.searchParams.get('q') || '').trim().slice(0, 60);
+        const conditions = [];
+        if (status !== 'all') conditions.push(`COALESCE(r.review_status,'approved')='${status}'`);
+        const binds = [];
+        if (q) {
+          const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+          conditions.push(`(r.name LIKE ? ESCAPE '\\' OR r.url LIKE ? ESCAPE '\\' OR r.note LIKE ? ESCAPE '\\' OR r.flags LIKE ? ESCAPE '\\' OR r.uploader_qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\' OR r.review_note LIKE ? ESCAPE '\\' OR r.reviewed_by LIKE ? ESCAPE '\\')`);
+          for (let i = 0; i < 8; i++) binds.push(`%${escaped}%`);
+        }
+        const clause = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
         const order = ` ORDER BY CASE COALESCE(r.review_status,'approved') WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END,r.created_at DESC,r.id DESC`;
+        const countSql = `SELECT COUNT(*) n FROM rule_resources r LEFT JOIN users u ON u.qq=r.uploader_qq${clause}`;
+        const rowSql = `${resourceSelect}${clause}${order} LIMIT 30 OFFSET ?`;
         const [count, rows] = await db.batch([
-          db.prepare(`SELECT COUNT(*) n FROM rule_resources r${clause}`),
-          db.prepare(`${resourceSelect}${clause}${order} LIMIT 30 OFFSET ?`).bind(offset)
+          binds.length ? db.prepare(countSql).bind(...binds) : db.prepare(countSql),
+          db.prepare(rowSql).bind(...binds, offset)
         ]);
         const counts = await db.prepare(`SELECT
           COALESCE(SUM(CASE WHEN review_status='pending' THEN 1 ELSE 0 END),0) pending,

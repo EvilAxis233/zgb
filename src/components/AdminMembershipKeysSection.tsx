@@ -16,6 +16,8 @@ export function AdminMembershipKeysSection({ onNotice, onError }: { onNotice: (m
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
+  // 折叠详情：同一时间只展开一张卡，默认只显示 Key 行，避免长列表被激活记录撑得过长。
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [items, setItems] = useState<MembershipKeyRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<MembershipKeyCounts>({ unused: 0, used: 0, revoked: 0 });
@@ -204,31 +206,41 @@ export function AdminMembershipKeysSection({ onNotice, onError }: { onNotice: (m
           className={`bauhaus-btn px-2.5 py-1 text-[11px] gap-1 ${status === tab.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>
           {tab.label}<span className="text-[10px]">({number(tab.count)})</span>
         </button>)}
-        {search && <span className="self-center text-[10px] font-bold text-[#004E98]">检索「{search}」：{number(total)} 条</span>}
+        {search
+          ? <span className="self-center text-[10px] font-bold text-[#004E98]">检索「{search}」：{number(total)} 条</span>
+          : <span className="self-center text-[10px] font-bold text-[#888]">卡片默认只显示 Key，点「详情」展开激活记录与操作</span>}
       </div>
       {loading ? <p className="py-6 text-center text-xs font-bold text-[#666]">正在读取…</p>
         : !items.length ? <p className="py-6 text-center text-xs text-[#666]">{search ? `没有匹配「${search}」的 Key，换个关键词试试。` : '当前筛选下暂无 Key。'}</p>
-        : <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{items.map((item) => {
+        : <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 items-start">{items.map((item) => {
           const revoked = !!item.revoked_at, used = !!item.redeemed_by;
           const state = revoked ? '已作废' : used ? '已激活' : '未使用';
           const stateStyle = revoked ? 'bg-[#FAF0F0] text-[#B51F1F] border-[#B51F1F]' : used ? 'bg-[#E7F5F1] text-[#176B57] border-[#176B57]' : 'bg-[#FFF4D6] text-[#7A4B00] border-[#7A4B00]';
-          return <article key={item.key_norm} className="border-2 border-[#121212] bg-[#FAF9F5] p-2 flex flex-col gap-1">
+          const open = expanded === item.key_norm;
+          return <article key={item.key_norm} className="border-2 border-[#121212] bg-[#FAF9F5] p-2 flex flex-col gap-1 min-w-0">
+            {/* 折叠态只保留 Key 行：状态 + Key + 复制 + 详情开关 */}
             <div className="flex items-center gap-1 min-w-0">
               <span className={`shrink-0 px-1 py-0.5 border text-[10px] font-black leading-tight ${stateStyle}`}>{state}</span>
               <code className="min-w-0 flex-1 truncate text-[11px] font-black" title={item.code}>{item.code}</code>
               <button type="button" onClick={() => copyText(item.code, 'Key')} className="shrink-0 text-[#004E98] cursor-pointer" title="复制完整 Key" aria-label="复制完整 Key"><Copy size={12} /></button>
+              <button type="button" onClick={() => setExpanded(open ? null : item.key_norm)} aria-expanded={open}
+                className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-black text-[#004E98] hover:text-[#D62828] cursor-pointer">
+                {open ? <>收起<ChevronUp size={12} /></> : <>详情<ChevronDown size={12} /></>}
+              </button>
             </div>
-            <div className="text-[10px] leading-tight text-[#666] space-y-0.5">
-              <p>{item.months} 个月 · 批次 {item.batch}</p>
-              <p>生成 {hkTime(item.created_at)} · {item.created_by}</p>
-              {used
-                ? <p className="font-bold text-[#176B57]">{item.redeemed_name || '—'}（{item.redeemed_by}）· {hkTime(item.redeemed_at)} · 到期 {item.expires_at ? hkTime(item.expires_at) : '—'}</p>
-                : <p>{revoked ? `作废于 ${hkTime(item.revoked_at)}` : '尚未激活'}</p>}
-            </div>
-            {!used && <div className="mt-auto pt-1 flex justify-end">
-              {revoked
-                ? <button type="button" disabled={busy} onClick={() => purge(item)} className="bauhaus-btn bg-white px-2 py-0.5 text-[10px] font-black text-[#B51F1F] inline-flex items-center gap-1 cursor-pointer"><Trash2 size={11} />彻底删除</button>
-                : <button type="button" disabled={busy} onClick={() => revoke(item)} className="bauhaus-btn bg-white px-2 py-0.5 text-[10px] font-black text-[#B51F1F] inline-flex items-center gap-1 cursor-pointer"><Trash2 size={11} />作废</button>}
+            {open && <div className="border-t border-dashed border-[#DDDDD5] pt-1.5 flex flex-col gap-1">
+              <div className="text-[10px] leading-tight text-[#666] space-y-0.5">
+                <p>{item.months} 个月 · 批次 {item.batch}</p>
+                <p>生成 {hkTime(item.created_at)} · {item.created_by}</p>
+                {used
+                  ? <p className="font-bold text-[#176B57]">{item.redeemed_name || '—'}（{item.redeemed_by}）· {hkTime(item.redeemed_at)} · 到期 {item.expires_at ? hkTime(item.expires_at) : '—'}</p>
+                  : <p>{revoked ? `作废于 ${hkTime(item.revoked_at)}` : '尚未激活'}</p>}
+              </div>
+              {!used && <div className="pt-0.5 flex justify-end">
+                {revoked
+                  ? <button type="button" disabled={busy} onClick={() => purge(item)} className="bauhaus-btn bg-white px-2 py-0.5 text-[10px] font-black text-[#B51F1F] inline-flex items-center gap-1 cursor-pointer"><Trash2 size={11} />彻底删除</button>
+                  : <button type="button" disabled={busy} onClick={() => revoke(item)} className="bauhaus-btn bg-white px-2 py-0.5 text-[10px] font-black text-[#B51F1F] inline-flex items-center gap-1 cursor-pointer"><Trash2 size={11} />作废</button>}
+              </div>}
             </div>}
           </article>;
         })}</div>}
