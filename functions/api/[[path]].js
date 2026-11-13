@@ -544,47 +544,72 @@ export async function onRequest(context) {
         const months = Math.floor(Number(b.months));
         if (!Number.isInteger(months) || months < 1 || months > 12) return fail('时长请选 1–12 个月');
         const lines = String(b.codes || '').split(/[\r\n,，;；\s]+/).map((s) => s.trim()).filter(Boolean);
-        const entries = [];
+        const entries = [], seen = new Set();
         for (const line of lines) {
           const keyNorm = normKey(line);
-          if (keyNorm.length < 8 || keyNorm.length > 64) continue;
-          if (!entries.some((e) => e.keyNorm === keyNorm)) entries.push({ keyNorm, code: line.toUpperCase() });
+          if (keyNorm.length < 8 || keyNorm.length > 200 || seen.has(keyNorm)) continue;
+          seen.add(keyNorm);
+          entries.push({ keyNorm, code: line });
         }
         if (!entries.length) return fail('没有识别到有效的 Key（每行一个，至少 8 位）');
-        if (entries.length > 100) return fail('单次最多导入 100 个 Key');
+        if (entries.length > 5000) return fail('单次最多导入 5000 个 Key');
         const operator = await auth(request, db);
         const createdAt = new Date().toISOString();
         const batch = `I${now().toString(36).toUpperCase()}`;
         const before = await db.prepare('SELECT COUNT(*) n FROM membership_keys').first();
         const stmts = entries.map((e) => db.prepare('INSERT OR IGNORE INTO membership_keys(key_norm,code,months,days,batch,created_by,created_at) VALUES(?,?,?,?,?,?,?)')
           .bind(e.keyNorm, e.code, months, keyDays(months), batch, operator?.qq || 'admin', createdAt));
-        for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
+        for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
         const after = await db.prepare('SELECT COUNT(*) n FROM membership_keys').first();
         const imported = Number(after.n) - Number(before.n);
         return json({ ok: true, batch, months, imported, skipped: entries.length - imported });
       }
       if (path[1] === 'membership-keys' && path[2] === 'export' && path.length === 3 && method === 'GET') {
         const onlyUnused = url.searchParams.get('status') !== 'all';
-        const rows = await db.prepare(`SELECT code FROM membership_keys ${onlyUnused ? 'WHERE redeemed_by IS NULL AND revoked_at IS NULL' : ''} ORDER BY created_at DESC, key_norm LIMIT 500`).all();
+        const rows = await db.prepare(`SELECT code FROM membership_keys ${onlyUnused ? 'WHERE redeemed_by IS NULL AND revoked_at IS NULL' : ''} ORDER BY created_at DESC, key_norm LIMIT 5000`).all();
         return json({ codes: rows.results.map((r) => r.code) });
       }
       if (path[1] === 'membership-keys' && path.length === 2 && method === 'GET') {
         const raw = url.searchParams.get('status');
         const status = ['unused', 'used', 'revoked', 'all'].includes(raw) ? raw : 'all';
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
-        const where = status === 'unused' ? 'WHERE k.redeemed_by IS NULL AND k.revoked_at IS NULL'
-          : status === 'used' ? 'WHERE k.redeemed_by IS NOT NULL'
-          : status === 'revoked' ? 'WHERE k.revoked_at IS NOT NULL' : '';
+        const q = String(url.searchParams.get('q') || '').trim().slice(0, 60);
+        const conditions = [];
+        if (status === 'unused') conditions.push('k.redeemed_by IS NULL AND k.revoked_at IS NULL');
+        else if (status === 'used') conditions.push('k.redeemed_by IS NOT NULL');
+        else if (status === 'revoked') conditions.push('k.revoked_at IS NOT NULL');
+        const binds = [];
+        if (q) {
+          const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+          conditions.push(`(k.code LIKE ? ESCAPE '\\' OR k.key_norm LIKE ? ESCAPE '\\' OR k.batch LIKE ? ESCAPE '\\' OR k.redeemed_by LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\')`);
+          for (let i = 0; i < 5; i++) binds.push(`%${escaped}%`);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const countStmt = db.prepare(`SELECT COUNT(*) n FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where}`);
+        const rowStmt = db.prepare(`SELECT k.*,u.name redeemed_name FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where} ORDER BY k.created_at DESC,k.key_norm LIMIT 30 OFFSET ?`);
+        if (binds.length) countStmt.bind(...binds);
+        rowStmt.bind(...binds, offset);
         const [count, counts, rows] = await db.batch([
-          db.prepare(`SELECT COUNT(*) n FROM membership_keys k ${where}`),
+          countStmt,
           db.prepare(`SELECT COALESCE(SUM(CASE WHEN redeemed_by IS NULL AND revoked_at IS NULL THEN 1 ELSE 0 END),0) unused,
             COALESCE(SUM(CASE WHEN redeemed_by IS NOT NULL THEN 1 ELSE 0 END),0) used,
             COALESCE(SUM(CASE WHEN revoked_at IS NOT NULL THEN 1 ELSE 0 END),0) revoked FROM membership_keys`),
-          db.prepare(`SELECT k.*,u.name redeemed_name FROM membership_keys k LEFT JOIN users u ON u.qq=k.redeemed_by ${where} ORDER BY k.created_at DESC,k.key_norm LIMIT 30 OFFSET ?`).bind(offset)
+          rowStmt
         ]);
         return json({ items: rows.results, total: Number(count.results[0].n || 0), counts: {
           unused: Number(counts.results[0].unused || 0), used: Number(counts.results[0].used || 0), revoked: Number(counts.results[0].revoked || 0)
         } });
+      }
+      // 彻底删除：只允许删「已作废且从未激活」的 Key，保护激活记录不被抹掉。
+      if (path[1] === 'membership-keys' && path[2] && path.length === 4 && path[3] === 'purge' && method === 'DELETE') {
+        const keyNorm = normKey(decodeURIComponent(path[2]));
+        const result = await db.prepare('DELETE FROM membership_keys WHERE key_norm=? AND revoked_at IS NOT NULL AND redeemed_by IS NULL').bind(keyNorm).run();
+        if (!result.meta.changes) return fail('该 Key 不存在、未作废或已有激活记录，不能彻底删除', 409);
+        return json({ ok: true });
+      }
+      if (path[1] === 'membership-keys' && path[2] === 'purge-revoked' && path.length === 3 && method === 'DELETE') {
+        const result = await db.prepare('DELETE FROM membership_keys WHERE revoked_at IS NOT NULL AND redeemed_by IS NULL').run();
+        return json({ ok: true, deleted: Number(result.meta.changes || 0) });
       }
       if (path[1] === 'membership-keys' && path[2] && path.length === 3 && method === 'DELETE') {
         const keyNorm = normKey(decodeURIComponent(path[2]));
@@ -1040,7 +1065,7 @@ export async function onRequest(context) {
     // 赞助会员 Key 激活：一次性使用，会员时长叠加到当前到期日，写入后台发放记录。
     if (path[0] === 'membership' && path[1] === 'redeem' && path.length === 2 && method === 'POST') {
       const keyNorm = normKey((await body(request)).code);
-      if (keyNorm.length < 8 || keyNorm.length > 64) return fail('请输入完整的会员 Key');
+      if (keyNorm.length < 8 || keyNorm.length > 200) return fail('请输入完整的会员 Key');
       if (roleOf(user) === 'owner' || user.membership_expires_at === PERMANENT_MEMBERSHIP) return fail('当前账号是永久会员，无需激活');
       const key = await db.prepare('SELECT * FROM membership_keys WHERE key_norm=?').bind(keyNorm).first();
       if (!key) return fail('会员 Key 无效，请核对后重试');
