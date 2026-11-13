@@ -1148,8 +1148,8 @@ export async function onRequest(context) {
     }
     if (path[0] === 'profile' && path.length === 1 && method === 'PATCH') {
       const b = await body(request), name = clean(b.name, 40), bio = clean(b.bio, 100);
-      // 个人档案喜好 / 雷区：各最多 3 个，每个最多 6 个中文字（中文及全角按 2、ASCII 按 1，上限 12）。
-      const TRAIT_LIMIT = 3, TRAIT_WIDTH = 12;
+      // 个人档案喜好 / 雷区：各最多 6 个，每个最多 6 个中文字 / 12 个英文字母（中文及全角按 2、ASCII 按 1，上限 12）。
+      const TRAIT_LIMIT = 6, TRAIT_WIDTH = 12;
       const cutWidth = (value, max) => {
         let out = '', width = 0;
         for (const ch of Array.from(value)) {

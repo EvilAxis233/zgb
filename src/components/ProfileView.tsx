@@ -36,8 +36,8 @@ const nicknameLength = (value: string) => Array.from(value).reduce(
   0,
 );
 
-// 喜好 / 雷区：各最多 3 个，每个最多 6 个中文字（中文及全角按 2、英文数字按 1，上限 12）。
-const TRAIT_LIMIT = 3;
+// 喜好 / 雷区：各最多 6 个，每个最多 6 个中文字（中文及全角按 2、英文数字按 1，上限 12）。
+const TRAIT_LIMIT = 6;
 const TRAIT_WIDTH = 12;
 const limitTrait = (value: string) => {
   let out = '', width = 0;
@@ -164,7 +164,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     const value = limitTrait(newPref.trim());
     if (!value) return;
     if (preferences.length >= TRAIT_LIMIT) {
-      void showAlert({ title: '已达上限', message: '喜好最多填写 3 个，请先删除一个再添加。', type: 'warning' });
+      void showAlert({ title: '已达上限', message: '喜好最多填写 6 个，请先删除一个再添加。', type: 'warning' });
       return;
     }
     if (preferences.includes(value)) {
@@ -183,7 +183,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     const value = limitTrait(newTaboo.trim());
     if (!value) return;
     if (taboos.length >= TRAIT_LIMIT) {
-      void showAlert({ title: '已达上限', message: '雷区最多填写 3 个，请先删除一个再添加。', type: 'warning' });
+      void showAlert({ title: '已达上限', message: '雷区最多填写 6 个，请先删除一个再添加。', type: 'warning' });
       return;
     }
     if (taboos.includes(value)) {
@@ -363,11 +363,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="pt-6 grid grid-cols-1 md:grid-cols-12 gap-6">
           {isEditing && traitsOverLimit && (
             <p className="md:col-span-12 -mb-2 px-2.5 py-1.5 border border-[#C85C16] bg-[#FFF4D6] text-[11px] font-bold leading-snug text-[#7A4B00]">
-              原有标签超出新上限，已保留前 3 个并把过长标签裁到 6 个中文字；保存档案后正式生效。
+              原有标签超出新上限，已保留前 6 个并把过长标签裁到 6 个中文字；保存档案后正式生效。
             </p>
           )}
           {/* Bio */}
-          <div className="md:col-span-5">
+          <div className="md:col-span-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-xs font-black tracking-wider text-[#121212] flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 bg-[#D62828]" />
@@ -396,7 +396,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
 
           {/* Preferences (喜好) */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-4">
             <h3 className="text-xs font-black tracking-wider text-[#004E98] mb-2 flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 bg-[#004E98]" />
               喜好偏好
@@ -428,11 +428,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   onChange={(e) => setNewPref(limitTrait(e.target.value))}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPreference())}
                   disabled={preferences.length >= TRAIT_LIMIT}
-                  placeholder={preferences.length >= TRAIT_LIMIT ? '已达 3 个上限，删除后可再添加' : '输入后回车添加'}
+                  placeholder={preferences.length >= TRAIT_LIMIT ? '已达 6 个上限，删除后可再添加' : '输入后回车添加'}
                   className="bauhaus-input w-full px-2 py-1 text-xs disabled:opacity-60"
                   aria-label="添加喜好"
                 />
-                <p className="mt-1 text-[10px] text-[#666]">最多 3 个，每个最多 6 个中文字（或 12 个英文字母）</p>
+                <p className="mt-1 text-[10px] text-[#666]">最多 6 个，每个最多 6 个中文字（或 12 个英文字母）</p>
               </div>
             )}
           </div>
@@ -470,11 +470,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   onChange={(e) => setNewTaboo(limitTrait(e.target.value))}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTaboo())}
                   disabled={taboos.length >= TRAIT_LIMIT}
-                  placeholder={taboos.length >= TRAIT_LIMIT ? '已达 3 个上限，删除后可再添加' : '输入后回车添加'}
+                  placeholder={taboos.length >= TRAIT_LIMIT ? '已达 6 个上限，删除后可再添加' : '输入后回车添加'}
                   className="bauhaus-input w-full px-2 py-1 text-xs disabled:opacity-60"
                   aria-label="添加雷区"
                 />
-                <p className="mt-1 text-[10px] text-[#666]">最多 3 个，每个最多 6 个中文字（或 12 个英文字母）</p>
+                <p className="mt-1 text-[10px] text-[#666]">最多 6 个，每个最多 6 个中文字（或 12 个英文字母）</p>
               </div>
             )}
           </div>

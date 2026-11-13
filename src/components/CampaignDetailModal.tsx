@@ -142,35 +142,38 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         {member.receivedPraises}
       </span>
     );
-    // 发布者 / GM 行：ID → 铭牌 → 获赞数量；喜好与雷区在右侧上下两行，
-    // 整块与头像垂直居中、保持平行。GM 这一行不显示贴纸。
+    // 发布者 / GM 行：ID → 铭牌 → 获赞数量；喜好与雷区全部展示，不再折叠成 +N。
+    // 标签较多（合计超过 3 个）时整块换行到下一行、跨整行左对齐，避免挤压昵称与「个人档案」按钮；
+    // 单行内标签仍然自动换行，超长标签本身也允许折行。GM 这一行不显示贴纸。
     if (member.role === 'gm') {
       const prefs = member.preferences ?? [];
       const tabooList = member.taboos ?? [];
       const hasTraits = prefs.length > 0 || tabooList.length > 0;
+      const traitsWrap = prefs.length + tabooList.length > 3;
+      const traitsBlock = hasTraits && (
+        <div className={`flex min-w-0 flex-col gap-1 text-[11px] font-bold ${traitsWrap ? 'w-full items-start' : 'items-end'}`}>
+          {prefs.length > 0 && <div className={`flex min-w-0 flex-wrap items-center gap-1 ${traitsWrap ? 'justify-start' : 'justify-end'}`}>
+            <span className="shrink-0 text-[#004E98]">喜好</span>
+            {prefs.map((tag, i) => <span key={`gm-pref-${i}-${tag}`} className="max-w-full break-all border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[#004E98]">{tag}</span>)}
+          </div>}
+          {tabooList.length > 0 && <div className={`flex min-w-0 flex-wrap items-center gap-1 ${traitsWrap ? 'justify-start' : 'justify-end'}`}>
+            <span className="shrink-0 text-[#D62828]">雷区</span>
+            {tabooList.map((tag, i) => <span key={`gm-taboo-${i}-${tag}`} className="max-w-full break-all border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[#D62828]">{tag}</span>)}
+          </div>}
+        </div>
+      );
       return (
         <div key={member.id} className="border-b border-[#D8D5CC] last:border-b-0">
           <div className="flex items-center gap-3 px-4 py-3">
             <Avatar member={member} />
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <strong className="min-w-0 break-all text-sm">{member.name}</strong>
                 {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
                 {receivedPraiseBadge}
               </div>
-              <div className="flex min-w-0 items-center gap-2.5">
-                {hasTraits && <div className="flex min-w-0 flex-col items-end gap-1 text-[11px] font-bold">
-                  {prefs.length > 0 && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
-                    <span className="shrink-0 text-[#004E98]">喜好</span>
-                    {prefs.slice(0, 3).map((tag) => <span key={`gm-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[#004E98]">{tag}</span>)}
-                    {prefs.length > 3 && <span className="text-[#888]">+{prefs.length - 3}</span>}
-                  </div>}
-                  {tabooList.length > 0 && <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
-                    <span className="shrink-0 text-[#D62828]">雷区</span>
-                    {tabooList.slice(0, 3).map((tag) => <span key={`gm-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[#D62828]">{tag}</span>)}
-                    {tabooList.length > 3 && <span className="text-[#888]">+{tabooList.length - 3}</span>}
-                  </div>}
-                </div>}
+              <div className="flex min-w-0 shrink-0 items-center gap-2.5">
+                {!traitsWrap && traitsBlock}
                 <button
                   type="button"
                   onClick={() => setProfileMember(member)}
@@ -182,6 +185,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   <span className="mt-0.5">档案</span>
                 </button>
               </div>
+              {traitsWrap && <div className="min-w-0 basis-full">{traitsBlock}</div>}
             </div>
             <div className="flex shrink-0 items-center gap-2">{praiseButton(member)}</div>
           </div>
@@ -383,7 +387,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                       <span className="h-2.5 w-2.5 bg-[#004E98]" />喜好
                     </h4>
                     {profilePrefs.length
-                      ? <div className="flex flex-wrap gap-1">{profilePrefs.map((tag) => <span key={`pf-pref-${tag}`} className="border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98]">{tag}</span>)}</div>
+                      ? <div className="flex flex-wrap gap-1">{profilePrefs.map((tag, i) => <span key={`pf-pref-${i}-${tag}`} className="max-w-full break-all border border-[#004E98] bg-[#F0F5FA] px-1.5 py-0.5 text-[11px] font-bold text-[#004E98]">{tag}</span>)}</div>
                       : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
                   </div>
                   <div className="border-2 border-[#121212] bg-white p-3">
@@ -391,7 +395,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                       <span className="h-2.5 w-2.5 bg-[#D62828]" />雷区
                     </h4>
                     {profileTaboos.length
-                      ? <div className="flex flex-wrap gap-1">{profileTaboos.map((tag) => <span key={`pf-taboo-${tag}`} className="border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828]">{tag}</span>)}</div>
+                      ? <div className="flex flex-wrap gap-1">{profileTaboos.map((tag, i) => <span key={`pf-taboo-${i}-${tag}`} className="max-w-full break-all border border-[#D62828] bg-[#FAF0F0] px-1.5 py-0.5 text-[11px] font-bold text-[#D62828]">{tag}</span>)}</div>
                       : <p className="text-[11px] font-bold text-[#888]">未填写</p>}
                   </div>
                 </div>
