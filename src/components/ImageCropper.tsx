@@ -14,11 +14,21 @@ export const STICKER_ASPECT = 3.5;
 const sizes = { avatar: { width: 512, height: 512 }, cover: { width: 1200, height: 675 }, sticker: { width: 720, height: Math.round(720 / STICKER_ASPECT) } };
 const titles = { avatar: '裁剪头像', cover: '裁剪团封面', sticker: '裁剪贴纸' };
 
+// 缩放滑块用「相对铺满裁剪框的百分比」表示：0% = 刚好铺满（原来的 100%），
+// -100% 缩到四分之一，竖图/长图也能整张完整显示、四周留白；+100% = 放大到 3 倍（原来的上限）。
+// 负区间是后来补的：以前滑块只能从「铺满」往放大方向拉，没有缩小档位。
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 3;
+const zoomOf = (percent: number) => percent >= 0
+  ? 1 + (MAX_ZOOM - 1) * (percent / 100)
+  : 1 - (1 - MIN_ZOOM) * (-percent / 100);
+
 export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoomPercent, setZoomPercent] = useState(0);
+  const zoom = zoomOf(zoomPercent);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -38,9 +48,11 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
   const bounds = (nextZoom: number) => {
     if (!image) return { x: 0, y: 0 };
     const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight) * nextZoom;
+    // 缩小时图片比裁剪框小，取绝对值让用户仍能在留白范围内挪动图片（贴边），
+    // 放大时与原逻辑一致：最多拖到图片边缘刚好贴住裁剪框。
     return {
-      x: Math.max(0, (image.naturalWidth * scale - width) / 2),
-      y: Math.max(0, (image.naturalHeight * scale - height) / 2),
+      x: Math.abs((image.naturalWidth * scale - width) / 2),
+      y: Math.abs((image.naturalHeight * scale - height) / 2),
     };
   };
 
@@ -62,18 +74,24 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
     const drawnHeight = image.naturalHeight * scale;
     const position = clampOffset(offset, zoom);
     context.clearRect(0, 0, width, height);
+    // 缩小时图片四周会露出空白；先铺白底，否则导出 JPEG 时透明区域会变成黑块。
+    // 预览画布的背景同步变白，做到所见即所得；不缩小时保持原有行为（含透明 PNG）。
+    if (zoom < 1) {
+      context.fillStyle = '#FFFFFF';
+      context.fillRect(0, 0, width, height);
+    }
     context.drawImage(image, (width - drawnWidth) / 2 + position.x, (height - drawnHeight) / 2 + position.y, drawnWidth, drawnHeight);
     if (shape === 'sticker') setStickerPreview(canvas.toDataURL('image/png'));
   }, [image, zoom, offset, width, height, shape]);
 
-  const changeZoom = (nextZoom: number) => {
-    const value = Math.max(1, Math.min(3, nextZoom));
-    setZoom(value);
-    setOffset((current) => clampOffset(current, value));
+  const changeZoom = (nextPercent: number) => {
+    const value = Math.max(-100, Math.min(100, Math.round(nextPercent)));
+    setZoomPercent(value);
+    setOffset((current) => clampOffset(current, zoomOf(value)));
   };
 
   const reset = () => {
-    setZoom(1);
+    setZoomPercent(0);
     setOffset({ x: 0, y: 0 });
   };
 
@@ -112,7 +130,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
-          <p className="flex items-center gap-2 text-xs text-[#555]"><Move className="h-4 w-4 shrink-0 text-[#004E98]" />{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪，剪出来的图正好铺满那个位置。拖动图片调整取景位置，下方滑块缩放，下面可预览发团后的实际效果。' : '拖动图片调整取景位置，使用下方滑块缩放；也可聚焦图片后用方向键微调。'}</p>
+          <p className="flex items-start gap-2 text-xs text-[#555]"><Move className="mt-0.5 h-4 w-4 shrink-0 text-[#004E98]" /><span>{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪。' : ''}拖动图片调整取景位置；下方滑块 0% 为刚好铺满，往左到 -100% 可把整张图缩小完整显示（四周补白底），往右到 +100% 放大。{shape === 'sticker' ? '下面可预览发团后的实际效果。' : '也可聚焦图片后用方向键微调。'}</span></p>
           <canvas
             ref={canvasRef}
             width={width}
@@ -121,7 +139,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
             role="img"
             aria-label="图片裁剪区域，可拖动或使用方向键调整位置"
             className={`block mx-auto max-w-full bg-[#EAE8E0] border-2 border-[#121212] cursor-grab active:cursor-grabbing select-none focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#004E98] ${shape === 'cover' ? 'w-full' : shape === 'sticker' ? 'w-full h-auto' : 'w-72'}`}
-            style={{ touchAction: 'none' }}
+            style={{ touchAction: 'none', ...(zoom < 1 ? { backgroundColor: '#FFFFFF' } : {}) }}
             onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { x: event.clientX, y: event.clientY }; }}
             onPointerMove={(event) => {
               if (!dragRef.current) return;
@@ -158,15 +176,16 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
                   </div>
                 </div>
               ))}
-              <p className="mt-1.5 text-[10px] text-[#666]">贴纸按 3.5:1 裁剪、直接铺满，四角带圆角；只贴 1 张时会更扁、两侧略被裁掉，主要内容请放在中间。</p>
+              <p className="mt-1.5 text-[10px] text-[#666]">贴纸在卡片上按 3.5:1 铺满、四角带圆角；只贴 1 张时会更扁、两侧略被裁掉，主要内容请放在中间。想保留整张图不裁切，可把缩放拉到 0% 以下（四周补白底）。</p>
             </div>
           )}
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => changeZoom(zoom - 0.1)} className="bauhaus-btn w-8 h-8 bg-white" aria-label="缩小"><Minus className="w-4 h-4" /></button>
-            <input type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => changeZoom(Number(event.target.value))} className="flex-1 accent-[#004E98]" aria-label="缩放图片" />
-            <button type="button" onClick={() => changeZoom(zoom + 0.1)} className="bauhaus-btn w-8 h-8 bg-white" aria-label="放大"><Plus className="w-4 h-4" /></button>
-            <span className="text-xs font-bold w-10 text-right">{Math.round(zoom * 100)}%</span>
+            <button type="button" onClick={() => changeZoom(zoomPercent - 10)} disabled={zoomPercent <= -100} className="bauhaus-btn w-8 h-8 bg-white disabled:opacity-40" aria-label="缩小"><Minus className="w-4 h-4" /></button>
+            <input type="range" min="-100" max="100" step="1" value={zoomPercent} onChange={(event) => changeZoom(Number(event.target.value))} className="flex-1 accent-[#004E98]" aria-label="缩放图片" />
+            <button type="button" onClick={() => changeZoom(zoomPercent + 10)} disabled={zoomPercent >= 100} className="bauhaus-btn w-8 h-8 bg-white disabled:opacity-40" aria-label="放大"><Plus className="w-4 h-4" /></button>
+            <span className="w-14 text-right text-xs font-bold">{zoomPercent > 0 ? '+' : ''}{zoomPercent}%</span>
           </div>
+          <p className="-mt-2 flex justify-between px-11 text-[10px] font-bold text-[#666]"><span>-100% 缩小</span><span>0% 铺满</span><span>+100% 放大</span></p>
           <div className="flex justify-center">
             <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#004E98] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004E98]"><RotateCcw className="h-3.5 w-3.5" />恢复居中</button>
           </div>
