@@ -361,6 +361,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
         {/* Bio & Habits Block */}
         <div className="pt-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+          {isEditing && traitsOverLimit && (
+            <p className="md:col-span-12 -mb-2 px-2.5 py-1.5 border border-[#C85C16] bg-[#FFF4D6] text-[11px] font-bold leading-snug text-[#7A4B00]">
+              原有标签超出新上限，已保留前 3 个并把过长标签裁到 6 个中文字；保存档案后正式生效。
+            </p>
+          )}
           {/* Bio */}
           <div className="md:col-span-5">
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -392,11 +397,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {/* Preferences (喜好) */}
           <div className="md:col-span-3">
-            {isEditing && traitsOverLimit && (
-              <p className="mb-2 px-2 py-1.5 border border-[#C85C16] bg-[#FFF4D6] text-[11px] font-bold leading-snug text-[#7A4B00]">
-                原有标签超出新上限，已保留前 3 个并把过长标签裁到 6 个中文字；保存档案后正式生效。
-              </p>
-            )}
             <h3 className="text-xs font-black tracking-wider text-[#004E98] mb-2 flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 bg-[#004E98]" />
               喜好偏好
