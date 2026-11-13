@@ -270,12 +270,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                 <h1 className="min-w-0 text-2xl font-black tracking-tight break-words">{campaign.title}</h1>
                 {campaign.slots && campaign.slots.length > 1 && (
                   <label className="shrink-0 sm:w-56">
-                    <span className="sr-only">选择开团时段</span>
+                    <span className="sr-only">{campaign.kind === 'promo' ? '选择截止时段' : '选择开团时段'}</span>
                     <select
                       value={campaign.id}
                       onChange={(event) => event.target.value !== campaign.id && onSelectSlot(event.target.value)}
                       className="bauhaus-input w-full px-2.5 py-1.5 text-xs font-bold"
-                      aria-label="选择开团时段"
+                      aria-label={campaign.kind === 'promo' ? '选择截止时段' : '选择开团时段'}
                     >
                       {campaign.slots.map((slot) => (
                         <option key={slot.id} value={slot.id}>
@@ -289,6 +289,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               <div className="mt-4 pt-3 border-t-2 border-[#121212] text-xs font-bold flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#004E98] shrink-0" />
+                  {campaign.kind === 'promo' && <span className="shrink-0 font-black text-[#004E98]">截止时间：</span>}
                   <span>{formatDisplayTime(campaign.timeSchedule)}</span>
                 </div>
                 <div className="text-xs">

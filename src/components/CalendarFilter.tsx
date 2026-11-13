@@ -11,6 +11,7 @@ interface CalendarFilterProps {
   onSelectDate: (dateStr: string | null) => void;
   activeDatesWithCampaigns?: Set<string>;
   maxDaysAhead?: number | null; // null 表示未来日期不限月数
+  deadline?: boolean; // 宣群板块：日历上的日期是宣发截止日，不是开团日
 }
 
 const WEEKDAY_HEADERS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -20,6 +21,7 @@ export const CalendarFilter: React.FC<CalendarFilterProps> = ({
   onSelectDate,
   activeDatesWithCampaigns = new Set(),
   maxDaysAhead = 30,
+  deadline = false,
 }) => {
   // 今日 00:00:00
   const today = useMemo(() => {
@@ -236,7 +238,7 @@ export const CalendarFilter: React.FC<CalendarFilterProps> = ({
                 title={
                   disabled
                     ? '超出可选范围'
-                    : `${cell.dateStr}${cell.hasCampaigns ? '（有开团战役）' : ''}`
+                    : `${cell.dateStr}${cell.hasCampaigns ? (deadline ? '（有宣群截止）' : '（有开团战役）') : ''}`
                 }
                 className={`relative h-6 text-[11px] font-medium flex flex-col items-center justify-center transition-all ${btnClass}`}
               >

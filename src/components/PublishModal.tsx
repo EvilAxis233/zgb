@@ -269,7 +269,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="relative flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 my-auto w-full max-w-[1540px]">
-        {/* 左侧悬浮：开团时间 / 宣群截止时间设定面板 (与右侧预览等宽 440px，自适应内容高度) */}
+        {/* 左侧悬浮：网团/面团为开团时间，宣群为截止时间 (与右侧预览等宽 440px，自适应内容高度) */}
         <div className="hidden lg:flex w-[440px] shrink-0 flex-col bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] overflow-hidden self-start">
           {/* Header */}
           <div className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between border-b-2 border-[#121212] shrink-0">
@@ -293,6 +293,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               onChangeSlots={applyTimeSlots}
               hideHeader={true}
               borderless={true}
+              deadline={kind === 'promo'}
             />
           </div>
         </div>
@@ -589,7 +590,11 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           timeSchedule ? 'text-[#121212]' : 'text-[#888888] font-normal italic'
                         }`}
                       >
-                        {timeSlots.length ? `${timeSlots.length} 个时段：${timeSlots.map(formatDisplayTime).join('、')}` : '未选择时间（请在左侧日历选定）'}
+                        {timeSlots.length
+                          ? kind === 'promo'
+                            ? `截止时间：${formatDisplayTime(timeSlots[0])}`
+                            : `${timeSlots.length} 个时段：${timeSlots.map(formatDisplayTime).join('、')}`
+                          : kind === 'promo' ? '未选择截止时间（请在左侧日历选定）' : '未选择时间（请在左侧日历选定）'}
                       </span>
                     </div>
                     {timeSchedule ? (
@@ -621,6 +626,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                           maxDaysAhead={kind === 'online' ? 31 : null}
                           selectedSlots={timeSlots}
                           onChangeSlots={applyTimeSlots}
+                          deadline={kind === 'promo'}
                         />
                       </div>
                     )}

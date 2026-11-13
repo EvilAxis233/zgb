@@ -130,7 +130,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
   };
   const slotTimesBlock = (
     <details className="border-2 border-[#121212] p-3 bg-[#FAF9F5]">
-      <summary className="cursor-pointer text-xs font-bold">各时段开团时间（{draft.slots?.length || 0} 个，点开逐个改期）</summary>
+      <summary className="cursor-pointer text-xs font-bold">{draft.kind === 'promo' ? '宣群截止时间' : `各时段开团时间（${draft.slots?.length || 0} 个，点开逐个改期）`}</summary>
       <div className="mt-3 space-y-2">
         {(draft.slots || []).map((slot, index) => {
           const parsed = parseTimeSchedule(slot.timeSchedule);
@@ -249,11 +249,11 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
         </div>
 
         {stickerBlock}
-        {draft.batchId ? slotTimesBlock : <CalendarPicker value={draft.timeSchedule} onChange={(value) => setDraft({ ...draft, timeSchedule: value })} maxDaysAhead={draft.kind === 'online' ? 31 : null} />}
+        {draft.batchId ? slotTimesBlock : <CalendarPicker value={draft.timeSchedule} onChange={(value) => setDraft({ ...draft, timeSchedule: value })} maxDaysAhead={draft.kind === 'online' ? 31 : null} deadline={draft.kind === 'promo'} />}
         <label className="block text-xs font-bold">联系方式<input className="bauhaus-input mt-1 w-full p-2" value={draft.contact || ''} onChange={(e) => setDraft({ ...draft, contact: e.target.value })} placeholder="留空则保持原联系方式" /></label>
         <p className="-mt-2 text-[10px] font-bold text-[#666]">代编辑他人团时若看不到原联系方式，留空即可保留，不会被覆盖。</p>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
-        <p className="text-[11px] text-[#666]">{draft.kind === 'offline' ? `面团 · ${locationLabel(draft)} · ` : ''}开团时间：{formatDisplayTime(draft.timeSchedule)}{draft.batchId ? '（各时段可在上方逐个改期）' : '（可在日历中改期）'}</p>
+        <p className="text-[11px] text-[#666]">{draft.kind === 'offline' ? `面团 · ${locationLabel(draft)} · ` : ''}{draft.kind === 'promo' ? '宣群截止时间' : '开团时间'}：{formatDisplayTime(draft.timeSchedule)}{draft.batchId ? '（各时段可在上方逐个改期）' : '（可在日历中改期）'}</p>
         <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button disabled={saving} className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs disabled:opacity-50">{saving ? '保存中…' : '保存修改'}</button></div>
       </form>
       {coverToCrop && <ImageCropper file={coverToCrop} shape="cover" onClose={() => setCoverToCrop(null)} onConfirm={(file) => {

@@ -641,7 +641,7 @@ export function App() {
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-[#121212] flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-[#004E98]" />
-                        <span>开团时段</span>
+                        <span>{boardView === 'promo' ? '截止时段' : '开团时段'}</span>
                       </label>
                       {periodFilter !== 'all' && (
                         <span className="text-[10px] text-[#D62828] font-bold">已筛选</span>
@@ -676,6 +676,7 @@ export function App() {
                     selectedDate={dateFilter}
                     onSelectDate={setDateFilter}
                     activeDatesWithCampaigns={activeDatesWithCampaigns}
+                    deadline={boardView === 'promo'}
                   />
 
                   {/* Reset button */}

@@ -24,6 +24,7 @@ interface CalendarPickerProps {
   maxDaysAhead?: number | null; // null 表示未来日期不设上限
   hideHeader?: boolean;
   borderless?: boolean;
+  deadline?: boolean; // 宣群：时间语义是「宣发截止时间」，不是开团时间
 }
 
 export const CalendarPicker: React.FC<CalendarPickerProps> = ({
@@ -35,6 +36,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   maxDaysAhead = 31,
   hideHeader = false,
   borderless = false,
+  deadline = false,
 }) => {
   // 今日与最晚日期
   const today = useMemo(() => {
@@ -213,7 +215,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2">
           <div className="flex items-center gap-1.5 font-black text-xs text-[#121212]">
             <CalendarIcon className="w-4 h-4 text-[#D62828]" />
-            <span>{multiple ? '选择多个开团日期与时段' : '选择开团日期与时段'}</span>
+            <span>{deadline ? '选择宣群截止日期与时段' : multiple ? '选择多个开团日期与时段' : '选择开团日期与时段'}</span>
           </div>
           <span className="text-[11px] font-bold text-[#666666] bg-[#FFFFFF] px-2 py-0.5 border border-[#CCCCCC]">
             {maxDaysAhead === null ? '可选任意未来日期' : `可选今日起最晚 ${maxDaysAhead} 天内`}
@@ -317,7 +319,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         <div className="flex items-center justify-between mb-2 gap-2">
           <label className="text-xs font-black text-[#121212] flex items-center gap-1 shrink-0">
             <span className="w-2 h-2 bg-[#004E98]" />
-            <span>开团时段 ({PERIOD_HINT})</span>
+            <span>{deadline ? '截止时段' : '开团时段'} ({PERIOD_HINT})</span>
             <span className="text-[#D62828]">*</span>
           </label>
           {selectedDate && (
@@ -354,7 +356,7 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
                   {key === '早' ? '上午' : key === '中' ? '下午' : '晚上'}
                 </span>
                 <span className={`text-[10px] ${isChosen ? 'text-white/70' : closed ? 'text-[#D62828]' : 'text-[#999999]'}`}>
-                  {closed ? '已封车' : `${periodCloseLabel(key)} 封车`}
+                  {closed ? (deadline ? '已过截止' : '已封车') : `${periodCloseLabel(key)} ${deadline ? '截止' : '封车'}`}
                 </span>
               </button>
             );
@@ -371,7 +373,13 @@ export const CalendarPicker: React.FC<CalendarPickerProps> = ({
         }`}
       >
         {multiple ? (
-          <span className="text-[#121212] text-center">{selectedSlots.length ? `已选 ${selectedSlots.length} 个时段：${selectedSlots.map(formatDisplayTime).join('、')}` : `点击日期，再选择${PERIOD_HINT}；再次点击时段可取消`}</span>
+          <span className="text-[#121212] text-center">{selectedSlots.length
+            ? deadline
+              ? `已选截止时间：${selectedSlots.map(formatDisplayTime).join('、')}`
+              : `已选 ${selectedSlots.length} 个时段：${selectedSlots.map(formatDisplayTime).join('、')}`
+            : deadline
+              ? `点击日期，再选择${PERIOD_HINT}；宣群只保留最后选的 1 个截止时段`
+              : `点击日期，再选择${PERIOD_HINT}；再次点击时段可取消`}</span>
         ) : selectedDate && selectedPeriod ? (
           <span className="font-mono font-black text-xs sm:text-sm text-[#121212]">
             {`${selectedDate}（${selectedDateWeekDay}）${formatPeriod(selectedPeriod)}`}

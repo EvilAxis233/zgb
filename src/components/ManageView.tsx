@@ -163,7 +163,7 @@ export const ManageView: React.FC<Props> = ({
                   {campaign.kind === 'offline' ? locationLabel(campaign) : campaign.sessionType || '语音'}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-[#666]">{campaign.rule} · {formatDisplayTime(campaign.timeSchedule)}</p>
+              <p className="mt-1 text-xs text-[#666]">{campaign.rule} · {campaign.kind === 'promo' ? '截止：' : ''}{formatDisplayTime(campaign.timeSchedule)}</p>
               {campaign.kind !== 'offline' && !!campaign.platforms?.length && <p className="mt-1 text-xs text-[#004E98] font-bold">{campaign.kind === 'promo' ? '平台' : '游戏平台'}：{campaign.platforms.join('、')}</p>}
               <div className="mt-1 flex flex-wrap gap-1">
                 {campaign.customTags?.map((tag) => (
@@ -304,7 +304,7 @@ export const ManageView: React.FC<Props> = ({
       <form onSubmit={addSlot} className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] p-6 space-y-4">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">添加团副本</h2><button type="button" onClick={() => setAddingBatchId(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
         <p className="text-xs text-[#555]">选择一个尚未使用的时段。新团会复制主团当前的信息；修改主团简介和标签会同步到所有时段。</p>
-        <CalendarPicker value={newTimeSchedule} onChange={setNewTimeSchedule} maxDaysAhead={hostedGroups.get(addingBatchId)?.[0]?.kind === 'online' ? 31 : null} />
+        <CalendarPicker value={newTimeSchedule} onChange={setNewTimeSchedule} maxDaysAhead={hostedGroups.get(addingBatchId)?.[0]?.kind === 'online' ? 31 : null} deadline={hostedGroups.get(addingBatchId)?.[0]?.kind === 'promo'} />
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setAddingBatchId(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button type="submit" disabled={!newTimeSchedule || addingSlot} className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs disabled:opacity-40">{addingSlot ? '添加中…' : '添加时间点'}</button></div>
       </form>
     </div>}
@@ -405,7 +405,7 @@ export const ManageView: React.FC<Props> = ({
         </div>
 
         {stickerBlock}
-        <CalendarPicker value={editingCampaign.timeSchedule} onChange={(value) => setEditingCampaign({ ...editingCampaign, timeSchedule: value })} maxDaysAhead={editingCampaign.kind === 'online' ? 31 : null} />
+        <CalendarPicker value={editingCampaign.timeSchedule} onChange={(value) => setEditingCampaign({ ...editingCampaign, timeSchedule: value })} maxDaysAhead={editingCampaign.kind === 'online' ? 31 : null} deadline={editingCampaign.kind === 'promo'} />
         <label className="block text-xs font-bold">联系方式<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.contact || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, contact: e.target.value })} placeholder="默认填入你的 QQ 号" /></label>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
