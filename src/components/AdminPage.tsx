@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Activity, Archive, BarChart3, FileSliders, Headphones, KeyRound, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
+import { Activity, Archive, BarChart3, Eye, FileSliders, Headphones, KeyRound, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminDashboard, type AdminNotices, type AdminUser, type MembershipGrant } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
 import { AdminSupportSection } from './AdminSupportSection';
@@ -20,9 +20,9 @@ const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDash
   { id: 'resources', label: '资源审核', icon: ShieldCheck },
 ];
 
-function MetricCard({ label, value, note, tone = 'blue', live = false }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black'; live?: boolean }) {
-  const color = { red: '#D62828', blue: '#004E98', yellow: '#C85C16', black: '#121212' }[tone];
-  return <article className="bauhaus-card bg-white px-4 py-2 relative overflow-hidden flex flex-col justify-center"><span className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }} /><p className="text-[11px] font-black text-[#666] leading-tight flex items-center gap-1.5">{live && <span className="w-2 h-2 bg-[#2E7D32] animate-pulse" />}{label}</p><strong className="block text-3xl font-black leading-tight" style={{ color }}>{number(value)}</strong><p className="text-[11px] text-[#777] leading-tight">{note}</p></article>;
+function MetricCard({ label, value, note, tone = 'blue', live = false }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black' | 'teal'; live?: boolean }) {
+  const color = { red: '#D62828', blue: '#004E98', yellow: '#C85C16', black: '#121212', teal: '#176B57' }[tone];
+  return <article className="bauhaus-card bg-white px-3 py-2 relative overflow-hidden flex flex-col justify-center" title={`${label} · ${note}`}><span className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }} /><p className="text-[10px] font-black text-[#666] leading-tight flex items-center gap-1.5 truncate">{live && <span className="w-2 h-2 shrink-0 bg-[#2E7D32] animate-pulse" />}{label}</p><strong className="block text-2xl font-black leading-tight" style={{ color }}>{number(value)}</strong><p className="text-[10px] text-[#777] leading-tight truncate">{note}</p></article>;
 }
 
 function StatCell({ label, value, color }: { label: string; value: unknown; color?: string }) {
@@ -31,44 +31,66 @@ function StatCell({ label, value, color }: { label: string; value: unknown; colo
 
 function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: boolean }) {
   if (loading || !data) return <div className="bauhaus-card bg-white h-full flex items-center justify-center font-bold text-sm">正在汇总看板数据…</div>;
-  // 补齐完整的 30 天时间轴，没有数据的日期也占位，图表不会有大片空洞。
+  // 补齐完整的 7 天时间轴，没有数据的日期也占位，图表不会有大片空洞。
   const hkParts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const hkPart = (type: string) => hkParts.find((part) => part.type === type)?.value || '';
   const endDay = `${hkPart('year')}-${hkPart('month')}-${hkPart('day')}`;
   const end = new Date(endDay + 'T00:00:00Z');
-  const trends = Array.from({ length: 30 }, (_, i) => { const d = new Date(end); d.setUTCDate(end.getUTCDate() - (29 - i)); return d.toISOString().slice(0, 10); });
+  const trends = Array.from({ length: 7 }, (_, i) => { const d = new Date(end); d.setUTCDate(end.getUTCDate() - (6 - i)); return d.toISOString().slice(0, 10); });
   const userMap = new Map(data.dailyUsers.map((item) => [item.day, Number(item.count)]));
   const campaignMap = new Map(data.dailyCampaigns.map((item) => [item.day, Number(item.count)]));
+  // 浏览统计可能因后端尚未升级而缺失，这里兜底成全 0，避免看板白屏。
+  const views = data.views || { today: { user: 0, guest: 0 }, month: { user: 0, guest: 0 }, daily: [] };
+  const viewUserMap = new Map(views.daily.map((item) => [item.day, Number(item.user)]));
+  const viewGuestMap = new Map(views.daily.map((item) => [item.day, Number(item.guest)]));
   const sumUsers = trends.reduce((sum, day) => sum + (userMap.get(day) || 0), 0);
   const sumCampaigns = trends.reduce((sum, day) => sum + (campaignMap.get(day) || 0), 0);
+  const sumViewUser = trends.reduce((sum, day) => sum + (viewUserMap.get(day) || 0), 0);
+  const sumViewGuest = trends.reduce((sum, day) => sum + (viewGuestMap.get(day) || 0), 0);
   const maxTrend = Math.max(1, ...trends.flatMap((day) => [userMap.get(day) || 0, campaignMap.get(day) || 0]));
+  const maxViews = Math.max(1, ...trends.flatMap((day) => [viewUserMap.get(day) || 0, viewGuestMap.get(day) || 0]));
   const peakUsers = Math.max(0, ...trends.map((day) => userMap.get(day) || 0));
   const peakCampaigns = Math.max(0, ...trends.map((day) => campaignMap.get(day) || 0));
+  const peakViewUser = Math.max(0, ...trends.map((day) => viewUserMap.get(day) || 0));
+  const peakViewGuest = Math.max(0, ...trends.map((day) => viewGuestMap.get(day) || 0));
+  const todayViews = views.today.user + views.today.guest;
+  const monthViews = views.month.user + views.month.guest;
   const kindNames = { online: '网团', offline: '面团', promo: '宣群' };
   const c = data.campaigns, e = data.engagement, sub = data.submissions;
   return <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
-    <div className="flex items-center justify-between gap-3 shrink-0"><div className="flex items-baseline gap-2"><h3 className="text-base font-black">平台总览</h3><p className="text-[11px] text-[#666]">宣群不计入团次与报名率 · 每 30 秒自动刷新</p></div><time className="text-[11px] text-[#777] shrink-0">更新于 {new Date(data.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div>
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
-      <MetricCard label="注册用户" value={data.users.total} note={`今日 +${number(data.users.today)} · 近 30 天 +${number(data.users.last30)}`} />
+    <div className="flex items-center justify-between gap-3 shrink-0"><div className="flex items-baseline gap-2"><h3 className="text-base font-black">平台总览</h3><p className="text-[11px] text-[#666]">宣群不计入团次与报名率 · 浏览仅统计正式站 · 每 30 秒自动刷新</p></div><time className="text-[11px] text-[#777] shrink-0">更新于 {new Date(data.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div>
+    <section className="grid grid-cols-2 lg:grid-cols-5 gap-2 shrink-0">
+      <MetricCard label="今日浏览" value={todayViews} note={`注册 ${number(views.today.user)} · 游客 ${number(views.today.guest)}`} tone="teal" />
+      <MetricCard label="本月浏览" value={monthViews} note={`注册 ${number(views.month.user)} · 游客 ${number(views.month.guest)}`} tone="yellow" />
+      <MetricCard label="注册用户" value={data.users.total} note={`今日 +${number(data.users.today)} · 近 7 天 +${number(data.users.last7)}`} />
       <MetricCard label="全部团次" value={c.total} note={`网团 ${number(c.online_total)} + 面团 ${number(c.offline_total)} · 不含宣群`} tone="red" />
       <MetricCard label="实时在线人数" value={e.online_now} note={`近 ${number(data.onlineWindow)} 分钟活跃 · 会话 ${number(e.active_sessions)}`} live />
-      <MetricCard label="待办工单" value={Number(sub.pending) + Number(sub.processing)} note={`待受理 ${number(sub.pending)} · 处理中 ${number(sub.processing)}`} tone="black" />
     </section>
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
+    <section className="grid grid-cols-2 lg:grid-cols-5 gap-2 shrink-0">
+      <MetricCard label="待办工单" value={Number(sub.pending) + Number(sub.processing)} note={`待受理 ${number(sub.pending)} · 处理中 ${number(sub.processing)}`} tone="black" />
       <MetricCard label="网团" value={c.online_total} note={`招募中 ${number(c.online_recruiting)} · 封车 ${number(c.online_closed)}`} />
       <MetricCard label="面团" value={c.offline_total} note={`招募中 ${number(c.offline_recruiting)} · 封车 ${number(c.offline_closed)}`} tone="red" />
       <MetricCard label="宣群（现存）" value={c.promo_live} note={`历史 ${number(c.promo_history)} · 共计 ${number(c.promo_total)} · 不算开团`} tone="yellow" />
       <MetricCard label="累计点赞" value={e.praises} note={`GM ${number(e.gm_praises)} · 玩家 ${number(e.player_praises)}`} tone="yellow" />
     </section>
-    <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3 lg:flex-1 lg:min-h-0">
+    <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1.05fr_0.9fr] gap-3 lg:flex-1 lg:min-h-0">
       <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[240px] lg:min-h-0">
-        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Activity size={16} className="text-[#004E98]" />近 30 天增长</h3><div className="flex gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#004E98]" />用户 +{number(sumUsers)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#D62828]" />开团 +{number(sumCampaigns)}（不含宣群）</span></div></div>
-        <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 30 天用户与开团增长柱状图">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Activity size={16} className="text-[#004E98]" />近 7 天增长</h3><div className="flex gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#004E98]" />用户 +{number(sumUsers)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#D62828]" />开团 +{number(sumCampaigns)}（不含宣群）</span></div></div>
+        <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 7 天用户与开团增长柱状图">
           <div className="absolute left-0 top-4 bottom-0 w-7 flex flex-col justify-between text-[10px] font-bold text-[#777] text-right pr-1 pointer-events-none"><span>{maxTrend}</span><span>{Math.round(maxTrend / 2)}</span><span>0</span></div>
           <div className="absolute left-8 right-1 top-5 bottom-0 flex flex-col justify-between pointer-events-none"><span className="block border-t border-dashed border-[#DDD]" /><span className="block border-t border-dashed border-[#DDD]" /><span className="block border-t border-dashed border-[#DDD]" /></div>
-          <div className="relative h-full flex items-end gap-px">{trends.map((day) => { const u = userMap.get(day) || 0, n = campaignMap.get(day) || 0; return <div key={day} className="flex-1 min-w-0 h-full flex items-end justify-center gap-px" title={`${day}：新增用户 ${u} · 新开团 ${n}（不含宣群）`}><div className="relative w-1/2 min-h-[2px] bg-[#004E98]" style={{ height: `${Math.max(2, (u / maxTrend) * 100)}%` }}>{u > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[9px] xl:text-[10px] leading-none font-black text-[#004E98]">{u}</span>}</div><div className="relative w-1/2 min-h-[2px] bg-[#D62828]" style={{ height: `${Math.max(2, (n / maxTrend) * 100)}%` }}>{n > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[9px] xl:text-[10px] leading-none font-black text-[#D62828]">{n}</span>}</div></div>; })}</div>
+          <div className="relative h-full flex items-end gap-1">{trends.map((day) => { const u = userMap.get(day) || 0, n = campaignMap.get(day) || 0; return <div key={day} className="flex-1 min-w-0 h-full flex items-end justify-center gap-1" title={`${day}：新增用户 ${u} · 新开团 ${n}（不含宣群）`}><div className="relative w-1/2 min-h-[2px] bg-[#004E98]" style={{ height: `${Math.max(2, (u / maxTrend) * 100)}%` }}>{u > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[10px] leading-none font-black text-[#004E98]">{u}</span>}</div><div className="relative w-1/2 min-h-[2px] bg-[#D62828]" style={{ height: `${Math.max(2, (n / maxTrend) * 100)}%` }}>{n > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[10px] leading-none font-black text-[#D62828]">{n}</span>}</div></div>; })}</div>
         </div>
         <div className="flex justify-between text-[10px] text-[#777] mt-1 shrink-0"><span>{trends[0]}</span><span className="font-bold">单日峰值 用户 {number(peakUsers)} · 开团 {number(peakCampaigns)}</span><span>{endDay}</span></div>
+      </section>
+      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[240px] lg:min-h-0">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Eye size={16} className="text-[#176B57]" />近 7 天浏览</h3><div className="flex gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#176B57]" />注册 {number(sumViewUser)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#C85C16]" />游客 {number(sumViewGuest)}</span></div></div>
+        <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 7 天浏览次数柱状图（分注册与游客）">
+          <div className="absolute left-0 top-4 bottom-0 w-7 flex flex-col justify-between text-[10px] font-bold text-[#777] text-right pr-1 pointer-events-none"><span>{maxViews}</span><span>{Math.round(maxViews / 2)}</span><span>0</span></div>
+          <div className="absolute left-8 right-1 top-5 bottom-0 flex flex-col justify-between pointer-events-none"><span className="block border-t border-dashed border-[#DDD]" /><span className="block border-t border-dashed border-[#DDD]" /><span className="block border-t border-dashed border-[#DDD]" /></div>
+          <div className="relative h-full flex items-end gap-1">{trends.map((day) => { const u = viewUserMap.get(day) || 0, g = viewGuestMap.get(day) || 0; return <div key={day} className="flex-1 min-w-0 h-full flex items-end justify-center gap-1" title={`${day}：注册 ${u} 次 · 游客 ${g} 次`}><div className="relative w-1/2 min-h-[2px] bg-[#176B57]" style={{ height: `${Math.max(2, (u / maxViews) * 100)}%` }}>{u > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[10px] leading-none font-black text-[#176B57]">{u}</span>}</div><div className="relative w-1/2 min-h-[2px] bg-[#C85C16]" style={{ height: `${Math.max(2, (g / maxViews) * 100)}%` }}>{g > 0 && <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[10px] leading-none font-black text-[#C85C16]">{g}</span>}</div></div>; })}</div>
+        </div>
+        <div className="flex justify-between text-[10px] text-[#777] mt-1 shrink-0"><span>{trends[0]}</span><span className="font-bold">单日峰值 注册 {number(peakViewUser)} · 游客 {number(peakViewGuest)}</span><span>{endDay}</span></div>
       </section>
       <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[220px] lg:min-h-0">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><BarChart3 size={16} className="text-[#D62828]" />板块分布</h3><span className="text-[11px] font-bold">有效与历史</span></div>

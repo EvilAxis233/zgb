@@ -24,6 +24,8 @@ const put = <T>(path: string, value: unknown) => request<T>(path, { method: 'PUT
 
 export const api = {
   me: () => request<{ user: UserProfile | null }>('auth/me'),
+  /** 浏览统计上报：只记正式域名，预览站与本地会被后端跳过（返回 skipped）。 */
+  trackView: (path: string) => post<{ ok: boolean; skipped?: boolean }>('analytics/view', { path }),
   /** 赞助会员弹窗：爱发电链接与交流群号（公开，未登录也可读）。 */
   siteSettings: () => request<{ afdianUrl: string; groupQq: string }>('site/settings'),
   /** 用爱发电发来的会员 Key 激活，成功后返回新的会员到期时间。 */
@@ -144,6 +146,12 @@ export interface AdminDashboard {
   topRules: Array<{ rule: string; total: number }>;
   dailyUsers: Array<{ day: string; count: number }>;
   dailyCampaigns: Array<{ day: string; count: number }>;
+  /** 浏览统计：今日/本月的注册用户与游客次数，daily 为近 7 天明细（仅正式域名计入）。 */
+  views: {
+    today: { user: number; guest: number };
+    month: { user: number; guest: number };
+    daily: Array<{ day: string; user: number; guest: number }>;
+  };
   onlineWindow: number;
   generatedAt: string;
 }

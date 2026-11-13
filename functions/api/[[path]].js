@@ -502,6 +502,20 @@ export async function onRequest(context) {
       const object = await env.COVERS?.get(path.slice(1).join('/'));
       return object ? new Response(object.body, { headers: { 'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } }) : fail('图片不存在', 404);
     }
+    // 浏览统计：前端在整页加载与切换主板块时各上报一次，按登录态区分注册用户 / 游客。
+    // 只记正式域名，预览站、Pages 默认域与本地开发一律跳过，避免测试流量污染看板。
+    if (path[0] === 'analytics' && path[1] === 'view' && method === 'POST') {
+      const host = (request.headers.get('Host') || '').split(':')[0].toLowerCase();
+      if (host !== 'pigbee.fun' && !host.endsWith('.pigbee.fun')) return json({ ok: true, skipped: true });
+      const account = await auth(request, db);
+      const payload = await body(request).catch(() => ({}));
+      const viewPath = clean(payload.path, 80) || '/';
+      try {
+        await db.prepare('INSERT INTO page_views(day,visitor,path,created_at) VALUES(?,?,?,?)')
+          .bind(dateHK(), account ? 'user' : 'guest', viewPath, new Date().toISOString()).run();
+      } catch { /* 统计失败不影响页面本身 */ }
+      return json({ ok: true });
+    }
     if (path[0] === 'admin') {
       if (path[1] === 'me' && method === 'GET') {
         const account = await auth(request, db);
@@ -663,7 +677,7 @@ export async function onRequest(context) {
         const thirtyDaysAgo = new Date(`${today}T00:00:00+08:00`);
         thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
         const asDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
-        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources] = await db.batch([
+        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources, viewTotals, dailyViews] = await db.batch([
           db.prepare(`SELECT COUNT(*) total,
             SUM(CASE WHEN substr(created_at,1,10)=? THEN 1 ELSE 0 END) today,
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last7,
@@ -715,7 +729,18 @@ export async function onRequest(context) {
           db.prepare(`SELECT substr(created_at,1,10) day,COUNT(*) count FROM campaigns WHERE kind IN ('online','offline') AND substr(created_at,1,10)>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
           // 弃团 = 0 人报名即封车的团（网团/面团），自本统计上线起累计。
           db.prepare(`SELECT COUNT(*) abandoned FROM campaigns WHERE deleted_at IS NULL AND kind IN ('online','offline') AND is_abandoned=1`),
-          db.prepare(`SELECT COUNT(*) pending FROM rule_resources WHERE review_status='pending'`)
+          db.prepare(`SELECT COUNT(*) pending FROM rule_resources WHERE review_status='pending'`),
+          // 浏览统计：今日 / 本月分开统计注册用户与游客，另给近 7 天的每日明细给柱状图。
+          db.prepare(`SELECT
+            COALESCE(SUM(CASE WHEN day=? AND visitor='user' THEN 1 ELSE 0 END),0) today_user,
+            COALESCE(SUM(CASE WHEN day=? AND visitor='guest' THEN 1 ELSE 0 END),0) today_guest,
+            COALESCE(SUM(CASE WHEN visitor='user' THEN 1 ELSE 0 END),0) month_user,
+            COALESCE(SUM(CASE WHEN visitor='guest' THEN 1 ELSE 0 END),0) month_guest
+            FROM page_views WHERE day>=?`).bind(today, today, `${today.slice(0, 7)}-01`),
+          db.prepare(`SELECT day,
+            COALESCE(SUM(CASE WHEN visitor='user' THEN 1 ELSE 0 END),0) users,
+            COALESCE(SUM(CASE WHEN visitor='guest' THEN 1 ELSE 0 END),0) guests
+            FROM page_views WHERE day>=? GROUP BY day ORDER BY day`).bind(asDate(sevenDaysAgo))
         ]);
         return json({
           users: users.results[0],
@@ -723,6 +748,11 @@ export async function onRequest(context) {
           engagement: engagement.results[0], submissions: submissions.results[0],
           resourceReviews: { pending: Number(pendingResources.results[0].pending || 0) },
           campaignKinds: campaignKinds.results, topRules: topRules.results, dailyUsers: dailyUsers.results, dailyCampaigns: dailyCampaigns.results,
+          views: {
+            today: { user: Number(viewTotals.results[0]?.today_user || 0), guest: Number(viewTotals.results[0]?.today_guest || 0) },
+            month: { user: Number(viewTotals.results[0]?.month_user || 0), guest: Number(viewTotals.results[0]?.month_guest || 0) },
+            daily: dailyViews.results.map((row) => ({ day: row.day, user: Number(row.users || 0), guest: Number(row.guests || 0) }))
+          },
           onlineWindow: 15, generatedAt: new Date().toISOString()
         });
       }

@@ -69,6 +69,8 @@ export function App() {
   const deletingIdsRef = useRef<Set<string>>(new Set());
   // 正在结束宣发中的宣群：归档操作同样防连点。
   const endingPromoIdsRef = useRef<Set<string>>(new Set());
+  // 浏览统计：记录上次上报时间，整页加载与切换主板块各记一次，30 秒内不重复。
+  const viewTrackedAtRef = useRef(0);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,6 +108,15 @@ export function App() {
   useEffect(() => {
     refresh().catch((error) => showToast(error.message, 'error')).finally(() => setLoading(false));
   }, []);
+
+  // 浏览统计：整页加载与切换主板块（团大厅 / 个人档案 / 团务 / 爱心资源）各记一次。
+  // 注册 / 游客由后端按登录 cookie 判定；30 秒内不重复上报，避免连点或严格模式重复调用把数字刷高。
+  useEffect(() => {
+    const stamp = Date.now();
+    if (stamp - viewTrackedAtRef.current < 30_000) return;
+    viewTrackedAtRef.current = stamp;
+    api.trackView(activeTab === 'board' ? `/board/${boardView}` : `/${activeTab}`).catch(() => {});
+  }, [activeTab, boardView]);
 
   // 在线状态心跳：登录用户每 60 秒轻打一次，供后台统计「实时在线人数」，不刷新页面数据。
   useEffect(() => {
