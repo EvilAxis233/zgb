@@ -78,10 +78,10 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
           {FILTERS.map((item) => <button key={item.key} type="button" role="tab" aria-selected={filter === item.key} onClick={() => changeFilter(item.key)}
             className={`bauhaus-btn px-4 py-2 text-sm ${filter === item.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>{item.label}</button>)}
         </div>
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-72">
           <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#666]" aria-hidden="true" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="检索团名 / GM / 规则 / 成员"
+            placeholder="检索团名 / GM / 规则"
             className="bauhaus-input w-full pl-7 pr-7 py-1.5 text-xs" aria-label="检索封存团务" />
           {query && <button type="button" onClick={() => setQuery('')}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#666] cursor-pointer" aria-label="清空检索"><X size={13} /></button>}
