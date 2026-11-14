@@ -567,7 +567,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       <label className="block font-bold text-[#121212] shrink-0">
                         {kind === 'promo' ? '宣群截止时间' : '开团时间'} <span className="text-[#D62828]">*</span>
                       </label>
-                      {kind !== 'promo' && <span className="text-[11px] font-bold text-[#666]">多选时间为同战役模组批量开团</span>}
+                      {kind !== 'promo' && <span className="inline-flex items-center border-2 border-[#D62828] bg-[#FFF1EF] px-1.5 py-0.5 text-[11px] font-black leading-tight text-[#D62828]">多选为同战役不同时间批量开团，而不是同一团持续时间</span>}
                     </div>
                     {kind === 'promo' ? (
                       <span className="hidden sm:inline shrink-0 text-xs font-bold text-[#D62828]">宣群只能选择 1 个时间</span>
