@@ -130,11 +130,17 @@ export const GmRoundTableView: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
   const [ruleFilter, setRuleFilter] = useState('全部规则');
+  // 规则页签按热度从左到右排列；某分类有新回复时置顶（bump 为毫秒时间戳）
+  const [channelBump, setChannelBump] = useState<Record<string, number>>({});
+  // 卡片点赞（本地演示）
+  const [likedTopics, setLikedTopics] = useState<Record<string, boolean>>({});
 
   // 申请开主题表单
   const [applyOpen, setApplyOpen] = useState(false);
   const [applyName, setApplyName] = useState('');
   const [applyRule, setApplyRule] = useState('');
+  const [applyTargetChannel, setApplyTargetChannel] = useState('');
+  const [applyNewChannel, setApplyNewChannel] = useState('');
   const [applyTags, setApplyTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
 
@@ -158,6 +164,18 @@ export const GmRoundTableView: React.FC = () => {
     if (q && !t.title.toLowerCase().includes(q) && !t.tags.some((tag) => tag.toLowerCase().includes(q))) return false;
     return true;
   }), [channel, ruleFilter, query]);
+
+  // 规则页签按热度从左到右：综合固定最左，其余按该分类主题热度降序；有新回复的分类置顶。
+  const orderedChannels = useMemo(() => {
+    const baseHeat = (id: string) => TOPICS.filter((t) => t.channelId === id).reduce((s, t) => s + heatOf(t), 0);
+    const rest = CHANNELS.filter((c) => c.id !== 'all').slice().sort((a, b) => {
+      const ba = channelBump[a.id] || 0, bb = channelBump[b.id] || 0;
+      if (ba !== bb) return bb - ba;
+      return baseHeat(b.id) - baseHeat(a.id);
+    });
+    const all = CHANNELS.find((c) => c.id === 'all');
+    return all ? [all, ...rest] : rest;
+  }, [channelBump]);
 
   const sorted = useMemo(() => filtered.slice().sort((a, b) => {
     if (sort === 'heat') return heatOf(b) - heatOf(a);
@@ -194,9 +212,11 @@ export const GmRoundTableView: React.FC = () => {
   const submitApply = () => {
     if (!applyName.trim()) { flash('请填写模组名称'); return; }
     if (!applyRule.trim()) { flash('请填写模组原版规则'); return; }
+    if (!applyTargetChannel) { flash('请选择主题放置的规则分页'); return; }
+    if (applyTargetChannel === '__new__' && !applyNewChannel.trim()) { flash('请填写新建规则分页名称'); return; }
     if (applyTags.length === 0) { flash('请至少填写 1 个模组风格 tag'); return; }
     setApplyOpen(false);
-    setApplyName(''); setApplyRule(''); setApplyTags([]); setTagDraft('');
+    setApplyName(''); setApplyRule(''); setApplyTargetChannel(''); setApplyNewChannel(''); setApplyTags([]); setTagDraft('');
     flash('开主题申请已提交（预览：仅前端演示，等待管理员审核）');
   };
 
@@ -227,6 +247,8 @@ export const GmRoundTableView: React.FC = () => {
       id: `local-${Date.now()}`, author: '我', avatar: '我', color: '#8BC34A',
       time: now, content: replyText.trim() || '（图片）', likes: 0, images: replyImages.slice(),
     }, ...prev]);
+    // 有新回复：该分类规则页签刷新为第 1 顺序
+    if (openTopic) setChannelBump((prev) => ({ ...prev, [openTopic.channelId]: Date.now() }));
     setReplyText(''); setReplyImages([]);
     flash('回复已发布（预览：仅前端演示）');
   };
@@ -253,25 +275,32 @@ export const GmRoundTableView: React.FC = () => {
     );
   };
 
-  const TopicCard = ({ t, hot }: { t: Topic; hot?: boolean }) => (
-    <button key={t.id} type="button" onClick={() => setOpenTopic(t)}
-      className="flex h-full flex-col border border-[#3A3A3A] bg-[#2E2E30] p-4 text-left transition-colors hover:border-[#8BC34A] hover:bg-[#343437]">
-      <div className="flex items-center gap-2">
-        {hot && <span className="flex items-center gap-1 bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black text-white"><Flame className="h-3 w-3" />热门</span>}
-        <span className="bg-[#8BC34A] px-1.5 py-0.5 text-[10px] font-black text-[#1B2B0B]">{t.rule}</span>
+  const TopicCard = ({ t, hot }: { t: Topic; hot?: boolean }) => {
+    const liked = !!likedTopics[t.id];
+    return (
+      <div className="relative flex h-full flex-col border border-[#3A3A3A] bg-[#2E2E30] p-4 transition-colors hover:border-[#8BC34A] hover:bg-[#343437]">
+        <button type="button" onClick={() => setOpenTopic(t)} className="flex flex-1 flex-col text-left">
+          <div className="flex items-center gap-2">
+            {hot && <span className="flex items-center gap-1 bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black text-white"><Flame className="h-3 w-3" />热门</span>}
+          </div>
+          <h3 className="mt-2 line-clamp-2 text-sm font-black leading-snug text-white">{t.title}</h3>
+          <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
+          </div>
+          <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
+            <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{t.views}</span>
+            <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
+          </div>
+        </button>
+        {/* 规则分页下的主题：不显示规则标签，改为点赞按钮（显示数量） */}
+        <button type="button" aria-label={`点赞 ${t.title}`} onClick={() => setLikedTopics((prev) => ({ ...prev, [t.id]: !prev[t.id] }))}
+          className={`mt-2 flex w-full items-center justify-center gap-1.5 border-2 py-1.5 text-xs font-black transition-colors ${liked ? 'border-[#8BC34A] bg-[#8BC34A] text-[#1B2B0B]' : 'border-[#555] bg-[#242426] text-[#C9C9C9] hover:border-[#8BC34A] hover:text-[#8BC34A]'}`}>
+          <ThumbsUp className="h-3.5 w-3.5" />{t.likes + (liked ? 1 : 0)}
+        </button>
       </div>
-      <h3 className="mt-2 line-clamp-2 text-sm font-black leading-snug text-white">{t.title}</h3>
-      <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
-      </div>
-      <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
-        <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{t.views}</span>
-        <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3" />{t.likes}</span>
-        <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
-      </div>
-    </button>
-  );
+    );
+  };
 
   return (
     <div className="mx-auto w-full max-w-6xl">
@@ -300,7 +329,7 @@ export const GmRoundTableView: React.FC = () => {
                     {RULES.map((r) => <option key={r} value={r} className="bg-[#242426]">{r}</option>)}
                   </select>
                 </div>
-                {CHANNELS.map((c) => (
+                {orderedChannels.map((c) => (
                   <button key={c.id} type="button" onClick={() => applyChannel(c.id)}
                     className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
                     {c.label}
@@ -468,6 +497,17 @@ export const GmRoundTableView: React.FC = () => {
             <label className="mb-1 block text-xs font-bold text-[#BDBDBD]">模组原版规则</label>
             <input value={applyRule} onChange={(e) => setApplyRule(e.target.value)} placeholder="例如：OSE / COC 7版 / DND 5e"
               className="mb-4 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
+            <label className="mb-1 block text-xs font-bold text-[#BDBDBD]">主题放在哪个规则下</label>
+            <select value={applyTargetChannel} onChange={(e) => setApplyTargetChannel(e.target.value)}
+              className="mb-2 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none focus:border-[#8BC34A]">
+              <option value="" className="bg-[#242426]">请选择规则分页</option>
+              {CHANNELS.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id} className="bg-[#242426]">{c.label}</option>)}
+              <option value="__new__" className="bg-[#242426]">申请新建规则分页…</option>
+            </select>
+            {applyTargetChannel === '__new__' && (
+              <input value={applyNewChannel} onChange={(e) => setApplyNewChannel(e.target.value)} placeholder="输入新建规则分页名称"
+                className="mb-3 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
+            )}
             <div className="mb-1 flex items-center justify-between">
               <label className="text-xs font-bold text-[#BDBDBD]">模组风格 tag（最多 6 个，每个 ≤ 6 中文字符）</label>
               <span className="text-[11px] text-[#9A9A9A]">{applyTags.length}/6</span>

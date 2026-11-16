@@ -231,7 +231,15 @@ async function auth(request, db) {
   const user = await db.prepare('SELECT u.* FROM sessions s JOIN users u ON u.qq=s.qq WHERE s.token_hash=? AND s.expires_at>?').bind(hash, t).first();
   if (user) {
     // 在线心跳：同一会话每 60 秒最多写一次，未满足条件时 SQLite 不会产生写入。
-    await db.prepare('UPDATE sessions SET last_seen_at=? WHERE token_hash=? AND (last_seen_at IS NULL OR last_seen_at<?)').bind(t, hash, t - 60).run();
+    const beat = await db.prepare('UPDATE sessions SET last_seen_at=? WHERE token_hash=? AND (last_seen_at IS NULL OR last_seen_at<?)').bind(t, hash, t - 60).run();
+    // 每日活跃回访：心跳真正更新时按香港日期记一行，同一用户当天只记一次。
+    // 写入失败不影响登录主流程（看板该日数据即缺失，可接受）。
+    if (beat.meta?.changes > 0) {
+      try {
+        await db.prepare('INSERT OR IGNORE INTO daily_active(day,qq,created_at) VALUES(?,?,?)')
+          .bind(dateHK(), String(user.qq), new Date().toISOString()).run();
+      } catch { /* 统计写入失败不影响登录 */ }
+    }
   }
   return user;
 }
@@ -688,7 +696,7 @@ export async function onRequest(context) {
         const prevMonthDays = new Date(Date.UTC(thisYear, thisMonth - 1, 0)).getUTCDate();
         const prevMonthStart = `${prevYear}-${prevMon}-01`;
         const prevMonthEnd = `${prevYear}-${prevMon}-${String(Math.min(thisDay, prevMonthDays)).padStart(2, '0')}`;
-        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources, viewTotals, dailyViews, prevDayViews, prevMonthViews, activeUsers, topPaths] = await db.batch([
+        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources, viewTotals, dailyViews, prevDayViews, prevMonthViews, activeUsers, dailyActive, topPaths] = await db.batch([
           db.prepare(`SELECT COUNT(*) total,
             SUM(CASE WHEN substr(created_at,1,10)=? THEN 1 ELSE 0 END) today,
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last7,
@@ -767,6 +775,8 @@ export async function onRequest(context) {
             COUNT(DISTINCT CASE WHEN last_seen_at>=? THEN qq END) u7,
             COUNT(DISTINCT CASE WHEN last_seen_at>=? THEN qq END) u30
             FROM sessions WHERE expires_at>?`).bind(now() - 7 * 86400, now() - 30 * 86400, now()),
+          // 每日活跃回访：近 30 天每天的去重活跃用户数（daily_active 由登录心跳埋点）
+          db.prepare(`SELECT day, COUNT(DISTINCT qq) active FROM daily_active WHERE day>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
           // 热门页面：近 30 天各浏览路径的次数
           db.prepare(`SELECT path, COUNT(*) count FROM page_views WHERE day>=? GROUP BY path ORDER BY count DESC`).bind(asDate(thirtyDaysAgo))
         ]);
@@ -787,7 +797,8 @@ export async function onRequest(context) {
           active: {
             users7: Number(activeUsers.results[0]?.u7 || 0),
             users30: Number(activeUsers.results[0]?.u30 || 0),
-            totalUsers: Number(users.results[0]?.total || 0)
+            totalUsers: Number(users.results[0]?.total || 0),
+            daily: dailyActive.results.map((row) => ({ day: row.day, active: Number(row.active || 0) }))
           },
           topPaths: topPaths.results.map((row) => ({ path: row.path || '/', count: Number(row.count || 0) })),
           onlineWindow: 15, generatedAt: new Date().toISOString()

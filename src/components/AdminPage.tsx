@@ -5,6 +5,7 @@ import { AdminUsersSection } from './AdminUsersSection';
 import { AdminSupportSection } from './AdminSupportSection';
 import { AdminArchivedSection } from './AdminArchivedSection';
 import { AdminResourcesSection } from './AdminResourcesSection';
+import { AdminContentReviewSection } from './AdminContentReviewSection';
 import { AdminMembershipKeysSection } from './AdminMembershipKeysSection';
 import { number } from './AdminCommon';
 import { useDialog } from './BauhausDialog';
@@ -17,7 +18,7 @@ const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDash
   { id: 'keys', label: '会员激活', icon: KeyRound },
   { id: 'support', label: '客服系统', icon: Headphones },
   { id: 'archive', label: '封存团务', icon: Archive },
-  { id: 'resources', label: '资源审核', icon: ShieldCheck },
+  { id: 'resources', label: '内容审核', icon: ShieldCheck },
 ];
 
 function DeltaBadge({ current, previous, basis }: { current: number; previous: number; basis: string }) {
@@ -54,7 +55,7 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
   };
   const yesterdayViews = views.yesterday || { user: 0, guest: 0 };
   const prevMonthViews = views.prevMonth || { user: 0, guest: 0 };
-  const active: AdminDashboard['active'] = data.active || { users7: 0, users30: 0, totalUsers: data.users?.total || 0 };
+  const active: AdminDashboard['active'] = data.active || { users7: 0, users30: 0, totalUsers: data.users?.total || 0, daily: [] };
   const topPaths: AdminDashboard['topPaths'] = data.topPaths || [];
   const viewUserMap = new Map(views.daily.map((item) => [item.day, Number(item.user)]));
   const viewGuestMap = new Map(views.daily.map((item) => [item.day, Number(item.guest)]));
@@ -73,6 +74,18 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
   const yesterdayTotal = yesterdayViews.user + yesterdayViews.guest;
   const prevMonthTotal = prevMonthViews.user + prevMonthViews.guest;
   const activeRate = active.totalUsers > 0 ? Math.round(active.users30 / active.totalUsers * 100) : 0;
+  // 每日活跃回访：按 30 天时间轴对齐，注册占比 = 当日活跃 / 当日累计注册数。
+  const activeDailyMap = new Map((active.daily || []).map((item) => [item.day, Number(item.active)]));
+  const registeredBefore30 = Math.max(0, active.totalUsers - trends.reduce((sum, day) => sum + (userMap.get(day) || 0), 0));
+  let runningReg = registeredBefore30;
+  const activeSeries = trends.map((day) => {
+    runningReg += userMap.get(day) || 0;
+    const activeCount = activeDailyMap.get(day) || 0;
+    return { day, active: activeCount, rate: runningReg > 0 ? Math.round(activeCount / runningReg * 100) : 0 };
+  });
+  const sumActive = activeSeries.reduce((sum, d) => sum + d.active, 0);
+  const peakActive = Math.max(0, ...activeSeries.map((d) => d.active));
+  const maxActive = Math.max(1, peakActive);
   // 图表底部只标 6 个日期刻度，30 根柱子全标会挤成一团。
   const tickIdx = [0, 5, 11, 17, 23, 29];
   const c = data.campaigns, e = data.engagement, sub = data.submissions;
@@ -117,9 +130,13 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.3fr] gap-3 shrink-0">
       <section className="bauhaus-card bg-white px-3 py-2">
-        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">活跃回访</h3><span className="text-[10px] font-bold text-[#777]">去重用户 · 近 30 天有过访问</span></div>
-        <div className="grid grid-cols-3 gap-2 text-center"><StatCell label="近 7 天活跃" value={active.users7} color="#004E98" /><StatCell label="近 30 天活跃" value={active.users30} color="#176B57" /><StatCell label="占注册用户" value={`${number(activeRate)}%`} color="#C85C16" /></div>
-        <p className="text-[10px] text-[#777] mt-1">活跃 = 会话有效期内发过请求的用户；同一用户跨天多次只算 1 人 · 注册总数 {number(active.totalUsers)}</p>
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">活跃回访</h3><span className="text-[11px] font-black text-[#176B57]">近 30 天累计 {number(sumActive)} · 峰值 {number(peakActive)}</span></div>
+        <div className="relative h-16 border-b border-l border-[#AAA] pl-7 pr-1 pt-3" aria-label="近 30 天每日活跃回访柱状图">
+          <div className="absolute left-0 top-3 bottom-0 w-6 flex flex-col justify-between text-[9px] font-bold text-[#777] text-right pr-1 pointer-events-none"><span>{maxActive}</span><span>0</span></div>
+          <div className="relative h-full flex items-end gap-[2px]">{activeSeries.map((d) => <div key={d.day} className="group relative flex-1 min-w-0 h-full flex items-end justify-center transition-colors hover:bg-[#F1F0EB]" title={`${d.day}：活跃 ${d.active} 人 · 占注册 ${d.rate}%`}><span data-role="bar-tip" className="pointer-events-none invisible absolute -top-4 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-sm border border-[#DDD] bg-white px-1 text-[9px] font-black leading-[13px] group-hover:visible"><b className="text-[#176B57]">{d.active}</b><span className="text-[#BBB]">/</span><b className="text-[#C85C16]">{d.rate}%</b></span><div className="w-full min-h-[2px] bg-[#176B57]" style={{ height: `${Math.max(2, (d.active / maxActive) * 100)}%` }} /></div>)}</div>
+        </div>
+        <div className="mt-1 flex justify-between pl-7 pr-1 text-[10px] text-[#777]">{tickIdx.map((i) => <span key={i}>{activeSeries[i].day.slice(5)}</span>)}</div>
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center"><StatCell label="近 7 天活跃" value={active.users7} color="#004E98" /><StatCell label="近 30 天活跃" value={active.users30} color="#176B57" /><StatCell label="占注册用户" value={`${number(activeRate)}%`} color="#C85C16" /></div>
       </section>
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">热门页面</h3><span className="text-[10px] font-bold text-[#777]">近 30 天浏览次数 · 玩家最常逛的地方</span></div>
@@ -137,14 +154,12 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3 shrink-0">
       <section className="bauhaus-card bg-white px-3 py-2">
-        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">团务状态</h3><span className="text-[10px] font-bold text-[#777]">仅网团 / 面团 · 封车与结团各自独立统计</span></div>
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">团务状态</h3></div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center"><StatCell label="招募中" value={c.recruiting} color="#004E98" /><StatCell label="封车" value={c.closed} color="#C85C16" /><StatCell label="结团" value={c.finished} color="#D62828" /><StatCell label="弃团" value={c.abandoned} color="#5B5646" /><StatCell label="累计报名" value={e.memberships} /><StatCell label="平均满员率" value={`${number(c.avg_fill_rate)}%`} /></div>
-        <p className="text-[10px] text-[#777] mt-1">弃团 = 0 人报名即封车的团，默认保留 30 天后自动清理（可在封存团务里「保留记录」留存）· 报名数与满员率均不含宣群</p>
       </section>
       <section className="bauhaus-card bg-white px-3 py-2">
-        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3><span className="text-[10px] font-bold text-[#777]">受理状态</span></div>
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">反馈与举报</h3></div>
         <div className="grid grid-cols-4 gap-2 text-center"><StatCell label="反馈总数" value={sub.feedback} color="#004E98" /><StatCell label="举报总数" value={sub.reports} color="#D62828" /><StatCell label="已解决" value={sub.resolved} /><StatCell label="已驳回" value={sub.rejected} /></div>
-        <p className="text-[10px] text-[#777] mt-1">未处理工单默认展开，已解决与已驳回折叠 · 待审资源 {number(data.resourceReviews?.pending)} 条</p>
       </section>
     </div>
   </div>;
@@ -257,7 +272,7 @@ export function AdminPage() {
       {activeSection === 'keys' && <AdminMembershipKeysSection onNotice={setNotice} onError={message} />}
       {activeSection === 'support' && <AdminSupportSection notices={notices} onSeen={(section) => setNotices((prev) => ({ ...prev, [section]: 0 }))} onNotice={setNotice} onError={message} />}
       {activeSection === 'archive' && <AdminArchivedSection onError={message} />}
-      {activeSection === 'resources' && <AdminResourcesSection onPendingChange={(pending) => setNotices((prev) => (prev.resource === pending ? prev : { ...prev, resource: pending }))} onNotice={setNotice} onError={message} />}
+      {activeSection === 'resources' && <AdminContentReviewSection onPendingChange={(pending) => setNotices((prev) => (prev.resource === pending ? prev : { ...prev, resource: pending }))} onNotice={setNotice} onError={message} />}
     </>}
   </main></div>;
 }

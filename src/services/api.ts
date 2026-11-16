@@ -155,8 +155,8 @@ export interface AdminDashboard {
     prevMonthRange: { start: string; end: string };
     daily: Array<{ day: string; user: number; guest: number }>;
   };
-  /** 活跃回访：近 7 / 30 天有过请求的去重用户数，totalUsers 为注册总数。 */
-  active: { users7: number; users30: number; totalUsers: number };
+  /** 活跃回访：近 7 / 30 天有过请求的去重用户数，totalUsers 为注册总数，daily 为近 30 天每天去重活跃数。 */
+  active: { users7: number; users30: number; totalUsers: number; daily: Array<{ day: string; active: number }> };
   /** 热门页面：近 30 天各浏览路径次数，按次数降序。 */
   topPaths: Array<{ path: string; count: number }>;
   onlineWindow: number;
