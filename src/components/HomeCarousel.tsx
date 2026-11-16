@@ -50,7 +50,7 @@ const CampaignSlide: React.FC<{
     <button
       type="button"
       onClick={() => onOpen(campaign)}
-      className="hc-slide w-full text-center bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col"
+      className="hc-slide w-full text-center bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col items-stretch"
     >
       {/* 封面大图：固定比例区域，图片正常比例居中裁切铺满；加载失败回退几何占位图 */}
       <div className="relative w-full h-[230px] sm:h-[270px] lg:h-[300px] shrink-0 overflow-hidden border-b-2 border-[#121212] bg-[#F2F0E8]">
@@ -61,13 +61,13 @@ const CampaignSlide: React.FC<{
         )}
       </div>
 
-      {/* 标题：图下居中 */}
-      <div className="px-4 pt-4 pb-2 text-center">
-        <h3 className="text-xl sm:text-2xl font-black leading-tight text-[#121212] break-words">{campaign.title}</h3>
+      {/* 标题：图下居中（mx-auto + w-fit，保证任何宽度/浏览器下都居中） */}
+      <div className="w-full px-4 pt-4 pb-2 text-center">
+        <h3 className="mx-auto w-fit max-w-full break-words text-xl font-black leading-tight text-[#121212] sm:text-2xl">{campaign.title}</h3>
       </div>
 
       {/* 标签行：规则 / 时段或地点 / 平台（居中） */}
-      <div className="flex flex-wrap justify-center gap-1.5 px-4 pb-3">
+      <div className="mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-1.5 px-4 pb-3">
         <span className="px-2.5 py-0.5 bg-[#004E98] text-white text-xs font-bold border border-[#121212]">{campaign.rule}</span>
         <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">
           {campaign.kind === 'offline' ? locationLabel(campaign) : (campaign.sessionType || '语音')}
@@ -78,8 +78,8 @@ const CampaignSlide: React.FC<{
       </div>
 
       {/* 发布者行：头像 + 昵称 + 铭牌 + 赞，整体作为一组水平居中 */}
-      <div className="flex justify-center px-4 py-2.5 border-y-2 border-[#121212] bg-[#FAF9F5]">
-        <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
+      <div className="flex w-full justify-center border-y-2 border-[#121212] bg-[#FAF9F5] px-4 py-2.5">
+        <div className="mx-auto flex w-fit min-w-0 max-w-full items-center justify-center gap-2">
           <span className={`h-9 w-9 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white border-2 border-[#121212] ${campaign.gmIsMember ? 'gilded-avatar' : ''}`} style={{ backgroundColor: campaign.gmIsMember ? undefined : '#D62828' }}>
             {campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span>{campaign.gmName?.charAt(0)}</span>}
           </span>
@@ -91,14 +91,14 @@ const CampaignSlide: React.FC<{
         </div>
       </div>
 
-      {/* 简介摘要（唯一保留左对齐的内容） */}
-      <div className="px-4 py-3 flex-1 text-left">
-        <p className="text-sm leading-relaxed text-[#444] line-clamp-3">{stripMarkdown(campaign.description) || '暂无简介'}</p>
+      {/* 简介摘要（唯一保留左对齐的内容），高度固定 3 行，卡片上下节奏一致 */}
+      <div className="w-full flex-1 px-5 py-3 text-left">
+        <p className="line-clamp-3 min-h-[78px] text-sm leading-relaxed text-[#444]">{stripMarkdown(campaign.description) || '暂无简介'}</p>
       </div>
 
       {/* 自定义标签 */}
       {!!campaign.customTags?.length && (
-        <div className="flex flex-wrap justify-center gap-1.5 px-4 pb-3">
+        <div className="mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-1.5 px-4 pb-3">
           {campaign.customTags.map((tag) => (
             <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">{tag}</span>
           ))}
@@ -106,8 +106,8 @@ const CampaignSlide: React.FC<{
       )}
 
       {/* 状态条：网团/面团显示剩余空位 + 截止时间；宣群不显示截止时间。整行居中 */}
-      <div className="px-4 pb-4 mt-auto text-center">
-        <div className="mb-2.5 flex flex-wrap items-center justify-center gap-2">
+      <div className="mt-auto w-full px-4 pb-4 text-center">
+        <div className="mx-auto mb-2.5 flex w-fit max-w-full flex-wrap items-center justify-center gap-2">
           {isPromo ? (
             <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">展示中</span>
           ) : (
@@ -176,7 +176,7 @@ const CarouselLane: React.FC<{
       </div>
 
       {/* 该栏自己的轮播轨道 */}
-      <div className="relative min-w-0">
+      <div className="relative min-w-0 flex-1">
         <div ref={trackRef} className="hc-lane-track">
           {slots.map((campaign, index) => campaign ? (
             <CampaignSlide key={`${campaign.kind}-${campaign.id}`} campaign={campaign} meta={meta} onOpen={onOpen} />
@@ -246,11 +246,9 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({
   return (
     <div className="flex w-full flex-col gap-6">
       <style>{`
-        .hc-lane-track { display:flex; gap:0; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:10px; align-items:stretch; }
+        .hc-lane-track { display:flex; gap:0; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:10px; align-items:stretch; height:100%; }
         .hc-lane-track::-webkit-scrollbar { display:none; }
-        .hc-slide { flex:0 0 100%; scroll-snap-align:start; min-width:0; min-height:560px; }
-        @media (min-width:640px){ .hc-slide { min-height:610px; } }
-        @media (min-width:1024px){ .hc-slide { min-height:650px; } }
+        .hc-slide { flex:0 0 100%; scroll-snap-align:start; min-width:0; min-height:520px; }
       `}</style>
 
       {/* 三栏同步轮播：悬停任一处全部暂停 */}
