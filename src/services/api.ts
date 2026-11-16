@@ -57,6 +57,11 @@ export const api = {
   deleteResource: (id: string) => request<{ ok: boolean }>(`resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   // 点赞 / 取消点赞：同一接口按当前状态切换，返回切换后的最新点赞数。
   toggleResourceLike: (id: string) => post<{ ok: boolean; liked: boolean; likesCount: number }>(`resources/${encodeURIComponent(id)}/like`),
+  /** GM圆桌：公开读取规则页、主题、回复（回复为嵌套树）。 */
+  roundtable: () => request<RoundtableSnapshot>('roundtable'),
+  roundtableApply: (value: RoundtableApplyInput) => post<{ ok: boolean }>('roundtable/apply', value),
+  roundtableReply: (topicId: string, value: { content: string; images?: string[]; parentId?: string }) => post<{ ok: boolean }>(`roundtable/topic/${encodeURIComponent(topicId)}/reply`, value),
+  roundtableLike: (topicId: string, delta: 1 | -1) => post<{ ok: boolean; likes: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/like`, { delta }),
   checkin: () => post<{ ok: boolean; streak: number; checkinCount: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),
@@ -95,6 +100,29 @@ export const api = {
   sendChat: (content: string) => post<{ ok: boolean; message: ChatMessage }>('chat/send', { content }),
   clearChat: () => request('chat/thread', { method: 'DELETE' }),
 };
+
+export interface RoundtableReply {
+  id: string; author: string; avatar: string; color: string;
+  time: string; content: string; likes: number; images?: string[]; children?: RoundtableReply[];
+}
+export interface RoundtableTopic {
+  id: string; channelId: string; rule: string; title: string;
+  time: string; createdTs: number; lastReplyTs: number;
+  tags: string[]; views: number; likes: number; replies: RoundtableReply[];
+}
+export interface RoundtableSnapshot {
+  channels: Array<{ id: string; label: string }>;
+  topics: RoundtableTopic[];
+  applies?: RoundtableApply[];
+}
+export interface RoundtableApply {
+  id: string; name: string; rule: string; channelId: string;
+  tags: string[]; applicant: string; time: string;
+}
+export interface RoundtableApplyInput {
+  name: string; rule: string; tags: string[];
+  channelId?: string; createNew?: boolean; newChannelName?: string;
+}
 
 export interface AdminUser {
   isAdmin: boolean;
@@ -278,6 +306,16 @@ export const adminApi = {
   archivedCampaigns: (status: 'all' | 'closed' | 'finished' | 'abandoned', offset: number, q = '') => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}&q=${encodeURIComponent(q)}`),
   keepAbandoned: (id: string) => post<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/keep`),
   deleteAbandoned: (id: string) => request<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/abandoned`, { method: 'DELETE' }),
+  // GM圆桌管理：规则页 / 主题 / 申请
+  roundtable: () => request<RoundtableSnapshot>('admin/roundtable'),
+  addRoundtableChannel: (name: string) => post<{ ok: boolean; id: string }>('admin/roundtable/channel', { name }),
+  renameRoundtableChannel: (id: string, name: string) => patch<{ ok: boolean }>(`admin/roundtable/channel/${encodeURIComponent(id)}`, { name }),
+  deleteRoundtableChannel: (id: string) => request<{ ok: boolean; deletedTopics: number }>(`admin/roundtable/channel/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  addRoundtableTopic: (value: { channelId: string; title: string; rule?: string; tags?: string[] }) => post<{ ok: boolean; id: string }>('admin/roundtable/topic', value),
+  updateRoundtableTopic: (id: string, value: { title?: string; channelId?: string; rule?: string; tags?: string[] }) => patch<{ ok: boolean }>(`admin/roundtable/topic/${encodeURIComponent(id)}`, value),
+  deleteRoundtableTopic: (id: string) => request<{ ok: boolean }>(`admin/roundtable/topic/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  approveRoundtableApply: (id: string, value: { channelId?: string; createNew?: boolean; newChannelName?: string }) => post<{ ok: boolean; id: string }>(`admin/roundtable/apply/${encodeURIComponent(id)}/approve`, value),
+  rejectRoundtableApply: (id: string) => post<{ ok: boolean }>(`admin/roundtable/apply/${encodeURIComponent(id)}/reject`),
   resources: (status: 'pending' | 'approved' | 'rejected' | 'all', offset: number, q = '') => request<{ items: AdminResource[]; total: number; counts: AdminResourceCounts }>(`admin/resources?status=${status}&offset=${offset}&q=${encodeURIComponent(q)}`),
   reviewResource: (id: string, status: 'pending' | 'approved' | 'rejected', note = '') => patch<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { status, note }),
   deleteResource: (id: string) => request<{ ok: boolean }>(`admin/resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
