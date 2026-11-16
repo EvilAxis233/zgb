@@ -12,6 +12,8 @@ interface HomeCarouselProps {
   onOpenCampaign: (campaign: Campaign) => void;
   onSelectManage: () => void;
   onSelectResources: () => void;
+  chatUnread: number;
+  onSelectChat: () => void;
 }
 
 type Kind = 'online' | 'offline' | 'promo';
@@ -56,9 +58,6 @@ const CampaignSlide: React.FC<{
         ) : (
           <BauhausPlaceholder rule={campaign.rule} seedColor={meta.color} className="h-full w-full" showLabel={false} />
         )}
-        <span className="absolute left-2 top-2 text-sm font-black text-white px-2.5 py-0.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
-          {meta.label}
-        </span>
       </div>
 
       {/* 标题：图下居中 */}
@@ -77,8 +76,8 @@ const CampaignSlide: React.FC<{
         ))}
       </div>
 
-      {/* 发布者行：头像 + 昵称 + 铭牌 + 赞 */}
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-y-2 border-[#121212] bg-[#FAF9F5]">
+      {/* 发布者行：头像 + 昵称 + 铭牌 + 赞（整体居中，简介除外） */}
+      <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-2.5 border-y-2 border-[#121212] bg-[#FAF9F5]">
         <div className="flex min-w-0 items-center gap-2">
           <span className={`h-9 w-9 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white border-2 border-[#121212] ${campaign.gmIsMember ? 'gilded-avatar' : ''}`} style={{ backgroundColor: campaign.gmIsMember ? undefined : '#D62828' }}>
             {campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span>{campaign.gmName?.charAt(0)}</span>}
@@ -98,7 +97,7 @@ const CampaignSlide: React.FC<{
 
       {/* 自定义标签 */}
       {!!campaign.customTags?.length && (
-        <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+        <div className="flex flex-wrap justify-center gap-1.5 px-4 pb-3">
           {campaign.customTags.map((tag) => (
             <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">{tag}</span>
           ))}
@@ -107,7 +106,7 @@ const CampaignSlide: React.FC<{
 
       {/* 状态条：网团/面团显示剩余空位 + 截止时间；宣群不显示截止时间 */}
       <div className="px-4 pb-4 mt-auto">
-        <div className="flex flex-wrap items-center gap-2 mb-2.5">
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
           {isPromo ? (
             <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">展示中</span>
           ) : (
@@ -125,17 +124,15 @@ const CampaignSlide: React.FC<{
   );
 };
 
-/** 单个分类的独立轮播栏：自己翻自己的 5 页 */
+/** 单个分类的轮播栏：手动只翻自己这一栏，自动翻页由顶层统一驱动 */
 const CarouselLane: React.FC<{
   kind: Kind;
   campaigns: Campaign[];
   onOpen: (campaign: Campaign) => void;
-  offsetMs: number;
-}> = ({ kind, campaigns, onOpen, offsetMs }) => {
+}> = ({ kind, campaigns, onOpen }) => {
   const meta = KIND_META[kind];
   const trackRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
-  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -144,27 +141,6 @@ const CarouselLane: React.FC<{
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
-
-  // 各自独立自动轮播，错开启动时间避免三栏同步翻页
-  useEffect(() => {
-    if (paused || campaigns.length <= 1) return;
-    let interval = 0;
-    const begin = window.setTimeout(() => {
-      interval = window.setInterval(() => {
-        const el = trackRef.current;
-        if (!el) return;
-        const width = el.clientWidth;
-        const max = el.scrollWidth - el.clientWidth;
-        let next = el.scrollLeft + width;
-        if (next >= max - 4) next = 0;
-        el.scrollTo({ left: next, behavior: 'smooth' });
-      }, 5000);
-    }, offsetMs);
-    return () => {
-      window.clearTimeout(begin);
-      if (interval) window.clearInterval(interval);
-    };
-  }, [paused, campaigns.length, offsetMs]);
 
   const step = (direction: number) => {
     const el = trackRef.current;
@@ -178,7 +154,7 @@ const CarouselLane: React.FC<{
   };
 
   return (
-    <section className="flex min-w-0 flex-col gap-2" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+    <section className="flex min-w-0 flex-col gap-2">
       {/* 分类标题 + 页码 */}
       <div className="flex items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-2">
@@ -224,7 +200,30 @@ const CarouselLane: React.FC<{
 
 export const HomeCarousel: React.FC<HomeCarouselProps> = ({
   online, offline, promo, onOpenCampaign, onSelectManage, onSelectResources,
+  chatUnread, onSelectChat,
 }) => {
+  const areaRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+
+  // 三栏自动轮播由顶层统一驱动：同一时刻、同方向（向右）各翻一页，到末页回到第一页循环。
+  // 鼠标进入整块轮播区域即全部暂停；手动只翻当前栏，移开后恢复同步。
+  useEffect(() => {
+    if (paused) return;
+    const timer = window.setInterval(() => {
+      const tracks = areaRef.current?.querySelectorAll<HTMLDivElement>('.hc-lane-track');
+      if (!tracks || tracks.length === 0) return;
+      tracks.forEach((el) => {
+        const width = el.clientWidth;
+        const max = el.scrollWidth - el.clientWidth;
+        if (max <= 0) return;
+        let next = el.scrollLeft + width;
+        if (next >= max - 4) next = 0;
+        el.scrollTo({ left: next, behavior: 'smooth' });
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [paused]);
+
   return (
     <div className="flex w-full flex-col gap-6">
       <style>{`
@@ -237,20 +236,26 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({
       <div className="flex items-center gap-3">
         <span className="inline-block h-7 w-2 border-2 border-[#121212] bg-[#004E98]" />
         <h2 className="text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">正在招募</h2>
-        <span className="hidden text-sm font-bold text-[#999] sm:inline">网团 / 面团 / 宣群 各自轮播 · 左右滑动切换</span>
+        <span className="hidden text-sm font-bold text-[#999] sm:inline">网团 / 面团 / 宣群 同步轮播 · 可单独滑动</span>
       </div>
 
-      {/* 三栏独立轮播 */}
-      <div className="grid grid-cols-1 gap-7 lg:grid-cols-3 sm:gap-5">
-        <CarouselLane kind="online" campaigns={online} onOpen={onOpenCampaign} offsetMs={0} />
-        <CarouselLane kind="offline" campaigns={offline} onOpen={onOpenCampaign} offsetMs={1700} />
-        <CarouselLane kind="promo" campaigns={promo} onOpen={onOpenCampaign} offsetMs={3400} />
+      {/* 三栏同步轮播：悬停任一处全部暂停 */}
+      <div ref={areaRef} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-3 sm:gap-5">
+          <CarouselLane kind="online" campaigns={online} onOpen={onOpenCampaign} />
+          <CarouselLane kind="offline" campaigns={offline} onOpen={onOpenCampaign} />
+          <CarouselLane kind="promo" campaigns={promo} onOpen={onOpenCampaign} />
+        </div>
       </div>
 
-      {/* 功能入口 */}
-      <div className="flex gap-5 pt-1">
-        <button type="button" onClick={onSelectManage} className="flex-1 bg-[#121212] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">团务管理</button>
-        <button type="button" onClick={onSelectResources} className="flex-1 bg-[#B51F5C] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">爱心资源</button>
+      {/* 功能入口：团务管理 / 爱心资源 / 猪猪客服（删掉顶栏铃铛后，首页保留对话入口） */}
+      <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3 sm:gap-5">
+        <button type="button" onClick={onSelectManage} className="bg-[#121212] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">团务管理</button>
+        <button type="button" onClick={onSelectResources} className="bg-[#B51F5C] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">爱心资源</button>
+        <button type="button" onClick={onSelectChat} className="relative bg-[#004E98] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">
+          猪猪客服
+          {chatUnread > 0 && <span className="absolute right-3 top-2 min-w-[22px] rounded-full border-2 border-white bg-[#D62828] px-1 text-xs font-black text-white">{chatUnread > 9 ? '9+' : chatUnread}</span>}
+        </button>
       </div>
     </div>
   );

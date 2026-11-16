@@ -571,8 +571,6 @@ export function App() {
         onLogout={() => run(() => api.logout(), '已退出登录').then(() => { setActiveTab('board'); setBoardView('portal'); })}
         onOpenTickets={() => currentUser ? setIsTicketsOpen(true) : setIsLoginOpen(true)}
         onOpenInstructions={() => setIsInstructionsOpen(true)}
-        chatUnread={chatInbox.unread}
-        onOpenChat={openChat}
       />
 
       {/* Main Container: 网团保持原先宽裕宽度(max-w-[1760px])，主页四个矩形大厅保持 60%(max-w-[864px]) */}
@@ -603,6 +601,8 @@ export function App() {
                   }
                 }}
                 onSelectResources={() => setActiveTab('resources')}
+                chatUnread={chatInbox.unread}
+                onSelectChat={openChat}
               />
             ) : (
               <HomePortal
