@@ -121,13 +121,27 @@ const slotDto = (c, joined) => ({ id: c.id, timeSchedule: c.time_schedule, curre
 
 // === GM圆桌：真实持久化数据组装（规则页 / 主题 / 回复 / 申请）===
 const rtTs = (s) => { const t = Date.parse(String(s || '').replace(' ', 'T') + '+08:00'); return Number.isFinite(t) ? t : 0; };
-const rtReplyDto = (r) => ({ id: r.id, author: r.author || '匿名', avatar: String(r.author || '匿').slice(0, 1), color: '#7FC7FF', time: String(r.created_at || '').slice(0, 16), content: r.content || '', likes: Number(r.likes || 0), images: parseTags(r.images), children: [] });
+// 爱心资源引用：只保留 id/name/url 的前台展示字段。
+const rtResources = (v) => {
+  const arr = Array.isArray(v) ? v : (() => { try { return JSON.parse(v || '[]'); } catch { return []; } })();
+  return (Array.isArray(arr) ? arr : []).slice(0, 20).map((x) => ({ id: String(x?.id || ''), name: clean(x?.name, 80), url: clean(x?.url, 500) })).filter((x) => x.name || x.url);
+};
+const rtReplyDto = (r) => ({
+  id: r.id, author: r.author || '匿名', userQq: String(r.user_qq || ''),
+  avatar: String(r.author || '匿').slice(0, 1),
+  avatarUrl: (r.cur_avatar_key || r.avatar_key) ? assetUrl(r.cur_avatar_key || r.avatar_key) : '',
+  nameplate: parseJsonSafe(r.cur_nameplate || r.nameplate),
+  color: '#7FC7FF',
+  time: String(r.created_at || '').slice(0, 16),
+  editedAt: r.updated_at ? String(r.updated_at).slice(0, 16) : '',
+  content: r.content || '', likes: Number(r.likes || 0), images: parseTags(r.images), children: [],
+});
 const rtValidateTags = (v) => Array.isArray(v) ? [...new Set(v.map((t) => clean(t, 24)).filter(Boolean))].slice(0, 6) : [];
 async function roundtableSnapshot(db, withApplies = false) {
   const stmts = [
     db.prepare('SELECT * FROM roundtable_channels ORDER BY sort_order ASC, created_at ASC'),
     db.prepare('SELECT * FROM roundtable_topics ORDER BY created_at ASC'),
-    db.prepare('SELECT * FROM roundtable_replies ORDER BY created_at ASC'),
+    db.prepare(`SELECT rp.*, u.avatar_key AS cur_avatar_key, u.nameplate AS cur_nameplate FROM roundtable_replies rp LEFT JOIN users u ON u.qq=CAST(rp.user_qq AS INTEGER) ORDER BY rp.created_at ASC`),
   ];
   if (withApplies) stmts.push(db.prepare('SELECT * FROM roundtable_applies ORDER BY created_at DESC'));
   const res = await db.batch(stmts);
@@ -153,11 +167,11 @@ async function roundtableSnapshot(db, withApplies = false) {
     id: t.id, channelId: t.channel_id, rule: t.rule || '', title: t.title,
     time: String(t.created_at || '').slice(0, 16),
     createdTs: rtTs(t.created_at), lastReplyTs: rtTs(t.last_reply_at || t.created_at),
-    tags: parseTags(t.tags), views: Number(t.views || 0), likes: Number(t.likes || 0),
+    tags: parseTags(t.tags), resources: rtResources(t.resources), views: Number(t.views || 0), likes: Number(t.likes || 0),
     replies: tree(t.id),
   }));
   const channels = ch.map((r) => ({ id: r.id, label: r.name }));
-  const applies = ap.map((r) => ({ id: r.id, name: r.name, rule: r.rule, channelId: r.channel_id, tags: parseTags(r.tags), applicant: r.applicant, time: String(r.created_at || '').slice(0, 16) }));
+  const applies = ap.map((r) => ({ id: r.id, name: r.name, rule: r.rule, channelId: r.channel_id, tags: parseTags(r.tags), resources: rtResources(r.resources), applicant: r.applicant, time: String(r.created_at || '').slice(0, 16) }));
   return { channels, topics, applies };
 }
 const batchMasterDto = (b) => ({ id: b.id, kind: b.kind || 'online', province: b.province || '', city: b.city || '', address: b.address || '', title: b.title, rule: b.rule, sessionType: b.session_type, platforms: parseTags(b.platforms), presetTags: [], customTags: campaignTags(b), maxPlayers: b.max_players, contact: b.contact, description: b.description, imageUrl: assetUrl(b.image_key), bannerColor: b.banner_color });
@@ -1143,8 +1157,8 @@ export async function onRequest(context) {
         if (!channelId || !title) return fail('请选择规则页并填写主题名称');
         if (!await db.prepare('SELECT id FROM roundtable_channels WHERE id=?').bind(channelId).first()) return fail('规则页不存在');
         const tid = id(), ts = nowHK();
-        await db.prepare('INSERT INTO roundtable_topics(id,channel_id,title,rule,tags,views,likes,created_at,last_reply_at) VALUES(?,?,?,?,?,0,0,?,?)')
-          .bind(tid, channelId, title, rule, JSON.stringify(rtValidateTags(b.tags)), ts, ts).run();
+        await db.prepare('INSERT INTO roundtable_topics(id,channel_id,title,rule,tags,resources,views,likes,created_at,last_reply_at) VALUES(?,?,?,?,?,?,0,0,?,?)')
+          .bind(tid, channelId, title, rule, JSON.stringify(rtValidateTags(b.tags)), JSON.stringify(rtResources(b.resources)), ts, ts).run();
         return json({ ok: true, id: tid });
       }
       if (path[1] === 'roundtable' && path[2] === 'topic' && path[3] && path.length === 4 && method === 'PATCH') {
@@ -1155,9 +1169,10 @@ export async function onRequest(context) {
         const channelId = b.channelId !== undefined ? clean(b.channelId, 80) : cur.channel_id;
         const rule = b.rule !== undefined ? clean(b.rule, 40) : cur.rule;
         const tags = b.tags !== undefined ? JSON.stringify(rtValidateTags(b.tags)) : cur.tags;
+        const resources = b.resources !== undefined ? JSON.stringify(rtResources(b.resources)) : cur.resources;
         if (!title) return fail('主题名称不能为空');
         if (!await db.prepare('SELECT id FROM roundtable_channels WHERE id=?').bind(channelId).first()) return fail('规则页不存在');
-        await db.prepare('UPDATE roundtable_topics SET title=?,channel_id=?,rule=?,tags=? WHERE id=?').bind(title, channelId, rule, tags, path[3]).run();
+        await db.prepare('UPDATE roundtable_topics SET title=?,channel_id=?,rule=?,tags=?,resources=? WHERE id=?').bind(title, channelId, rule, tags, resources, path[3]).run();
         return json({ ok: true });
       }
       if (path[1] === 'roundtable' && path[2] === 'topic' && path[3] && path.length === 4 && method === 'DELETE') {
@@ -1183,8 +1198,8 @@ export async function onRequest(context) {
         if (!channelId || !await db.prepare('SELECT id FROM roundtable_channels WHERE id=?').bind(channelId).first()) return fail('请选择有效规则页');
         const tid = id(), ts = nowHK();
         await db.batch([
-          db.prepare('INSERT INTO roundtable_topics(id,channel_id,title,rule,tags,views,likes,created_at,last_reply_at) VALUES(?,?,?,?,?,0,0,?,?)')
-            .bind(tid, channelId, `《${a.name}》主题讨论`, a.rule, a.tags, ts, ts),
+          db.prepare('INSERT INTO roundtable_topics(id,channel_id,title,rule,tags,resources,views,likes,created_at,last_reply_at) VALUES(?,?,?,?,?,?,0,0,?,?)')
+            .bind(tid, channelId, a.name, a.rule || '', a.tags || '[]', a.resources || '[]', ts, ts),
           db.prepare('DELETE FROM roundtable_applies WHERE id=?').bind(path[3]),
         ]);
         return json({ ok: true, id: tid });
@@ -1263,8 +1278,8 @@ export async function onRequest(context) {
       const b = await body(request);
       const name = clean(b.name, 60), rule = clean(b.rule, 40);
       const tags = rtValidateTags(b.tags);
-      if (!name) return fail('请填写模组名称');
-      if (!rule) return fail('请填写模组原版规则');
+      const resources = JSON.stringify(rtResources(b.resources));
+      if (!name) return fail('请填写主题名称');
       if (!tags.length) return fail('请至少填写 1 个 tag');
       let channelId = clean(b.channelId, 80);
       if (b.createNew) {
@@ -1276,8 +1291,8 @@ export async function onRequest(context) {
         await db.prepare('INSERT INTO roundtable_channels(id,name,sort_order,created_at) VALUES(?,?,?,?)').bind(channelId, newName, n, nowHK()).run();
       }
       const applicant = user?.name ? String(user.name).slice(0, 40) : '游客';
-      await db.prepare('INSERT INTO roundtable_applies(id,name,rule,channel_id,tags,applicant,created_at) VALUES(?,?,?,?,?,?,?)')
-        .bind(id(), name, rule, channelId, JSON.stringify(tags), applicant, nowHK()).run();
+      await db.prepare('INSERT INTO roundtable_applies(id,name,rule,channel_id,tags,resources,applicant,created_at) VALUES(?,?,?,?,?,?,?,?)')
+        .bind(id(), name, rule, channelId, JSON.stringify(tags), resources, applicant, nowHK()).run();
       return json({ ok: true });
     }
     // 发表回复（含嵌套回复）：需登录。
@@ -1293,10 +1308,24 @@ export async function onRequest(context) {
       if (parentId && !await db.prepare('SELECT id FROM roundtable_replies WHERE id=? AND topic_id=?').bind(parentId, path[2]).first()) return fail('父回复不存在', 404);
       const ts = nowHK();
       await db.batch([
-        db.prepare('INSERT INTO roundtable_replies(id,topic_id,parent_id,author,content,images,likes,created_at) VALUES(?,?,?,?,?,?,0,?)')
-          .bind(id(), path[2], parentId, String(user.name).slice(0, 40), content, JSON.stringify(images), ts),
+        db.prepare('INSERT INTO roundtable_replies(id,topic_id,parent_id,user_qq,author,avatar_key,nameplate,content,images,likes,created_at) VALUES(?,?,?,?,?,?,?,?,?,0,?)')
+          .bind(id(), path[2], parentId, String(user.qq), String(user.name).slice(0, 40), user.avatar_key || '', user.nameplate || '', content, JSON.stringify(images), ts),
         db.prepare('UPDATE roundtable_topics SET last_reply_at=? WHERE id=?').bind(ts, path[2]),
       ]);
+      return json({ ok: true });
+    }
+    // 编辑自己的回复（作者本人或管理员），写入 updated_at 与最后编辑时间。
+    if (path[0] === 'roundtable' && path[1] === 'topic' && path[2] && path[3] === 'reply' && path[4] && path.length === 5 && method === 'PATCH') {
+      if (!user) return fail('请先登录', 401);
+      const r = await db.prepare('SELECT * FROM roundtable_replies WHERE id=? AND topic_id=?').bind(path[4], path[2]).first();
+      if (!r) return fail('回复不存在', 404);
+      if (String(r.user_qq) !== String(user.qq) && !isSiteAdmin(user)) return fail('只能编辑自己的回复', 403);
+      const b = await body(request);
+      const content = String(b.content || '').trim().slice(0, 4000);
+      const images = Array.isArray(b.images) ? b.images.filter((x) => typeof x === 'string' && x.startsWith('data:image/')).slice(0, 4) : [];
+      if (!content && !images.length) return fail('请输入讨论内容或上传图片');
+      await db.prepare('UPDATE roundtable_replies SET content=?,images=?,updated_at=? WHERE id=?')
+        .bind(content, JSON.stringify(images), nowHK(), path[4]).run();
       return json({ ok: true });
     }
     // 主题点赞（本地计数切换不做去重，纯互动计数）。

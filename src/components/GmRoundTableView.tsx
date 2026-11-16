@@ -1,15 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, BookOpen, ChevronDown, Clock3, Eye, Flame, ImagePlus, Link2, MessageSquare,
-  Plus, Search, Send, ThumbsUp, X, Flag,
+  Pencil, Plus, Search, Send, ThumbsUp, X, Flag,
 } from 'lucide-react';
-import { api, adminApi, type RoundtableReply, type RoundtableTopic } from '../services/api';
+import { api, adminApi, type RoundtableReply, type RoundtableTopic, type RoundtableResourceRef } from '../services/api';
+import { NameplateBadge } from './NameplateBadge';
+import { RoundtableTopicForm, emptyTopicForm, type TopicFormValue } from './RoundtableTopicForm';
 
 /**
  * GM 圆桌（真实持久化版）：
  * - 规则页 / 主题 / 回复全部来自后端 D1，刷新不丢、访客可见；后台「内容审核 · 圆桌审核」统一管理。
  * - 主题详情只显示主题（无正文文字段）；回复可点赞、嵌套回复、举报与图片（≤2M，默认折叠）。
- * - 首排热度最高三个主题不再显示「热门」标签。
+ * - 首排热度最高三个主题不再显示「热门」标签；综合分页固定排第一。
+ * - 申请主题与后台新建共用 RoundtableTopicForm；回复显示真实头像/铭牌，可编辑并显示编辑时间。
  */
 
 type SortMode = 'heat' | 'latestReply' | 'latestTopic';
@@ -19,12 +22,10 @@ const SORT_LABEL: Record<SortMode, string> = {
 const countReplies = (replies: RoundtableReply[]): number =>
   replies.reduce((sum, r) => sum + 1 + countReplies(r.children || []), 0);
 const heatOf = (t: RoundtableTopic) => t.views + t.likes * 8 + countReplies(t.replies) * 12;
-const cnLen = (s: string) => Array.from(s.trim()).reduce((n, ch) => {
-  const code = ch.charCodeAt(0);
-  return n + (code >= 0x4e00 && code <= 0x9fff ? 1 : 0.5);
-}, 0);
 
-export const GmRoundTableView: React.FC = () => {
+type Props = { currentUserQq?: string | null; isAdmin?: boolean };
+
+export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = false }) => {
   const [loading, setLoading] = useState(true);
   const [channels, setChannels] = useState<Array<{ id: string; label: string }>>([]);
   const [topics, setTopics] = useState<RoundtableTopic[]>([]);
@@ -37,16 +38,9 @@ export const GmRoundTableView: React.FC = () => {
   const [ruleFilter, setRuleFilter] = useState('全部规则');
   const [channelBump, setChannelBump] = useState<Record<string, number>>({});
   const [likedTopics, setLikedTopics] = useState<Record<string, boolean>>({});
-  const [isAdmin, setIsAdmin] = useState(false);
 
-  // 申请开主题表单
+  // 申请主题表单（与后台新建共用组件）
   const [applyOpen, setApplyOpen] = useState(false);
-  const [applyName, setApplyName] = useState('');
-  const [applyRule, setApplyRule] = useState('');
-  const [applyTargetChannel, setApplyTargetChannel] = useState('');
-  const [applyNewChannel, setApplyNewChannel] = useState('');
-  const [applyTags, setApplyTags] = useState<string[]>([]);
-  const [tagDraft, setTagDraft] = useState('');
 
   // 回复：拖拽上传 + 折叠
   const [replyText, setReplyText] = useState('');
@@ -55,6 +49,12 @@ export const GmRoundTableView: React.FC = () => {
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // 回复编辑
+  const [editReplyId, setEditReplyId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const editFileRef = useRef<HTMLInputElement>(null);
+
   const flash = useCallback((msg: string) => {
     setNotice(msg);
     window.setTimeout(() => setNotice(''), 2600);
@@ -62,13 +62,9 @@ export const GmRoundTableView: React.FC = () => {
 
   const load = useCallback(async (keepTopicId?: string) => {
     try {
-      const [data, adm] = await Promise.all([
-        api.roundtable(),
-        adminApi.me().catch(() => ({ authenticated: false })),
-      ]);
+      const data = await api.roundtable();
       setChannels(data.channels || []);
       setTopics(data.topics || []);
-      setIsAdmin(!!adm.authenticated);
       setChannel((prev) => prev === 'all' || (data.channels || []).some((c) => c.id === prev) ? prev : 'all');
       if (keepTopicId) {
         const fresh = (data.topics || []).find((t) => t.id === keepTopicId);
@@ -93,7 +89,7 @@ export const GmRoundTableView: React.FC = () => {
     return true;
   }), [topics, channel, ruleFilter, query]);
 
-  // 规则页签按热度从左到右：综合固定最左，其余按该分类主题热度降序；有新回复的分类置顶。
+  // 规则页签：综合永远固定第一，其余按该分类主题热度降序；有新回复的分类置顶。
   const orderedChannels = useMemo(() => {
     const baseHeat = (cid: string) => topics.filter((t) => t.channelId === cid).reduce((s, t) => s + heatOf(t), 0);
     const rest = channels.slice().sort((a, b) => {
@@ -125,54 +121,43 @@ export const GmRoundTableView: React.FC = () => {
 
   const applyChannel = (cid: string) => { setChannel(cid); setOpenTopic(null); };
 
-  const addTag = () => {
-    const t = tagDraft.trim();
-    if (!t) return;
-    if (applyTags.length >= 6) { flash('模组风格 tag 最多 6 个'); return; }
-    if (cnLen(t) > 6) { flash('每个 tag 最多 6 个中文字符'); return; }
-    if (applyTags.includes(t)) { flash('该 tag 已添加'); return; }
-    setApplyTags([...applyTags, t]);
-    setTagDraft('');
-  };
-
-  const submitApply = async () => {
-    if (!applyName.trim()) { flash('请填写模组名称'); return; }
-    if (!applyRule.trim()) { flash('请填写模组原版规则'); return; }
-    if (!applyTargetChannel) { flash('请选择主题放置的规则分页'); return; }
-    if (applyTargetChannel === '__new__' && !applyNewChannel.trim()) { flash('请填写新建规则分页名称'); return; }
-    if (applyTags.length === 0) { flash('请至少填写 1 个模组风格 tag'); return; }
+  const submitApply = async (v: TopicFormValue) => {
     try {
       await api.roundtableApply({
-        name: applyName.trim(), rule: applyRule.trim(), tags: applyTags,
-        channelId: applyTargetChannel === '__new__' ? '' : applyTargetChannel,
-        createNew: applyTargetChannel === '__new__',
-        newChannelName: applyTargetChannel === '__new__' ? applyNewChannel.trim() : '',
+        name: v.name, tags: v.tags, resources: v.resources,
+        channelId: v.channelId === '__new__' ? '' : v.channelId,
+        createNew: v.channelId === '__new__',
+        newChannelName: v.channelId === '__new__' ? v.newChannelName : '',
       });
       setApplyOpen(false);
-      setApplyName(''); setApplyRule(''); setApplyTargetChannel(''); setApplyNewChannel(''); setApplyTags([]); setTagDraft('');
-      flash('开主题申请已提交，等待管理员审核');
+      flash('主题申请已提交，等待管理员审核');
       void load();
     } catch (e) { flash(e instanceof Error ? e.message : '提交失败'); }
   };
 
-  const addImageFiles = (files: File[]) => {
+  const addImageFiles = (files: File[], target: 'reply' | 'edit') => {
     let added = 0;
+    const current = target === 'reply' ? replyImages.length : editImages.length;
     files.filter((f) => f.type.startsWith('image/')).forEach((f) => {
       if (f.size > 2 * 1024 * 1024) { flash(`图片「${f.name}」超过 2M，已跳过`); return; }
-      if (replyImages.length + added >= 4) { flash('最多上传 4 张图片'); return; }
+      if (current + added >= 4) { flash('最多上传 4 张图片'); return; }
       const reader = new FileReader();
-      reader.onload = () => setReplyImages((prev) => [...prev, String(reader.result)].slice(0, 4));
+      reader.onload = () => {
+        const data = String(reader.result);
+        if (target === 'reply') setReplyImages((prev) => [...prev, data].slice(0, 4));
+        else setEditImages((prev) => [...prev, data].slice(0, 4));
+      };
       reader.readAsDataURL(f);
       added += 1;
     });
   };
   const onPickImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addImageFiles(Array.from(e.target.files || []));
+    addImageFiles(Array.from(e.target.files || []), 'reply');
     e.target.value = '';
   };
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);
-    addImageFiles(Array.from(e.dataTransfer.files || []));
+    addImageFiles(Array.from(e.dataTransfer.files || []), 'reply');
   };
 
   const sendReply = async () => {
@@ -188,11 +173,30 @@ export const GmRoundTableView: React.FC = () => {
     } catch (e) { flash(e instanceof Error ? e.message : '回复失败'); }
   };
 
+  const startEdit = (r: RoundtableReply) => {
+    setEditReplyId(r.id);
+    setEditText(r.content || '');
+    setEditImages(r.images || []);
+  };
+  const cancelEdit = () => { setEditReplyId(null); setEditText(''); setEditImages([]); };
+  const saveEdit = async () => {
+    if (!openTopic || !editReplyId) return;
+    if (!editText.trim() && editImages.length === 0) { flash('请输入讨论内容或上传图片'); return; }
+    try {
+      await api.roundtableEditReply(openTopic.id, editReplyId, { content: editText.trim(), images: editImages });
+      flash('回复已编辑');
+      cancelEdit();
+      await load(openTopic.id);
+    } catch (e) { flash(e instanceof Error ? e.message : '编辑失败'); }
+  };
+  const canEdit = (r: RoundtableReply) => isAdmin || (!!currentUserQq && !!r.userQq && String(r.userQq) === String(currentUserQq));
+
   const openDetail = (t: RoundtableTopic) => {
     setOpenTopic(t);
     setReplyText(''); setReplyImages([]);
+    cancelEdit();
   };
-  const backToList = () => { setOpenTopic(null); void load(); };
+  const backToList = () => { setOpenTopic(null); cancelEdit(); void load(); };
 
   const likeCard = async (t: RoundtableTopic) => {
     const next = !likedTopics[t.id];
@@ -225,23 +229,57 @@ export const GmRoundTableView: React.FC = () => {
 
   const renderReply = (r: RoundtableReply, nested = false) => (
     <div key={r.id} className={nested ? 'bg-[#343437] px-3 py-2.5' : 'border-b border-[#3A3A3A] py-4'}>
-      <div className="flex items-center gap-2 text-xs">
-        <span className={`flex shrink-0 items-center justify-center border border-[#555] font-black text-white ${nested ? 'h-6 w-6 text-[10px]' : 'h-8 w-8 text-[11px]'}`} style={{ backgroundColor: r.color }}>{r.avatar}</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className={`shrink-0 overflow-hidden flex items-center justify-center border border-[#555] font-black text-white ${nested ? 'h-6 w-6 text-[10px]' : 'h-8 w-8 text-[11px]'}`} style={{ backgroundColor: r.avatarUrl ? undefined : r.color }}>
+          {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="h-full w-full object-cover" /> : r.avatar}
+        </span>
         <span className="font-bold" style={{ color: r.color }}>{r.author}</span>
+        {r.nameplate && <NameplateBadge nameplate={r.nameplate} />}
         <span className="text-[#8A8A8A]">{r.time}</span>
+        {r.editedAt && <span className="text-[10px] text-[#8A8A8A]">（最新编辑：{r.editedAt}）</span>}
         <button type="button" onClick={() => flash('已点赞（仅前端演示）')} className="ml-auto flex items-center gap-1 text-[#9A9A9A] hover:text-[#8BC34A]"><ThumbsUp className="h-3.5 w-3.5" />{r.likes}</button>
       </div>
-      {r.content && <p className={`whitespace-pre-line leading-7 text-[#DCDCDC] ${nested ? 'mt-1.5 text-sm' : 'mt-2 text-sm'}`}>{r.content}</p>}
-      {!!r.images?.length && renderImages(r.images, r.id)}
+      {editReplyId === r.id ? (
+        <div className="mt-2">
+          {editImages.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {editImages.map((src, i) => (
+                <div key={i} className="relative">
+                  <img src={src} alt="编辑图片" className="h-16 w-16 border border-[#555] object-cover" />
+                  <button type="button" aria-label="移除图片" onClick={() => setEditImages(editImages.filter((_, j) => j !== i))} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-[#121212] bg-[#D62828] text-white"><X className="h-3 w-3" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input ref={editFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addImageFiles(Array.from(e.target.files || []), 'edit'); e.target.value = ''; }} />
+            <button type="button" aria-label="上传图片" title="点击上传图片（单张 ≤ 2M，最多 4 张）" onClick={() => editFileRef.current?.click()}
+              className="flex w-11 shrink-0 items-center justify-center border-2 border-[#555] text-[#9A9A9A] hover:border-[#8BC34A] hover:text-[#8BC34A]"><ImagePlus className="h-5 w-5" /></button>
+            <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} className="min-h-[52px] flex-1 resize-none border-2 border-[#555] bg-[#2B2B2D] p-2 text-sm text-white outline-none focus:border-[#8BC34A]" />
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={cancelEdit} className="border border-[#555] px-3 py-1 text-xs font-bold text-[#C9C9C9] hover:border-[#999]">取消</button>
+            <button type="button" onClick={() => void saveEdit()} className="bg-[#8BC34A] px-3 py-1 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]">保存编辑</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {r.content && <p className={`whitespace-pre-line leading-7 text-[#DCDCDC] ${nested ? 'mt-1.5 text-sm' : 'mt-2 text-sm'}`}>{r.content}</p>}
+          {!!r.images?.length && renderImages(r.images, r.id)}
+        </>
+      )}
       {!!r.children?.length && (
         <div className="mt-3 space-y-3 border-l-2 border-[#555] pl-3">
           {r.children.map((c) => renderReply(c, true))}
         </div>
       )}
-      <div className="mt-2 flex gap-3">
-        <button type="button" onClick={() => flash('嵌套回复窗口已打开（仅前端演示）')} className="flex items-center gap-1 text-xs font-bold text-[#7FC7FF] hover:underline"><MessageSquare className="h-3.5 w-3.5" />回复</button>
-        {reportBtn('该回复')}
-      </div>
+      {editReplyId !== r.id && (
+        <div className="mt-2 flex gap-3">
+          <button type="button" onClick={() => flash('嵌套回复窗口已打开（仅前端演示）')} className="flex items-center gap-1 text-xs font-bold text-[#7FC7FF] hover:underline"><MessageSquare className="h-3.5 w-3.5" />回复</button>
+          {canEdit(r) && <button type="button" onClick={() => startEdit(r)} className="flex items-center gap-1 text-xs font-bold text-[#F4A261] hover:underline"><Pencil className="h-3 w-3" />编辑</button>}
+          {reportBtn('该回复')}
+        </div>
+      )}
     </div>
   );
 
@@ -252,6 +290,7 @@ export const GmRoundTableView: React.FC = () => {
         <button type="button" onClick={() => void openDetail(t)} className="flex flex-1 flex-col text-left">
           <h3 className="line-clamp-2 text-sm font-black leading-snug text-white">{t.title}</h3>
           <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
+          {!!t.resources?.length && <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[#7FC7FF]"><Link2 className="h-3 w-3" />引用 {t.resources.length} 个爱心资源</div>}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
           </div>
@@ -286,7 +325,7 @@ export const GmRoundTableView: React.FC = () => {
           <div className="px-4 py-16 text-center text-sm text-[#9A9A9A]">正在加载圆桌…</div>
         ) : !openTopic ? (
           <>
-            {/* 规则检索（输入 + 下拉）+ 分类分页 */}
+            {/* 规则检索（输入 + 下拉）+ 分类分页（综合固定第一） */}
             <div className="border-b border-[#3A3A3A] px-3 py-3 sm:px-4">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1.5 border border-[#555] bg-[#242426] px-2 py-1.5 focus-within:border-[#8BC34A]">
@@ -298,9 +337,9 @@ export const GmRoundTableView: React.FC = () => {
                     {rules.map((r) => <option key={r} value={r} className="bg-[#242426]">{r}</option>)}
                   </select>
                 </div>
-                {orderedChannels.map((c) => (
+                {orderedChannels.map((c, i) => (
                   <button key={c.id} type="button" onClick={() => applyChannel(c.id)}
-                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
+                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'} ${i === 0 ? 'order-first' : ''}`}>
                     {c.label}
                   </button>
                 ))}
@@ -311,7 +350,7 @@ export const GmRoundTableView: React.FC = () => {
                   </select>
                   <button type="button" onClick={() => setApplyOpen(true)}
                     className="flex items-center gap-1.5 bg-[#8BC34A] px-3 py-1.5 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]">
-                    <Plus className="h-4 w-4" />申请开主题
+                    <Plus className="h-4 w-4" />申请主题
                   </button>
                 </div>
               </div>
@@ -330,7 +369,7 @@ export const GmRoundTableView: React.FC = () => {
             {/* 其余主题：按当前排序 */}
             <div className="px-3 py-3 sm:px-4">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-[#9A9A9A]"><Clock3 className="h-3.5 w-3.5" />全部主题 · {SORT_LABEL[sort]}</div>
-              {rest.length === 0 && <div className="px-4 py-10 text-center text-sm text-[#9A9A9A]">还没有主题，点「申请开主题」来发起第一个讨论吧</div>}
+              {rest.length === 0 && <div className="px-4 py-10 text-center text-sm text-[#9A9A9A]">还没有主题，点「申请主题」来发起第一个讨论吧</div>}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {rest.map((t) => <TopicCard key={t.id} t={t} />)}
               </div>
@@ -352,6 +391,18 @@ export const GmRoundTableView: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 {openTopic.tags.map((tag) => <span key={tag} className="border border-[#555] px-2 py-0.5 text-[11px] font-bold text-[#BDBDBD]">{tag}</span>)}
               </div>
+              {!!openTopic.resources?.length && (
+                <div className="mt-3 border-t border-[#3A3A3A] pt-3">
+                  <div className="mb-1.5 flex items-center gap-1 text-xs font-bold text-[#7FC7FF]"><Link2 className="h-3.5 w-3.5" />引用的站内爱心资源</div>
+                  <div className="flex flex-wrap gap-2">
+                    {openTopic.resources.map((r: RoundtableResourceRef) => (
+                      <a key={r.id} href={r.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 border border-[#555] bg-[#242426] px-2 py-1 text-[11px] font-bold text-[#DCE8CF] hover:border-[#8BC34A]">
+                        <Link2 className="h-3 w-3" />{r.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 全部回复 + 排序 */}
@@ -397,52 +448,15 @@ export const GmRoundTableView: React.FC = () => {
         )}
       </div>
 
-      {/* 申请开主题弹窗 */}
+      {/* 申请主题弹窗：与后台新建共用同一表单 */}
       {applyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setApplyOpen(false)}>
           <div className="w-full max-w-lg border-2 border-[#3A3A3A] bg-[#2B2B2D] p-5 text-[#E8E8E8] shadow-[6px_6px_0px_#121212]" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">申请开主题</h3>
+              <h3 className="text-lg font-black text-white">申请主题</h3>
               <button type="button" aria-label="关闭" onClick={() => setApplyOpen(false)} className="text-[#9A9A9A] hover:text-white"><X className="h-5 w-5" /></button>
             </div>
-            <label className="mb-1 block text-xs font-bold text-[#BDBDBD]">模组名称</label>
-            <input value={applyName} onChange={(e) => setApplyName(e.target.value)} placeholder="例如：魔藤"
-              className="mb-4 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
-            <label className="mb-1 block text-xs font-bold text-[#BDBDBD]">模组原版规则</label>
-            <input value={applyRule} onChange={(e) => setApplyRule(e.target.value)} placeholder="例如：OSE / COC 7版 / DND 5e"
-              className="mb-4 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
-            <label className="mb-1 block text-xs font-bold text-[#BDBDBD]">主题放在哪个规则下</label>
-            <select value={applyTargetChannel} onChange={(e) => setApplyTargetChannel(e.target.value)}
-              className="mb-2 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none focus:border-[#8BC34A]">
-              <option value="" className="bg-[#242426]">请选择规则分页</option>
-              {channels.map((c) => <option key={c.id} value={c.id} className="bg-[#242426]">{c.label}</option>)}
-              <option value="__new__" className="bg-[#242426]">申请新建规则分页…</option>
-            </select>
-            {applyTargetChannel === '__new__' && (
-              <input value={applyNewChannel} onChange={(e) => setApplyNewChannel(e.target.value)} placeholder="输入新建规则分页名称"
-                className="mb-3 w-full border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
-            )}
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-xs font-bold text-[#BDBDBD]">模组风格 tag（最多 6 个，每个 ≤ 6 中文字符）</label>
-              <span className="text-[11px] text-[#9A9A9A]">{applyTags.length}/6</span>
-            </div>
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {applyTags.map((tag) => (
-                <span key={tag} className="flex items-center gap-1 border border-[#8BC34A] bg-[#343437] px-2 py-0.5 text-[11px] font-bold text-[#DCE8CF]">
-                  {tag}
-                  <button type="button" aria-label={`删除 ${tag}`} onClick={() => setApplyTags(applyTags.filter((t) => t !== tag))} className="text-[#9A9A9A] hover:text-white"><X className="h-3 w-3" /></button>
-                </span>
-              ))}
-            </div>
-            <div className="mb-4 flex gap-2">
-              <input value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-                placeholder="输入 tag 后回车添加" className="flex-1 border-2 border-[#555] bg-[#242426] px-3 py-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
-              <button type="button" onClick={addTag} className="border-2 border-[#8BC34A] px-3 text-sm font-black text-[#8BC34A] hover:bg-[#343437]">添加</button>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setApplyOpen(false)} className="border-2 border-[#555] px-4 py-2 text-xs font-black text-[#C9C9C9] hover:border-[#999]">取消</button>
-              <button type="button" onClick={() => void submitApply()} className="bg-[#8BC34A] px-4 py-2 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]">提交申请</button>
-            </div>
+            <RoundtableTopicForm channels={channels} dark submitLabel="提交申请" flash={flash} onSave={submitApply} onCancel={() => setApplyOpen(false)} />
           </div>
         </div>
       )}

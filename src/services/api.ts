@@ -61,6 +61,7 @@ export const api = {
   roundtable: () => request<RoundtableSnapshot>('roundtable'),
   roundtableApply: (value: RoundtableApplyInput) => post<{ ok: boolean }>('roundtable/apply', value),
   roundtableReply: (topicId: string, value: { content: string; images?: string[]; parentId?: string }) => post<{ ok: boolean }>(`roundtable/topic/${encodeURIComponent(topicId)}/reply`, value),
+  roundtableEditReply: (topicId: string, replyId: string, value: { content: string; images?: string[] }) => patch<{ ok: boolean }>(`roundtable/topic/${encodeURIComponent(topicId)}/reply/${encodeURIComponent(replyId)}`, value),
   roundtableLike: (topicId: string, delta: 1 | -1) => post<{ ok: boolean; likes: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/like`, { delta }),
   checkin: () => post<{ ok: boolean; streak: number; checkinCount: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
@@ -101,14 +102,16 @@ export const api = {
   clearChat: () => request('chat/thread', { method: 'DELETE' }),
 };
 
+export interface RoundtableResourceRef { id: string; name: string; url: string }
 export interface RoundtableReply {
-  id: string; author: string; avatar: string; color: string;
-  time: string; content: string; likes: number; images?: string[]; children?: RoundtableReply[];
+  id: string; author: string; avatar: string; avatarUrl?: string; nameplate?: UserNameplate | null; color: string;
+  time: string; editedAt?: string; content: string; likes: number; images?: string[]; children?: RoundtableReply[];
+  userQq?: string;
 }
 export interface RoundtableTopic {
   id: string; channelId: string; rule: string; title: string;
   time: string; createdTs: number; lastReplyTs: number;
-  tags: string[]; views: number; likes: number; replies: RoundtableReply[];
+  tags: string[]; resources?: RoundtableResourceRef[]; views: number; likes: number; replies: RoundtableReply[];
 }
 export interface RoundtableSnapshot {
   channels: Array<{ id: string; label: string }>;
@@ -117,10 +120,10 @@ export interface RoundtableSnapshot {
 }
 export interface RoundtableApply {
   id: string; name: string; rule: string; channelId: string;
-  tags: string[]; applicant: string; time: string;
+  tags: string[]; resources?: RoundtableResourceRef[]; applicant: string; time: string;
 }
 export interface RoundtableApplyInput {
-  name: string; rule: string; tags: string[];
+  name: string; rule?: string; tags: string[]; resources?: RoundtableResourceRef[];
   channelId?: string; createNew?: boolean; newChannelName?: string;
 }
 
@@ -311,8 +314,8 @@ export const adminApi = {
   addRoundtableChannel: (name: string) => post<{ ok: boolean; id: string }>('admin/roundtable/channel', { name }),
   renameRoundtableChannel: (id: string, name: string) => patch<{ ok: boolean }>(`admin/roundtable/channel/${encodeURIComponent(id)}`, { name }),
   deleteRoundtableChannel: (id: string) => request<{ ok: boolean; deletedTopics: number }>(`admin/roundtable/channel/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  addRoundtableTopic: (value: { channelId: string; title: string; rule?: string; tags?: string[] }) => post<{ ok: boolean; id: string }>('admin/roundtable/topic', value),
-  updateRoundtableTopic: (id: string, value: { title?: string; channelId?: string; rule?: string; tags?: string[] }) => patch<{ ok: boolean }>(`admin/roundtable/topic/${encodeURIComponent(id)}`, value),
+  addRoundtableTopic: (value: { channelId: string; title: string; rule?: string; tags?: string[]; resources?: RoundtableResourceRef[] }) => post<{ ok: boolean; id: string }>('admin/roundtable/topic', value),
+  updateRoundtableTopic: (id: string, value: { title?: string; channelId?: string; rule?: string; tags?: string[]; resources?: RoundtableResourceRef[] }) => patch<{ ok: boolean }>(`admin/roundtable/topic/${encodeURIComponent(id)}`, value),
   deleteRoundtableTopic: (id: string) => request<{ ok: boolean }>(`admin/roundtable/topic/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   approveRoundtableApply: (id: string, value: { channelId?: string; createNew?: boolean; newChannelName?: string }) => post<{ ok: boolean; id: string }>(`admin/roundtable/apply/${encodeURIComponent(id)}/approve`, value),
   rejectRoundtableApply: (id: string) => post<{ ok: boolean }>(`admin/roundtable/apply/${encodeURIComponent(id)}/reject`),

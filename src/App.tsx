@@ -857,7 +857,7 @@ export function App() {
         )}
 
         {/* VIEW 5: GM圆桌（主题讨论频道，可引用爱心资源，支持讨论回复与举报） */}
-        {activeTab === 'roundtable' && <GmRoundTableView />}
+        {activeTab === 'roundtable' && <GmRoundTableView currentUserQq={currentUserQq} isAdmin={!!currentUser?.role} />}
       </main>
 
       {/* 猪猪客服对话窗：全局常驻，顶栏铃铛 / 首页提示条 / 首页客服块都能唤起 */}
