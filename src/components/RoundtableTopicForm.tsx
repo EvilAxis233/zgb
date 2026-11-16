@@ -35,10 +35,12 @@ type Props = {
   flash: (msg: string) => void;
   onSave: (value: TopicFormValue) => void | Promise<void>;
   onCancel?: () => void;
+  /** 编辑模式：预填已有主题的值，且不允许新建规则分页。 */
+  initialValue?: TopicFormValue;
 };
 
-export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, submitLabel, flash, onSave, onCancel }) => {
-  const [value, setValue] = useState<TopicFormValue>(emptyTopicForm);
+export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, submitLabel, flash, onSave, onCancel, initialValue }) => {
+  const [value, setValue] = useState<TopicFormValue>(() => initialValue ? { ...emptyTopicForm(), ...initialValue } : emptyTopicForm());
   const [tagDraft, setTagDraft] = useState('');
   const [resQuery, setResQuery] = useState('');
   const [resResults, setResResults] = useState<Array<{ id: string; name: string; url: string; type: string; category: string }>>([]);
@@ -128,7 +130,7 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
           className={inputCls}>
           <option value="">请选择规则分页</option>
           {channels.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          <option value="__new__">申请新建规则分页…</option>
+          {!initialValue && <option value="__new__">申请新建规则分页…</option>}
         </select>
         {value.channelId === '__new__' && (
           <div className="mt-2 flex items-center gap-1.5">

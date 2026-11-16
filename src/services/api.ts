@@ -281,6 +281,8 @@ export interface AdminNotices {
   chatUnread: number;
   /** 待审核的分享资源条数（审核完才清零）。 */
   resource: number;
+  /** 待处理的圆桌主题申请条数（同意/驳回后才清零）。 */
+  roundtable: number;
 }
 
 export const adminApi = {

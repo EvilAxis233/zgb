@@ -728,20 +728,23 @@ export async function onRequest(context) {
       if (path[1] === 'notices' && path.length === 2 && method === 'GET') {
         const marks = await db.prepare('SELECT section, read_at FROM admin_read_marks').all();
         const mark = (section) => marks.results.find((row) => row.section === section)?.read_at || '1970-01-01T00:00:00.000Z';
-        const [feedback, report, chat, chatUnread, resource] = await db.batch([
+        const [feedback, report, chat, chatUnread, resource, roundtable] = await db.batch([
           db.prepare(`SELECT COUNT(*) n FROM submissions WHERE type='feedback' AND created_at>?`).bind(mark('feedback')),
           db.prepare(`SELECT COUNT(*) n FROM submissions WHERE type='report' AND created_at>?`).bind(mark('report')),
           db.prepare(`SELECT COUNT(*) n FROM chat_messages WHERE from_role='user' AND created_at>?`).bind(mark('chat')),
           db.prepare(`SELECT COUNT(*) n FROM chat_messages WHERE from_role='user' AND read_at IS NULL`),
           // 资源审核红点：待审资源是「待办」，不按已读算，审核完才清零。
-          db.prepare(`SELECT COUNT(*) n FROM rule_resources WHERE review_status='pending'`)
+          db.prepare(`SELECT COUNT(*) n FROM rule_resources WHERE review_status='pending'`),
+          // 圆桌审核红点：待处理主题申请是「待办」，同意/驳回后才清零。
+          db.prepare(`SELECT COUNT(*) n FROM roundtable_applies`)
         ]);
         return json({
           feedback: Number(feedback.results[0].n || 0),
           report: Number(report.results[0].n || 0),
           chat: Number(chat.results[0].n || 0),
           chatUnread: Number(chatUnread.results[0].n || 0),
-          resource: Number(resource.results[0].n || 0)
+          resource: Number(resource.results[0].n || 0),
+          roundtable: Number(roundtable.results[0].n || 0)
         });
       }
       // 标记某板块为已查看（点开对应子页签时调用），红点随之消失。

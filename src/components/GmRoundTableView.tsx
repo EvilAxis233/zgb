@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Bold, BookOpen, ChevronDown, Clock3, Eye, Flame, Heading2, ImagePlus, Italic,
+  ArrowLeft, Bold, BookOpen, ChevronDown, ChevronRight, Clock3, Eye, Flame, Heading2, ImagePlus, Italic,
   Link2, List, MessageSquare, Pencil, Plus, Quote, Search, Send, ThumbsUp, X, Flag,
 } from 'lucide-react';
 import { api, adminApi, type RoundtableReply, type RoundtableTopic, type RoundtableResourceRef } from '../services/api';
 import { NameplateBadge } from './NameplateBadge';
 import { MarkdownView } from './MarkdownView';
-import { RoundtableTopicForm, emptyTopicForm, type TopicFormValue } from './RoundtableTopicForm';
+import { RoundtableTopicForm, type TopicFormValue } from './RoundtableTopicForm';
 
 /** 基础 markdown 工具栏：在 textarea 光标处插入对应语法。 */
 const MdToolbar: React.FC<{ onInsert: (before: string, after?: string) => void }> = ({ onInsert }) => (
@@ -60,6 +60,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const [replyText, setReplyText] = useState('');
   const [replyImages, setReplyImages] = useState<string[]>([]);
   const [imagesOpen, setImagesOpen] = useState<Record<string, boolean>>({});
+  // 二次（楼中楼）回复默认折叠，点「查看回复(n)」展开。
+  const [childrenOpen, setChildrenOpen] = useState<Record<string, boolean>>({});
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -70,6 +72,14 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const [editImages, setEditImages] = useState<string[]>([]);
   const editFileRef = useRef<HTMLInputElement>(null);
   const editTextRef = useRef<HTMLTextAreaElement>(null);
+
+  // 嵌套回复（楼中楼）：记录正在回复的父回复 id 与草稿。
+  const [nestedTo, setNestedTo] = useState<string | null>(null);
+  const [nestedText, setNestedText] = useState('');
+  const [nestedImages, setNestedImages] = useState<string[]>([]);
+  const nestedFileRef = useRef<HTMLInputElement>(null);
+  const nestedTextRef = useRef<HTMLTextAreaElement>(null);
+  const resetNested = () => { setNestedTo(null); setNestedText(''); setNestedImages([]); };
 
   // 在指定 textarea 光标处插入 markdown 语法
   const insertMd = (ref: React.RefObject<HTMLTextAreaElement>, val: string, setter: (v: string) => void) =>
@@ -132,8 +142,12 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     return [{ id: 'all', label: '综合' }, ...rest];
   }, [channels, topics, channelBump]);
 
-  // 置顶的规则讨论贴固定在每个分页最前，不参与热度/时间排序，也不进热度首排。
-  const pinnedTopics = useMemo(() => filtered.filter((t) => t.isPinned), [filtered]);
+  // 置顶的规则讨论贴固定在各规则分页最前；「综合」里不收纳置顶贴。
+  // 同样不参与热度/时间排序，也不进热度首排。
+  const pinnedTopics = useMemo(
+    () => channel === 'all' ? [] : filtered.filter((t) => t.isPinned),
+    [filtered, channel],
+  );
   const sorted = useMemo(() => filtered.filter((t) => !t.isPinned).sort((a, b) => {
     if (sort === 'heat') return heatOf(b) - heatOf(a);
     if (sort === 'latestTopic') return b.createdTs - a.createdTs;
@@ -170,9 +184,9 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     } catch (e) { flash(e instanceof Error ? e.message : '提交失败'); }
   };
 
-  const addImageFiles = (files: File[], target: 'reply' | 'edit') => {
+  const addImageFiles = (files: File[], target: 'reply' | 'edit' | 'nested') => {
     let added = 0;
-    const current = target === 'reply' ? replyImages.length : editImages.length;
+    const current = target === 'reply' ? replyImages.length : target === 'edit' ? editImages.length : nestedImages.length;
     files.filter((f) => f.type.startsWith('image/')).forEach((f) => {
       if (f.size > 2 * 1024 * 1024) { flash(`图片「${f.name}」超过 2M，已跳过`); return; }
       if (current + added >= 4) { flash('最多上传 4 张图片'); return; }
@@ -180,7 +194,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
       reader.onload = () => {
         const data = String(reader.result);
         if (target === 'reply') setReplyImages((prev) => [...prev, data].slice(0, 4));
-        else setEditImages((prev) => [...prev, data].slice(0, 4));
+        else if (target === 'edit') setEditImages((prev) => [...prev, data].slice(0, 4));
+        else setNestedImages((prev) => [...prev, data].slice(0, 4));
       };
       reader.readAsDataURL(f);
       added += 1;
@@ -195,13 +210,16 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     addImageFiles(Array.from(e.dataTransfer.files || []), 'reply');
   };
 
-  const sendReply = async () => {
-    if (!replyText.trim() && replyImages.length === 0) { flash('请输入讨论内容或上传图片'); return; }
+  const sendReply = async (parentId?: string) => {
+    const content = parentId ? nestedText.trim() : replyText.trim();
+    const images = parentId ? nestedImages : replyImages;
+    if (!content && images.length === 0) { flash('请输入讨论内容或上传图片'); return; }
     if (!openTopic) return;
     try {
       const tid = openTopic.id;
-      await api.roundtableReply(tid, { content: replyText.trim(), images: replyImages });
-      setReplyText(''); setReplyImages([]);
+      await api.roundtableReply(tid, { content, images, parentId });
+      if (parentId) { resetNested(); }
+      else { setReplyText(''); setReplyImages([]); }
       setChannelBump((prev) => ({ ...prev, [openTopic.channelId]: Date.now() }));
       flash('回复已发布');
       await load(tid);
@@ -229,15 +247,19 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const openDetail = (t: RoundtableTopic) => {
     setOpenTopic(t);
     setReplyText(''); setReplyImages([]);
-    cancelEdit();
+    resetNested(); cancelEdit();
   };
-  const backToList = () => { setOpenTopic(null); cancelEdit(); void load(); };
+  const backToList = () => { setOpenTopic(null); resetNested(); cancelEdit(); void load(); };
 
-  const likeCard = async (t: RoundtableTopic) => {
+  // 点赞：列表卡片与详情标题旁的点赞共用此入口，状态实时同步。
+  // 计数直接维护在 topics / openTopic 上，展示时不再额外 +1，避免重复计数。
+  const toggleLike = async (t: RoundtableTopic) => {
     const next = !likedTopics[t.id];
+    const delta = next ? 1 : -1;
     setLikedTopics((prev) => ({ ...prev, [t.id]: next }));
-    setTopics((prev) => prev.map((x) => x.id === t.id ? { ...x, likes: Math.max(0, x.likes + (next ? 1 : -1)) } : x));
-    try { await api.roundtableLike(t.id, next ? 1 : -1); } catch { /* 忽略 */ }
+    setTopics((prev) => prev.map((x) => x.id === t.id ? { ...x, likes: Math.max(0, x.likes + delta) } : x));
+    setOpenTopic((prev) => prev && prev.id === t.id ? { ...prev, likes: Math.max(0, prev.likes + delta) } : prev);
+    try { await api.roundtableLike(t.id, delta as 1 | -1); } catch { /* 忽略 */ }
   };
 
   const reportBtn = (label: string) => (
@@ -310,15 +332,58 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
         </>
       )}
       {!!r.children?.length && (
-        <div className="mt-3 space-y-3 border-l-2 border-[#555] pl-3">
-          {r.children.map((c) => renderReply(c, true))}
+        <div className="mt-2">
+          <button type="button" onClick={() => setChildrenOpen((prev) => ({ ...prev, [r.id]: !prev[r.id] }))}
+            className="flex items-center gap-1 text-xs font-bold text-[#7FC7FF] hover:underline">
+            {childrenOpen[r.id] ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {childrenOpen[r.id] ? '收起回复' : `查看回复（${countReplies(r.children || [])}）`}
+          </button>
+          {childrenOpen[r.id] && (
+            <div className="mt-2 space-y-2 border-l-2 border-[#555] pl-3">
+              {r.children.map((c) => renderReply(c, true))}
+            </div>
+          )}
         </div>
       )}
       {editReplyId !== r.id && (
         <div className="mt-2 flex gap-3">
-          <button type="button" onClick={() => flash('嵌套回复窗口已打开（仅前端演示）')} className="flex items-center gap-1 text-xs font-bold text-[#7FC7FF] hover:underline"><MessageSquare className="h-3.5 w-3.5" />回复</button>
-          {canEdit(r) && <button type="button" onClick={() => startEdit(r)} className="flex items-center gap-1 text-xs font-bold text-[#F4A261] hover:underline"><Pencil className="h-3 w-3" />编辑</button>}
+          <button type="button" onClick={() => { setNestedTo((prev) => prev === r.id ? null : r.id); setNestedText(''); setNestedImages([]); }}
+            className="flex items-center gap-1 text-xs font-bold text-[#7FC7FF] hover:underline"><MessageSquare className="h-3.5 w-3.5" />{nestedTo === r.id ? '收起回复' : '回复'}</button>
+          {canEdit(r) && <button type="button" onClick={() => { resetNested(); startEdit(r); }} className="flex items-center gap-1 text-xs font-bold text-[#F4A261] hover:underline"><Pencil className="h-3 w-3" />编辑</button>}
           {reportBtn('该回复')}
+        </div>
+      )}
+      {/* 楼中楼回复窗口：真实提交，parentId 指向当前回复。 */}
+      {nestedTo === r.id && editReplyId !== r.id && (
+        <div className="mt-3 border-2 border-[#555] bg-[#2B2B2D] p-2.5">
+          <div className="mb-2 text-[11px] font-bold text-[#9A9A9A]">回复 @{r.author}</div>
+          {nestedImages.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {nestedImages.map((src, i) => (
+                <div key={i} className="relative">
+                  <img src={src} alt="回复图片" className="h-16 w-16 border border-[#555] object-cover" />
+                  <button type="button" aria-label="移除图片" onClick={() => setNestedImages(nestedImages.filter((_, j) => j !== i))} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-[#121212] bg-[#D62828] text-white"><X className="h-3 w-3" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="border-2 border-[#555] bg-[#242426] focus-within:border-[#8BC34A]">
+            <MdToolbar onInsert={insertMd(nestedTextRef, nestedText, setNestedText)} />
+            <textarea ref={nestedTextRef} value={nestedText} onChange={(e) => setNestedText(e.target.value)}
+              placeholder="写下你的回复，支持 Markdown…" rows={4}
+              className="min-h-[100px] w-full resize-y bg-transparent p-2.5 text-sm leading-relaxed text-white outline-none placeholder:text-[#777]" />
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <input ref={nestedFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addImageFiles(Array.from(e.target.files || []), 'nested'); e.target.value = ''; }} />
+              <button type="button" aria-label="上传图片" title="点击上传图片（单张 ≤ 2M，最多 4 张）" onClick={() => nestedFileRef.current?.click()}
+                className="flex items-center gap-1 border-2 border-[#555] px-2 py-1 text-xs font-bold text-[#9A9A9A] hover:border-[#8BC34A] hover:text-[#8BC34A]"><ImagePlus className="h-4 w-4" />图片</button>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={resetNested} className="border border-[#555] px-3 py-1 text-xs font-bold text-[#C9C9C9] hover:border-[#999]">取消</button>
+              <button type="button" onClick={() => void sendReply(r.id)} className="flex items-center gap-1 bg-[#8BC34A] px-3 py-1 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]"><Send className="h-3.5 w-3.5" />发送回复</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -340,15 +405,15 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
             {!!t.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-1.5 py-0.5 text-[10px] font-black text-[#F4A261]">{t.origin}</span>}
             {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
           </div>
-          <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
-            <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{t.views}</span>
-            <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
-          </div>
         </button>
-        <button type="button" aria-label={`点赞 ${t.title}`} onClick={() => void likeCard(t)}
-          className={`mt-2 flex w-full items-center justify-center gap-1.5 border-2 py-1.5 text-xs font-black transition-colors ${liked ? 'border-[#8BC34A] bg-[#8BC34A] text-[#1B2B0B]' : 'border-[#555] bg-[#242426] text-[#C9C9C9] hover:border-[#8BC34A] hover:text-[#8BC34A]'}`}>
-          <ThumbsUp className="h-3.5 w-3.5" />{t.likes + (liked ? 1 : 0)}
-        </button>
+        <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
+          <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{t.views}</span>
+          <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
+          <button type="button" aria-label={`点赞 ${t.title}`} onClick={() => void toggleLike(t)}
+            className={`ml-auto flex items-center gap-1 font-black transition-colors ${liked ? 'text-[#8BC34A]' : 'hover:text-[#8BC34A]'}`}>
+            <ThumbsUp className="h-3 w-3" />{t.likes}
+          </button>
+        </div>
       </div>
     );
   };
@@ -364,7 +429,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#3A3A3A] bg-[#242426] px-4 py-3">
           <BookOpen className="h-5 w-5 shrink-0 text-[#8BC34A]" />
           <h2 className="text-lg font-black tracking-wide sm:text-xl">GM圆桌</h2>
-          <span className="shrink-0 border-l-2 border-[#8BC34A] pl-3 text-xs font-black text-[#F4A261] sm:text-sm">仅限于GM的严肃会谈，玩家请谨慎踏入！</span>
+          <span className="border-l-2 border-[#8BC34A] pl-3 text-xs font-black leading-relaxed text-[#F4A261] sm:text-sm">仅限于GM的严肃会谈，玩家请谨慎踏入！诸诸研讨规则与模组相关内容，请遵守公序良俗。</span>
         </div>
 
         {loading ? (
@@ -383,9 +448,9 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                     {rules.map((r) => <option key={r} value={r} className="bg-[#242426]">{r}</option>)}
                   </select>
                 </div>
-                {orderedChannels.map((c, i) => (
+                {orderedChannels.map((c) => (
                   <button key={c.id} type="button" onClick={() => applyChannel(c.id)}
-                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'} ${i === 0 ? 'order-first' : ''}`}>
+                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
                     {c.label}
                   </button>
                 ))}
@@ -406,7 +471,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
             {featured.length > 0 && (
               <div className="border-b border-[#3A3A3A] px-3 py-3 sm:px-4">
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-[#F4A261]"><Flame className="h-3.5 w-3.5" />热度最高</div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   {featured.map((t) => <TopicCard key={t.id} t={t} />)}
                 </div>
               </div>
@@ -416,7 +481,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
             <div className="px-3 py-3 sm:px-4">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-[#9A9A9A]"><Clock3 className="h-3.5 w-3.5" />全部主题 · {SORT_LABEL[sort]}</div>
               {rest.length === 0 && <div className="px-4 py-10 text-center text-sm text-[#9A9A9A]">还没有主题，点「申请主题」来发起第一个讨论吧</div>}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {rest.map((t) => <TopicCard key={t.id} t={t} />)}
               </div>
             </div>
@@ -430,6 +495,10 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                 {openTopic.isPinned && <span className="bg-[#D62828] px-2 py-0.5 text-[11px] font-black text-white">置顶</span>}
                 <span className="bg-[#8BC34A] px-2 py-0.5 text-[11px] font-black text-[#1B2B0B]">{openTopic.rule || '综合'}</span>
                 <h3 className="text-lg font-black leading-snug text-white">{openTopic.title}</h3>
+                <button type="button" aria-label={`点赞 ${openTopic.title}`} onClick={() => void toggleLike(openTopic)}
+                  className={`ml-1 flex items-center gap-1 border-2 px-2 py-0.5 text-xs font-black transition-colors ${likedTopics[openTopic.id] ? 'border-[#8BC34A] bg-[#8BC34A] text-[#1B2B0B]' : 'border-[#555] text-[#C9C9C9] hover:border-[#8BC34A] hover:text-[#8BC34A]'}`}>
+                  <ThumbsUp className="h-3.5 w-3.5" />{openTopic.likes}
+                </button>
               </div>
               <div className="mt-2 text-xs text-[#8A8A8A]">发布时间：{openTopic.time} · {openTopic.views} 浏览{openTopic.ruleVersion ? ` · 规则版本：${openTopic.ruleVersion}` : ''}</div>
             </div>
