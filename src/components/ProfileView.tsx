@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { UserProfile, Campaign, UserNameplate } from '../types';
-import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail, Heart } from 'lucide-react';
+import { UserProfile, Campaign, CampaignDetail, CampaignMember, UserNameplate } from '../types';
+import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail, Heart, ThumbsUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
 import { AccountSideActions } from './AccountSideActions';
@@ -78,6 +78,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [plazaOpen, setPlazaOpen] = useState(false);
   const [myResourcesOpen, setMyResourcesOpen] = useState(false);
   const [publicBusy, setPublicBusy] = useState(false);
+  // 档案收录卡：折叠态同封存团务，展开时按需拉详情拿成员名单；点赞后本地回写获赞数 + 回调刷新券数。
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [campaignDetails, setCampaignDetails] = useState<Record<string, CampaignDetail>>({});
+  const [detailLoading, setDetailLoading] = useState<string | null>(null);
+  const [praiseBusy, setPraiseBusy] = useState<string | null>(null);
+  const [praiseNotice, setPraiseNotice] = useState('');
   const [membershipNow, setMembershipNow] = useState(() => Date.now());
   const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
   const stickerMember = membershipActive || !!currentUser.membershipPermanent;
@@ -196,6 +202,138 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const removeTaboo = (tag: string) => {
     setTaboos(taboos.filter((t) => t !== tag));
+  };
+
+  // 展开收录卡时按需拉详情（含成员名单 / 获赞数），失败只提示不阻断其它卡。
+  const toggleCampaign = async (camp: Campaign) => {
+    const id = camp.id;
+    if (expandedCampaign === id) { setExpandedCampaign(null); return; }
+    setExpandedCampaign(id);
+    if (campaignDetails[id]) return;
+    setDetailLoading(id);
+    try {
+      const { campaign } = await api.campaign(id);
+      setCampaignDetails((prev) => ({ ...prev, [id]: campaign }));
+    } catch (error) {
+      setPraiseNotice(error instanceof Error ? error.message : '成员名单加载失败');
+    } finally {
+      setDetailLoading(null);
+    }
+  };
+
+  // 缩小版点赞按钮：仅已结团 + 自己是本团成员 + 非本人显示；点 GM 用红券，点玩家用蓝券。
+  const miniPraiseButton = (camp: CampaignDetail, member: CampaignMember) => {
+    if (member.id === currentUser.id || !camp.hasEnded) return null;
+    const isGm = member.role === 'gm';
+    const hasHeart = isGm
+      ? (currentUser.inventory?.gmHearts ?? 0) > 0
+      : (currentUser.inventory?.playerHearts ?? 0) > 0;
+    const busy = praiseBusy === member.id;
+    return (
+      <button
+        type="button"
+        disabled={!hasHeart || busy}
+        onClick={() => void handlePraise(camp, member)}
+        title={hasHeart ? `消耗 1 枚${isGm ? 'GM' : '玩家'}点赞券` : '点赞券不足'}
+        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center border border-[#121212] ${hasHeart ? (isGm ? 'bg-[#D62828] text-white hover:opacity-90' : 'bg-[#004E98] text-white hover:opacity-90') : 'cursor-not-allowed bg-[#E5E5E0] text-[#999]'} ${busy ? 'opacity-60' : ''}`}
+      >
+        {isGm ? <Flame className="h-3 w-3 fill-current" /> : <Star className="h-3 w-3 fill-current" />}
+      </button>
+    );
+  };
+
+  const handlePraise = async (camp: CampaignDetail, member: CampaignMember) => {
+    if (praiseBusy) return;
+    const type = member.role === 'gm' ? 'gm' : 'player';
+    setPraiseBusy(member.id);
+    setPraiseNotice('');
+    try {
+      await api.praise(camp.id, member.id, type);
+      // 获赞数 +1 直接回写本地详情，避免整页刷新打断档案浏览。
+      setCampaignDetails((prev) => {
+        const current = prev[camp.id];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [camp.id]: {
+            ...current,
+            members: current.members.map((m) => m.id === member.id ? { ...m, receivedPraises: m.receivedPraises + 1 } : m),
+          },
+        };
+      });
+      // 券数由后端扣减，回调 App 刷新当前用户资料让顶部券数同步。
+      const { user } = await api.me();
+      if (user) onUserUpdate(user);
+      setPraiseNotice(`已为 ${member.name} 点赞`);
+      window.setTimeout(() => setPraiseNotice(''), 2200);
+    } catch (error) {
+      setPraiseNotice(error instanceof Error ? error.message : '点赞失败');
+    } finally {
+      setPraiseBusy(null);
+    }
+  };
+
+  // 收录卡：仿后台封存团务的简略结构 —— 折叠态只留状态标签 + 结团日期 + 团名；
+  // 展开态为纯文字：规则 / GM / 开团时间 / 人数 / 联系方式 / 团简介 / 成员名单（无图片、无标签）。
+  const archivedCard = (camp: Campaign, hosted: boolean) => {
+    const open = expandedCampaign === camp.id;
+    const detail = campaignDetails[camp.id];
+    const date = camp.finishedAt || camp.createdAt;
+    const region = camp.province && camp.city && (camp.city.startsWith(camp.province) || camp.province.startsWith(camp.city))
+      ? camp.city : [camp.province, camp.city].filter(Boolean).join(' ');
+    const place = camp.kind === 'offline'
+      ? ([region, camp.address].filter(Boolean).join(' ') || '—')
+      : (camp.platforms?.length ? camp.platforms.join('、') : '—');
+    return (
+      <article key={camp.id} className="p-3 border-2 border-[#121212] hover:bg-[#F6F5F0] transition-colors">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="shrink-0 px-2 py-0.5 bg-[#FAE7E7] text-[#B51F1F] border-2 border-[#121212] text-[11px] font-black">已结团</span>
+          <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]">{date}</span>
+          <button type="button" onClick={() => void toggleCampaign(camp)} aria-expanded={open}
+            className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-black text-[#004E98] hover:text-[#D62828] cursor-pointer">
+            {open ? <>收起<ChevronUp size={12} /></> : <>详情<ChevronDown size={12} /></>}
+          </button>
+        </div>
+        <strong className="mt-1 block text-sm leading-snug break-words" title={camp.title}>{camp.title}</strong>
+        {open && <div className="mt-2 flex flex-col gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2 text-[11px] leading-snug text-[#444]">
+          <p className="truncate font-bold text-[#666]"><span className="text-[#121212]">{camp.rule}</span> · {camp.kind === 'offline' ? '面团' : '网团'}</p>
+          <p className="font-bold text-[#666]">GM {camp.gmName}{camp.gmQq && `（${camp.gmQq}）`}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-bold">
+            <span>{camp.timeSchedule}</span>
+            <span>{camp.currentPlayers}/{camp.maxPlayers} 人</span>
+            <span>{camp.kind === 'offline' ? '地址' : '平台'} {place}</span>
+          </div>
+          <div className="border-t border-dashed border-[#DDDDD5] pt-1.5">
+            <p className="font-black text-[#121212]">团简介</p>
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-[#555]">{camp.description || '未填写团简介'}</p>
+          </div>
+          <div className="border-t border-dashed border-[#DDDDD5] pt-1.5">
+            <p className="font-black text-[#121212]">成员名单</p>
+            {detailLoading === camp.id ? (
+              <p className="mt-0.5 text-[#888]">正在读取成员名单…</p>
+            ) : detail ? (
+              <ul className="mt-1 space-y-1">
+                {detail.members.map((m) => (
+                  <li key={m.id} className="flex items-center justify-between gap-2 min-w-0">
+                    <span className="min-w-0 truncate">
+                      <span className={m.role === 'gm' ? 'font-black text-[#D62828]' : 'font-bold text-[#004E98]'}>{m.role === 'gm' ? 'GM' : '玩家'}</span>
+                      {' '}{m.name}
+                      {m.qq && <span className="ml-1 font-mono text-[#888]">（{m.qq}）</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
+                      {m.id !== currentUser.id && miniPraiseButton(detail, m)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-0.5 text-[#888]">成员名单加载失败，点「收起」后再展开重试。</p>
+            )}
+          </div>
+        </div>}
+      </article>
+    );
   };
 
   return (
@@ -523,6 +661,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
 
+      {/* 点赞 / 详情加载的轻提示，2 秒后自动消失 */}
+      {praiseNotice && <div className="bauhaus-card px-4 py-2 bg-[#FFF9E6] border-2 border-[#C85C16] text-xs font-bold text-[#7A4B00]">{praiseNotice}</div>}
+
       {/* Dual Column Records: GM History & Player History */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* GM History */}
@@ -552,24 +693,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {myCampaigns.map((camp) => (
-                  <div
-                    key={camp.id}
-                    onClick={() => onSelectCampaign(camp)}
-                    className="p-3 border-2 border-[#121212] hover:bg-[#F6F5F0] cursor-pointer transition-all flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#121212]">{camp.title}</span>
-                      </div>
-                      <div className="text-xs text-[#666666] mt-1 flex items-center gap-2">
-                        <span>{camp.rule}</span>
-                        <span>•</span>
-                        <span>{formatDisplayTime(camp.timeSchedule)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {myCampaigns.map((camp) => archivedCard(camp, true))}
               </div>
             )}
           </div>
@@ -602,27 +726,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {myJoinedCampaigns.map((camp) => (
-                  <div
-                    key={camp.id}
-                    onClick={() => onSelectCampaign(camp)}
-                    className="p-3 border-2 border-[#121212] bg-[#FAF9F5] hover:bg-white cursor-pointer transition-colors flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#121212]">{camp.title}</span>
-                        <span className="px-1.5 py-0.5 bg-[#004E98] text-white text-xs font-bold">
-                          主持: {camp.gmName}
-                        </span>
-                      </div>
-                      <div className="text-xs text-[#666666] mt-1">
-                        <span>规则: {camp.rule}</span>
-                        <span className="mx-2">|</span>
-                        <span>{formatDisplayTime(camp.timeSchedule)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {myJoinedCampaigns.map((camp) => archivedCard(camp, false))}
               </div>
             )}
           </div>
