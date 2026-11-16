@@ -15,6 +15,7 @@ import { ProfileView } from './components/ProfileView';
 import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
+import { HomeCarousel } from './components/HomeCarousel';
 import { CampaignEditModal } from './components/CampaignEditModal';
 import { ResourceView } from './components/ResourceView';
 import { CalendarFilter } from './components/CalendarFilter';
@@ -31,6 +32,9 @@ interface ToastState {
   message: string;
   type: 'success' | 'error' | 'info';
 }
+
+// 首页形态③轮播预览开关：true=横向卡片轮播，false=旧版通栏按钮。
+const PORTAL_CAROUSEL = true;
 
 export function App() {
   // Application Data States
@@ -473,6 +477,67 @@ export function App() {
     });
   }, [enrichedCampaigns, boardView, searchQuery, ruleFilter, periodFilter, dateFilter]);
 
+  // 首页三栏独立轮播：网团/面团/宣群各 5 个团、各自翻页。
+  // 网团/面团：前 2 个按最新发布(createdAt)，后 3 个按截止时间最近(timeSchedule/finishedAt)。
+  // 宣群：按当天日期(Asia/Hong_Kong)做种子从全部活跃宣群随机抽 5，当日固定、隔天换。
+  const portalCampaigns = useMemo(() => {
+    const active = enrichedCampaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull);
+    const pool = (kind: 'online' | 'offline' | 'promo') => {
+      const seen = new Set<string>();
+      return active.filter((c) => {
+        if (c.kind !== kind) return false;
+        const key = c.batchId || c.id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
+    // 解析截止时间戳：优先 finishedAt，其次 timeSchedule；解析不到排最后
+    const deadlineTs = (c: Campaign) => {
+      const raw = `${c.finishedAt || ''} ${c.timeSchedule || ''}`;
+      const m = raw.match(/(20\d{2})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+      return Number.POSITIVE_INFINITY;
+    };
+
+    // 前 2 最新发布 + 后 3 截止最近（互不重复）
+    const pickRanked = (kind: 'online' | 'offline') => {
+      const all = pool(kind);
+      const newest = all.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 2);
+      const used = new Set(newest.map((c) => c.id));
+      const soonest = all.filter((c) => !used.has(c.id)).sort((a, b) => deadlineTs(a) - deadlineTs(b)).slice(0, 3);
+      return [...newest, ...soonest];
+    };
+
+    // 以当天日期为稳定种子，保证"每日随机、当日内固定"
+    const todayKey = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    let seed = 2166136261;
+    for (let i = 0; i < todayKey.length; i += 1) {
+      seed ^= todayKey.charCodeAt(i);
+      seed = Math.imul(seed, 16777619);
+    }
+    const nextRandom = () => {
+      seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const promoShuffled = pool('promo').slice();
+    for (let i = promoShuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(nextRandom() * (i + 1));
+      [promoShuffled[i], promoShuffled[j]] = [promoShuffled[j], promoShuffled[i]];
+    }
+
+    return {
+      online: pickRanked('online'),
+      offline: pickRanked('offline'),
+      promo: promoShuffled.slice(0, 5),
+    };
+  }, [enrichedCampaigns]);
+
   // Derived user campaign records
   const myCampaigns = useMemo(() => {
     if (!currentUser) return [];
@@ -485,9 +550,12 @@ export function App() {
   }, [enrichedCampaigns, currentUser]);
 
   const isSectionView = (activeTab === 'board' && boardView !== 'portal') || activeTab === 'resources';
+  const isCarouselPortal = PORTAL_CAROUSEL && activeTab === 'board' && boardView === 'portal';
   const mainContainerMaxWidth = isSectionView
     ? 'max-w-[1760px]'
-    : 'max-w-5xl';
+    : isCarouselPortal
+      ? 'max-w-[1760px]'
+      : 'max-w-5xl';
 
   return (
     <div className="min-h-screen bg-[#F6F5F0] text-[#121212] flex flex-col font-sans">
@@ -518,22 +586,39 @@ export function App() {
             <span className="shrink-0 text-xs font-black text-[#B51F1F] underline">点击查看 →</span>
           </button>
         )}
-        {/* VIEW 1-A: Home Portal (主页：四个长矩形纵向排列) */}
+        {/* VIEW 1-A: Home Portal —— 形态③横向卡片轮播预览（PORTAL_CAROUSEL 可切回旧版通栏） */}
         {activeTab === 'board' && boardView === 'portal' && (
           <div className="w-full">
-            <HomePortal
-              onSelectOnline={() => setBoardView('online')}
-              onSelectOffline={() => setBoardView('offline')}
-              onSelectPromo={() => setBoardView('promo')}
-              onSelectManage={() => {
-                if (currentUser) {
-                  setActiveTab('manage');
-                } else {
-                  setIsLoginOpen(true);
-                }
-              }}
-              onSelectResources={() => setActiveTab('resources')}
-            />
+            {PORTAL_CAROUSEL ? (
+              <HomeCarousel
+                online={portalCampaigns.online}
+                offline={portalCampaigns.offline}
+                promo={portalCampaigns.promo}
+                onOpenCampaign={(camp) => { void openCampaign(camp); }}
+                onSelectManage={() => {
+                  if (currentUser) {
+                    setActiveTab('manage');
+                  } else {
+                    setIsLoginOpen(true);
+                  }
+                }}
+                onSelectResources={() => setActiveTab('resources')}
+              />
+            ) : (
+              <HomePortal
+                onSelectOnline={() => setBoardView('online')}
+                onSelectOffline={() => setBoardView('offline')}
+                onSelectPromo={() => setBoardView('promo')}
+                onSelectManage={() => {
+                  if (currentUser) {
+                    setActiveTab('manage');
+                  } else {
+                    setIsLoginOpen(true);
+                  }
+                }}
+                onSelectResources={() => setActiveTab('resources')}
+              />
+            )}
           </div>
         )}
 

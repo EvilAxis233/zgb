@@ -1,0 +1,257 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { ThumbsUp } from 'lucide-react';
+import { Campaign } from '../types';
+import { BauhausPlaceholder } from './BauhausPlaceholder';
+import { NameplateBadge } from './NameplateBadge';
+import { locationLabel } from '../utils/location';
+
+interface HomeCarouselProps {
+  online: Campaign[];
+  offline: Campaign[];
+  promo: Campaign[];
+  onOpenCampaign: (campaign: Campaign) => void;
+  onSelectManage: () => void;
+  onSelectResources: () => void;
+}
+
+type Kind = 'online' | 'offline' | 'promo';
+
+const KIND_META: Record<Kind, { label: string; color: string; badge: string }> = {
+  online: { label: '网团', color: '#D62828', badge: '#D62828' },
+  offline: { label: '面团', color: '#F4A261', badge: '#E76F51' },
+  promo: { label: '宣群', color: '#004E98', badge: '#004E98' },
+};
+
+const deadlineOf = (campaign: Campaign): string => {
+  const raw = `${campaign.finishedAt || ''} ${campaign.timeSchedule || ''}`;
+  const full = raw.match(/(20\d{2})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (full) return `${Number(full[2])}/${Number(full[3])}`;
+  const cn = raw.match(/(\d{1,2})月(\d{1,2})/);
+  if (cn) return `${Number(cn[1])}/${Number(cn[2])}`;
+  return '';
+};
+
+const stripMarkdown = (text: string): string =>
+  (text || '').replace(/[#*`>`_\[\]()!]/g, '').replace(/^\s*[-•]\s*/gm, '').replace(/\s+/g, ' ').trim();
+
+/** 单张完整卡片（沿用团详情弹窗的版式） */
+const CampaignSlide: React.FC<{
+  campaign: Campaign;
+  meta: { label: string; color: string; badge: string };
+  onOpen: (campaign: Campaign) => void;
+}> = ({ campaign, meta, onOpen }) => {
+  const remain = Math.max(0, (campaign.maxPlayers || 0) - (campaign.currentPlayers || 0));
+  const deadline = deadlineOf(campaign);
+  const isPromo = campaign.kind === 'promo';
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(campaign)}
+      className="hc-slide w-full text-left bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col"
+    >
+      {/* 封面大图：标题不叠在图上 */}
+      <div className="relative h-[190px] sm:h-[220px] shrink-0 border-b-2 border-[#121212]">
+        {campaign.imageUrl ? (
+          <img src={campaign.imageUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <BauhausPlaceholder rule={campaign.rule} seedColor={meta.color} className="h-full w-full" showLabel={false} />
+        )}
+        <span className="absolute left-2 top-2 text-sm font-black text-white px-2.5 py-0.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
+          {meta.label}
+        </span>
+      </div>
+
+      {/* 标题：图下居中 */}
+      <div className="px-4 pt-4 pb-2 text-center">
+        <h3 className="text-xl sm:text-2xl font-black leading-tight text-[#121212] break-words">{campaign.title}</h3>
+      </div>
+
+      {/* 标签行：规则 / 时段或地点 / 平台 */}
+      <div className="flex flex-wrap justify-center gap-1.5 px-4 pb-3">
+        <span className="px-2.5 py-0.5 bg-[#004E98] text-white text-xs font-bold border border-[#121212]">{campaign.rule}</span>
+        <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">
+          {campaign.kind === 'offline' ? locationLabel(campaign) : (campaign.sessionType || '语音')}
+        </span>
+        {campaign.kind !== 'offline' && campaign.platforms?.map((platform) => (
+          <span key={platform} className="px-2 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">{platform}</span>
+        ))}
+      </div>
+
+      {/* 发布者行：头像 + 昵称 + 铭牌 + 赞 */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-y-2 border-[#121212] bg-[#FAF9F5]">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`h-9 w-9 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white border-2 border-[#121212] ${campaign.gmIsMember ? 'gilded-avatar' : ''}`} style={{ backgroundColor: campaign.gmIsMember ? undefined : '#D62828' }}>
+            {campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span>{campaign.gmName?.charAt(0)}</span>}
+          </span>
+          <span className="truncate text-sm font-black text-[#121212]">{campaign.gmName}</span>
+          {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-xs font-black text-white shadow-[2px_2px_0px_#121212]">
+          <ThumbsUp className="h-3.5 w-3.5" />赞 {campaign.gmPraises ?? 0}
+        </span>
+      </div>
+
+      {/* 简介摘要 */}
+      <div className="px-4 py-3 flex-1">
+        <p className="text-sm leading-relaxed text-[#444] line-clamp-3">{stripMarkdown(campaign.description) || '暂无简介'}</p>
+      </div>
+
+      {/* 自定义标签 */}
+      {!!campaign.customTags?.length && (
+        <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+          {campaign.customTags.map((tag) => (
+            <span key={tag} className="px-2 py-0.5 bg-[#FFF9F9] border border-[#121212] text-xs font-bold text-[#D62828]">{tag}</span>
+          ))}
+        </div>
+      )}
+
+      {/* 状态条：网团/面团显示剩余空位 + 截止时间；宣群不显示截止时间 */}
+      <div className="px-4 pb-4 mt-auto">
+        <div className="flex flex-wrap items-center gap-2 mb-2.5">
+          {isPromo ? (
+            <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">展示中</span>
+          ) : (
+            <>
+              <span className="px-2.5 py-0.5 bg-[#F4A261] text-[#121212] text-xs font-bold border border-[#121212]">剩 {remain} 位</span>
+              {deadline && <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">截止 {deadline}</span>}
+            </>
+          )}
+        </div>
+        <div className="text-center text-base font-black text-white px-4 py-2.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
+          进入{meta.label} →
+        </div>
+      </div>
+    </button>
+  );
+};
+
+/** 单个分类的独立轮播栏：自己翻自己的 5 页 */
+const CarouselLane: React.FC<{
+  kind: Kind;
+  campaigns: Campaign[];
+  onOpen: (campaign: Campaign) => void;
+  offsetMs: number;
+}> = ({ kind, campaigns, onOpen, offsetMs }) => {
+  const meta = KIND_META[kind];
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const onScroll = () => setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // 各自独立自动轮播，错开启动时间避免三栏同步翻页
+  useEffect(() => {
+    if (paused || campaigns.length <= 1) return;
+    let interval = 0;
+    const begin = window.setTimeout(() => {
+      interval = window.setInterval(() => {
+        const el = trackRef.current;
+        if (!el) return;
+        const width = el.clientWidth;
+        const max = el.scrollWidth - el.clientWidth;
+        let next = el.scrollLeft + width;
+        if (next >= max - 4) next = 0;
+        el.scrollTo({ left: next, behavior: 'smooth' });
+      }, 5000);
+    }, offsetMs);
+    return () => {
+      window.clearTimeout(begin);
+      if (interval) window.clearInterval(interval);
+    };
+  }, [paused, campaigns.length, offsetMs]);
+
+  const step = (direction: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
+  };
+
+  const goTo = (index: number) => {
+    const el = trackRef.current;
+    if (el) el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
+  };
+
+  return (
+    <section className="flex min-w-0 flex-col gap-2" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      {/* 分类标题 + 页码 */}
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-6 w-2 border-2 border-[#121212]" style={{ backgroundColor: meta.color }} />
+          <h3 className="text-xl font-black tracking-wider text-[#121212] sm:text-2xl">{meta.label}</h3>
+        </div>
+        <span className="text-sm font-black tabular-nums text-[#666]">{campaigns.length ? page + 1 : 0} / {campaigns.length}</span>
+      </div>
+
+      {/* 该栏自己的轮播轨道 */}
+      <div className="relative min-w-0">
+        <div ref={trackRef} className="hc-lane-track">
+          {campaigns.map((campaign) => (
+            <CampaignSlide key={`${campaign.kind}-${campaign.id}`} campaign={campaign} meta={meta} onOpen={onOpen} />
+          ))}
+        </div>
+        {campaigns.length > 1 && (
+          <>
+            <button type="button" aria-label={`${meta.label}上一页`} onClick={() => step(-1)} className="absolute -left-2 top-1/2 z-10 flex h-10 w-8 -translate-y-1/2 items-center justify-center border-2 border-[#121212] bg-[#121212] text-2xl text-white hover:bg-[#D62828]">‹</button>
+            <button type="button" aria-label={`${meta.label}下一页`} onClick={() => step(1)} className="absolute -right-2 top-1/2 z-10 flex h-10 w-8 -translate-y-1/2 items-center justify-center border-2 border-[#121212] bg-[#121212] text-2xl text-white hover:bg-[#D62828]">›</button>
+          </>
+        )}
+      </div>
+
+      {/* 该栏自己的圆点 */}
+      {campaigns.length > 1 && (
+        <div className="flex justify-center gap-1.5 pt-1">
+          {campaigns.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              aria-label={`${meta.label}第 ${index + 1} 页`}
+              onClick={() => goTo(index)}
+              className="h-2.5 w-2.5 rounded-full border-2 border-[#121212]"
+              style={{ backgroundColor: index === page ? meta.color : '#D3D1C7' }}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+export const HomeCarousel: React.FC<HomeCarouselProps> = ({
+  online, offline, promo, onOpenCampaign, onSelectManage, onSelectResources,
+}) => {
+  return (
+    <div className="flex w-full flex-col gap-6">
+      <style>{`
+        .hc-lane-track { display:flex; gap:0; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:10px; align-items:stretch; }
+        .hc-lane-track::-webkit-scrollbar { display:none; }
+        .hc-slide { flex:0 0 100%; scroll-snap-align:start; min-width:0; }
+      `}</style>
+
+      {/* 区块标题 */}
+      <div className="flex items-center gap-3">
+        <span className="inline-block h-7 w-2 border-2 border-[#121212] bg-[#004E98]" />
+        <h2 className="text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">正在招募</h2>
+        <span className="hidden text-sm font-bold text-[#999] sm:inline">网团 / 面团 / 宣群 各自轮播 · 左右滑动切换</span>
+      </div>
+
+      {/* 三栏独立轮播 */}
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-3 sm:gap-5">
+        <CarouselLane kind="online" campaigns={online} onOpen={onOpenCampaign} offsetMs={0} />
+        <CarouselLane kind="offline" campaigns={offline} onOpen={onOpenCampaign} offsetMs={1700} />
+        <CarouselLane kind="promo" campaigns={promo} onOpen={onOpenCampaign} offsetMs={3400} />
+      </div>
+
+      {/* 功能入口 */}
+      <div className="flex gap-5 pt-1">
+        <button type="button" onClick={onSelectManage} className="flex-1 bg-[#121212] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">团务管理</button>
+        <button type="button" onClick={onSelectResources} className="flex-1 bg-[#B51F5C] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">爱心资源</button>
+      </div>
+    </div>
+  );
+};

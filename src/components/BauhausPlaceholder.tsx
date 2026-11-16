@@ -5,6 +5,7 @@ interface BauhausPlaceholderProps {
   rule?: string;
   seedColor?: string;
   className?: string;
+  showLabel?: boolean; // 默认 true；轮播封面传 false 只保留纯几何色块，标题统一放图下
 }
 
 const PALETTES: Record<string, { primary: string; secondary: string; accent: string }> = {
@@ -19,6 +20,7 @@ export const BauhausPlaceholder: React.FC<BauhausPlaceholderProps> = ({
   rule = 'TRPG',
   seedColor = '#D62828',
   className = 'w-full h-44',
+  showLabel = true,
 }) => {
   // Coordinated palette for all 3 geometric shapes
   const palette = PALETTES[seedColor] || {
@@ -62,11 +64,11 @@ export const BauhausPlaceholder: React.FC<BauhausPlaceholderProps> = ({
       <div className="absolute w-44 h-1 bg-[#121212] -rotate-45 transform origin-top-left -top-4 -left-4 opacity-70" />
 
       {/* Centerpiece campaign title. Rule remains available as the fallback label. */}
-      <div className="relative z-10 bg-[#FFFFFF]/95 border-2 border-[#121212] px-3 py-2 shadow-[3px_3px_0px_#121212] flex items-center justify-center max-w-[84%]">
+      {showLabel && <div className="relative z-10 bg-[#FFFFFF]/95 border-2 border-[#121212] px-3 py-2 shadow-[3px_3px_0px_#121212] flex items-center justify-center max-w-[84%]">
         <span className="text-xl sm:text-2xl font-black tracking-tight text-[#121212] text-center leading-tight break-words">
           {title || rule}
         </span>
-      </div>
+      </div>}
 
       {/* Top right Bauhaus stamp (unobscured) */}
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
