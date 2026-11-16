@@ -48,7 +48,7 @@ const CampaignSlide: React.FC<{
     <button
       type="button"
       onClick={() => onOpen(campaign)}
-      className="hc-slide w-full text-left bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col"
+      className="hc-slide w-full text-center bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col"
     >
       {/* 封面大图：标题不叠在图上 */}
       <div className="relative h-[190px] sm:h-[220px] shrink-0 border-b-2 border-[#121212]">
@@ -89,8 +89,8 @@ const CampaignSlide: React.FC<{
         </span>
       </div>
 
-      {/* 简介摘要 */}
-      <div className="px-4 py-3 flex-1">
+      {/* 简介摘要（唯一保留左对齐的内容） */}
+      <div className="px-4 py-3 flex-1 text-left">
         <p className="text-sm leading-relaxed text-[#444] line-clamp-3">{stripMarkdown(campaign.description) || '暂无简介'}</p>
       </div>
 
@@ -115,13 +115,24 @@ const CampaignSlide: React.FC<{
             </>
           )}
         </div>
-        <div className="text-center text-base font-black text-white px-4 py-2.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
-          进入{meta.label} →
+        <div className="mx-auto inline-block text-base font-black text-white px-5 py-2.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
+          进入{meta.label}
         </div>
       </div>
     </button>
   );
 };
+
+/** 轮播占位卡：不足 5 个时补齐，保持每栏固定 5 页 */
+const PlaceholderSlide: React.FC<{ meta: { label: string; color: string; badge: string } }> = ({ meta }) => (
+  <div className="hc-slide w-full bg-white border-2 border-dashed border-[#121212] shadow-[5px_5px_0px_#121212] flex flex-col items-center justify-center overflow-hidden" style={{ minHeight: 420 }}>
+    <div className="h-[190px] w-full shrink-0 border-b-2 border-dashed border-[#CCC] sm:h-[220px]" style={{ backgroundColor: `${meta.color}12` }} />
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
+      <span className="text-3xl font-black text-[#D3D1C7]">+</span>
+      <span className="text-sm font-bold text-[#999]">暂无更多{meta.label}</span>
+    </div>
+  </div>
+);
 
 /** 单个分类的轮播栏：手动只翻自己这一栏，自动翻页由顶层统一驱动 */
 const CarouselLane: React.FC<{
@@ -132,6 +143,8 @@ const CarouselLane: React.FC<{
   const meta = KIND_META[kind];
   const trackRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
+  // 每栏固定 5 个轮播位：真实团务不足时用占位卡补齐，保证始终 5 页。
+  const slots = Array.from({ length: 5 }, (_, i) => campaigns[i] || null);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -153,35 +166,40 @@ const CarouselLane: React.FC<{
   };
 
   return (
-    <section className="flex min-w-0 flex-col gap-2">
-      {/* 分类标题 + 页码 */}
-      <div className="flex items-center justify-between gap-2 px-1">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-6 w-2 border-2 border-[#121212]" style={{ backgroundColor: meta.color }} />
-          <h3 className="text-xl font-black tracking-wider text-[#121212] sm:text-2xl">{meta.label}</h3>
-        </div>
-        <span className="text-sm font-black tabular-nums text-[#666]">{campaigns.length ? page + 1 : 0} / {campaigns.length}</span>
+    <section className="hc-lane group flex min-w-0 flex-col gap-2">
+      {/* 分类标题 */}
+      <div className="flex items-center gap-2 px-1">
+        <span className="inline-block h-6 w-2 border-2 border-[#121212]" style={{ backgroundColor: meta.color }} />
+        <h3 className="text-xl font-black tracking-wider text-[#121212] sm:text-2xl">{meta.label}</h3>
       </div>
 
       {/* 该栏自己的轮播轨道 */}
       <div className="relative min-w-0">
         <div ref={trackRef} className="hc-lane-track">
-          {campaigns.map((campaign) => (
+          {slots.map((campaign, index) => campaign ? (
             <CampaignSlide key={`${campaign.kind}-${campaign.id}`} campaign={campaign} meta={meta} onOpen={onOpen} />
+          ) : (
+            <PlaceholderSlide key={`placeholder-${index}`} meta={meta} />
           ))}
         </div>
-        {campaigns.length > 1 && (
+        {slots.length > 1 && (
           <>
-            <button type="button" aria-label={`${meta.label}上一页`} onClick={() => step(-1)} className="absolute -left-2 top-1/2 z-10 flex h-10 w-8 -translate-y-1/2 items-center justify-center border-2 border-[#121212] bg-[#121212] text-2xl text-white hover:bg-[#D62828]">‹</button>
-            <button type="button" aria-label={`${meta.label}下一页`} onClick={() => step(1)} className="absolute -right-2 top-1/2 z-10 flex h-10 w-8 -translate-y-1/2 items-center justify-center border-2 border-[#121212] bg-[#121212] text-2xl text-white hover:bg-[#D62828]">›</button>
+            <button type="button" aria-label={`${meta.label}上一页`} onClick={() => step(-1)}
+              className="hc-nav absolute left-2 top-[110px] z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-[#121212]/70 text-white shadow-[2px_2px_0px_#121212] opacity-0 backdrop-blur-sm transition-all hover:bg-[#D62828] group-hover:opacity-100">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <button type="button" aria-label={`${meta.label}下一页`} onClick={() => step(1)}
+              className="hc-nav absolute right-2 top-[110px] z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-[#121212]/70 text-white shadow-[2px_2px_0px_#121212] opacity-0 backdrop-blur-sm transition-all hover:bg-[#D62828] group-hover:opacity-100">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
           </>
         )}
       </div>
 
-      {/* 该栏自己的圆点 */}
-      {campaigns.length > 1 && (
+      {/* 该栏自己的圆点：固定 5 个 */}
+      {slots.length > 1 && (
         <div className="flex justify-center gap-1.5 pt-1">
-          {campaigns.map((_, index) => (
+          {slots.map((_, index) => (
             <button
               key={index}
               type="button"
@@ -235,7 +253,6 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({
       <div className="flex items-center gap-3">
         <span className="inline-block h-7 w-2 border-2 border-[#121212] bg-[#004E98]" />
         <h2 className="text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">正在招募</h2>
-        <span className="hidden text-sm font-bold text-[#999] sm:inline">网团 / 面团 / 宣群 同步轮播 · 可单独滑动</span>
       </div>
 
       {/* 三栏同步轮播：悬停任一处全部暂停 */}

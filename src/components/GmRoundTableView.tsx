@@ -1,11 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, BookOpen, ChevronDown, Clock3, Eye, Flame, ImagePlus, Link2, MessageSquare,
-  Pencil, Plus, Search, Send, ThumbsUp, X, Flag,
+  ArrowLeft, Bold, BookOpen, ChevronDown, Clock3, Eye, Flame, Heading2, ImagePlus, Italic,
+  Link2, List, MessageSquare, Pencil, Plus, Quote, Search, Send, ThumbsUp, X, Flag,
 } from 'lucide-react';
 import { api, adminApi, type RoundtableReply, type RoundtableTopic, type RoundtableResourceRef } from '../services/api';
 import { NameplateBadge } from './NameplateBadge';
+import { MarkdownView } from './MarkdownView';
 import { RoundtableTopicForm, emptyTopicForm, type TopicFormValue } from './RoundtableTopicForm';
+
+/** 基础 markdown 工具栏：在 textarea 光标处插入对应语法。 */
+const MdToolbar: React.FC<{ onInsert: (before: string, after?: string) => void }> = ({ onInsert }) => (
+  <div className="flex flex-wrap items-center gap-1 border-b-2 border-[#555] bg-[#242426] px-2 py-1.5">
+    <button type="button" title="加粗" aria-label="加粗" onClick={() => onInsert('**', '**')} className="flex h-7 w-7 items-center justify-center text-[#C9C9C9] hover:bg-[#343437] hover:text-white"><Bold className="h-4 w-4" /></button>
+    <button type="button" title="斜体" aria-label="斜体" onClick={() => onInsert('*', '*')} className="flex h-7 w-7 items-center justify-center text-[#C9C9C9] hover:bg-[#343437] hover:text-white"><Italic className="h-4 w-4" /></button>
+    <button type="button" title="标题" aria-label="标题" onClick={() => onInsert('## ')} className="flex h-7 w-7 items-center justify-center text-[#C9C9C9] hover:bg-[#343437] hover:text-white"><Heading2 className="h-4 w-4" /></button>
+    <button type="button" title="列表" aria-label="列表" onClick={() => onInsert('- ')} className="flex h-7 w-7 items-center justify-center text-[#C9C9C9] hover:bg-[#343437] hover:text-white"><List className="h-4 w-4" /></button>
+    <button type="button" title="引用" aria-label="引用" onClick={() => onInsert('> ')} className="flex h-7 w-7 items-center justify-center text-[#C9C9C9] hover:bg-[#343437] hover:text-white"><Quote className="h-4 w-4" /></button>
+    <button type="button" title="链接" aria-label="链接" onClick={() => onInsert('[', '](https://)')} className="flex h-7 w-7 items-center justify-center text-[#C9C9C9] hover:bg-[#343437] hover:text-white"><Link2 className="h-4 w-4" /></button>
+    <span className="ml-1 text-[10px] text-[#777]">支持 Markdown：加粗 / 斜体 / 标题 / 列表 / 引用 / 链接</span>
+  </div>
+);
 
 /**
  * GM 圆桌（真实持久化版）：
@@ -48,12 +62,30 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const [imagesOpen, setImagesOpen] = useState<Record<string, boolean>>({});
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const replyTextRef = useRef<HTMLTextAreaElement>(null);
 
   // 回复编辑
   const [editReplyId, setEditReplyId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editImages, setEditImages] = useState<string[]>([]);
   const editFileRef = useRef<HTMLInputElement>(null);
+  const editTextRef = useRef<HTMLTextAreaElement>(null);
+
+  // 在指定 textarea 光标处插入 markdown 语法
+  const insertMd = (ref: React.RefObject<HTMLTextAreaElement>, val: string, setter: (v: string) => void) =>
+    (before: string, after: string = '') => {
+      const el = ref.current;
+      if (!el) return;
+      const start = el.selectionStart, end = el.selectionEnd;
+      const selected = val.slice(start, end);
+      const next = val.slice(0, start) + before + selected + after + val.slice(end);
+      setter(next);
+      window.requestAnimationFrame(() => {
+        el.focus();
+        const pos = start + before.length + selected.length;
+        el.setSelectionRange(pos, pos);
+      });
+    };
 
   const flash = useCallback((msg: string) => {
     setNotice(msg);
@@ -100,18 +132,20 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     return [{ id: 'all', label: '综合' }, ...rest];
   }, [channels, topics, channelBump]);
 
-  const sorted = useMemo(() => filtered.slice().sort((a, b) => {
+  // 置顶的规则讨论贴固定在每个分页最前，不参与热度/时间排序，也不进热度首排。
+  const pinnedTopics = useMemo(() => filtered.filter((t) => t.isPinned), [filtered]);
+  const sorted = useMemo(() => filtered.filter((t) => !t.isPinned).sort((a, b) => {
     if (sort === 'heat') return heatOf(b) - heatOf(a);
     if (sort === 'latestTopic') return b.createdTs - a.createdTs;
     return b.lastReplyTs - a.lastReplyTs;
   }), [filtered, sort]);
 
   const featured = useMemo(
-    () => filtered.slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 3),
+    () => filtered.filter((t) => !t.isPinned).slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 3),
     [filtered],
   );
   const featuredIds = new Set(featured.map((t) => t.id));
-  const rest = sorted.filter((t) => !featuredIds.has(t.id));
+  const rest = [...pinnedTopics, ...sorted.filter((t) => !featuredIds.has(t.id))];
 
   const sortedReplies = useMemo(() => {
     if (!openTopic) return [];
@@ -125,6 +159,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     try {
       await api.roundtableApply({
         name: v.name, tags: v.tags, resources: v.resources,
+        origin: v.origin, ruleVersion: v.ruleVersion,
         channelId: v.channelId === '__new__' ? '' : v.channelId,
         createNew: v.channelId === '__new__',
         newChannelName: v.channelId === '__new__' ? v.newChannelName : '',
@@ -251,20 +286,26 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
               ))}
             </div>
           )}
-          <div className="flex gap-2">
-            <input ref={editFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addImageFiles(Array.from(e.target.files || []), 'edit'); e.target.value = ''; }} />
-            <button type="button" aria-label="上传图片" title="点击上传图片（单张 ≤ 2M，最多 4 张）" onClick={() => editFileRef.current?.click()}
-              className="flex w-11 shrink-0 items-center justify-center border-2 border-[#555] text-[#9A9A9A] hover:border-[#8BC34A] hover:text-[#8BC34A]"><ImagePlus className="h-5 w-5" /></button>
-            <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} className="min-h-[52px] flex-1 resize-none border-2 border-[#555] bg-[#2B2B2D] p-2 text-sm text-white outline-none focus:border-[#8BC34A]" />
+          <div className="border-2 border-[#555] bg-[#2B2B2D] focus-within:border-[#8BC34A]">
+            <MdToolbar onInsert={insertMd(editTextRef, editText, setEditText)} />
+            <textarea ref={editTextRef} value={editText} onChange={(e) => setEditText(e.target.value)} rows={6}
+              className="min-h-[150px] w-full resize-y bg-transparent p-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#777]" />
           </div>
-          <div className="mt-2 flex justify-end gap-2">
-            <button type="button" onClick={cancelEdit} className="border border-[#555] px-3 py-1 text-xs font-bold text-[#C9C9C9] hover:border-[#999]">取消</button>
-            <button type="button" onClick={() => void saveEdit()} className="bg-[#8BC34A] px-3 py-1 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]">保存编辑</button>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <input ref={editFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addImageFiles(Array.from(e.target.files || []), 'edit'); e.target.value = ''; }} />
+              <button type="button" aria-label="上传图片" title="点击上传图片（单张 ≤ 2M，最多 4 张）" onClick={() => editFileRef.current?.click()}
+                className="flex items-center gap-1 border-2 border-[#555] px-2 py-1 text-xs font-bold text-[#9A9A9A] hover:border-[#8BC34A] hover:text-[#8BC34A]"><ImagePlus className="h-4 w-4" />图片</button>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={cancelEdit} className="border border-[#555] px-3 py-1 text-xs font-bold text-[#C9C9C9] hover:border-[#999]">取消</button>
+              <button type="button" onClick={() => void saveEdit()} className="bg-[#8BC34A] px-3 py-1 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]">保存编辑</button>
+            </div>
           </div>
         </div>
       ) : (
         <>
-          {r.content && <p className={`whitespace-pre-line leading-7 text-[#DCDCDC] ${nested ? 'mt-1.5 text-sm' : 'mt-2 text-sm'}`}>{r.content}</p>}
+          {r.content && <div className={nested ? 'mt-1.5 text-sm' : 'mt-2 text-sm'}><MarkdownView content={r.content} dark /></div>}
           {!!r.images?.length && renderImages(r.images, r.id)}
         </>
       )}
@@ -288,10 +329,15 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     return (
       <div className="relative flex h-full flex-col border border-[#3A3A3A] bg-[#2E2E30] p-4 transition-colors hover:border-[#8BC34A] hover:bg-[#343437]">
         <button type="button" onClick={() => void openDetail(t)} className="flex flex-1 flex-col text-left">
-          <h3 className="line-clamp-2 text-sm font-black leading-snug text-white">{t.title}</h3>
+          <h3 className="line-clamp-2 text-sm font-black leading-snug text-white">
+            {t.isPinned && <span className="mr-1.5 bg-[#D62828] px-1.5 py-0.5 align-middle text-[10px] font-black text-white">置顶</span>}
+            {t.title}
+          </h3>
           <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
+          {!!t.ruleVersion && <div className="mt-1 text-[10px] text-[#8A8A8A]">规则版本：{t.ruleVersion}</div>}
           {!!t.resources?.length && <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[#7FC7FF]"><Link2 className="h-3 w-3" />引用 {t.resources.length} 个爱心资源</div>}
           <div className="mt-2 flex flex-wrap gap-1.5">
+            {!!t.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-1.5 py-0.5 text-[10px] font-black text-[#F4A261]">{t.origin}</span>}
             {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
           </div>
           <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
@@ -309,12 +355,12 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
 
   // 去掉热门标签：不在 featured 上透传 hot。
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="gm-roundtable w-full">
       {notice && (
         <div className="mb-3 border-2 border-[#121212] bg-[#F4A261] px-4 py-2 text-center text-sm font-black text-[#121212] shadow-[3px_3px_0px_#121212]">{notice}</div>
       )}
 
-      <div className="overflow-hidden rounded-lg border-2 border-[#3A3A3A] bg-[#2B2B2D] text-[#E8E8E8] shadow-[6px_6px_0px_#121212]">
+      <div className="overflow-hidden border-2 border-[#3A3A3A] bg-[#2B2B2D] text-[#E8E8E8] shadow-[6px_6px_0px_#121212]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#3A3A3A] bg-[#242426] px-4 py-3">
           <BookOpen className="h-5 w-5 shrink-0 text-[#8BC34A]" />
           <h2 className="text-lg font-black tracking-wide sm:text-xl">GM圆桌</h2>
@@ -381,14 +427,16 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
             <div className="border-b border-[#3A3A3A] px-4 py-3">
               <button type="button" onClick={backToList} className="mb-3 flex items-center gap-1 text-xs font-bold text-[#9A9A9A] hover:text-white"><ArrowLeft className="h-3.5 w-3.5" />返回列表</button>
               <div className="flex flex-wrap items-center gap-2">
+                {openTopic.isPinned && <span className="bg-[#D62828] px-2 py-0.5 text-[11px] font-black text-white">置顶</span>}
                 <span className="bg-[#8BC34A] px-2 py-0.5 text-[11px] font-black text-[#1B2B0B]">{openTopic.rule || '综合'}</span>
                 <h3 className="text-lg font-black leading-snug text-white">{openTopic.title}</h3>
               </div>
-              <div className="mt-2 text-xs text-[#8A8A8A]">发布时间：{openTopic.time} · {openTopic.views} 浏览</div>
+              <div className="mt-2 text-xs text-[#8A8A8A]">发布时间：{openTopic.time} · {openTopic.views} 浏览{openTopic.ruleVersion ? ` · 规则版本：${openTopic.ruleVersion}` : ''}</div>
             </div>
 
             <div className="px-4 py-3">
               <div className="flex flex-wrap gap-2">
+                {!!openTopic.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-2 py-0.5 text-[11px] font-black text-[#F4A261]">{openTopic.origin}</span>}
                 {openTopic.tags.map((tag) => <span key={tag} className="border border-[#555] px-2 py-0.5 text-[11px] font-bold text-[#BDBDBD]">{tag}</span>)}
               </div>
               {!!openTopic.resources?.length && (
@@ -436,12 +484,19 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
-                <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
-                <button type="button" aria-label="上传图片" title="点击或拖拽上传图片（单张 ≤ 2M，最多 4 张）" onClick={() => fileRef.current?.click()}
-                  className="flex w-11 shrink-0 items-center justify-center border-2 border-[#555] text-[#9A9A9A] hover:border-[#8BC34A] hover:text-[#8BC34A]"><ImagePlus className="h-5 w-5" /></button>
-                <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="写下你的讨论或回复，可拖拽图片到此处…" rows={2} className="min-h-[56px] flex-1 resize-none border-2 border-[#555] bg-[#2B2B2D] p-2 text-sm text-white outline-none placeholder:text-[#777] focus:border-[#8BC34A]" />
-                <button type="button" onClick={() => void sendReply()} className="flex w-20 items-center justify-center gap-1 bg-[#8BC34A] text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]"><Send className="h-4 w-4" />发送</button>
+              <div className="border-2 border-[#555] bg-[#2B2B2D] focus-within:border-[#8BC34A]">
+                <MdToolbar onInsert={insertMd(replyTextRef, replyText, setReplyText)} />
+                <textarea ref={replyTextRef} value={replyText} onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="写下你的讨论或回复，支持 Markdown，可拖拽图片到此处…" rows={6}
+                  className="min-h-[160px] w-full resize-y bg-transparent p-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#777]" />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickImages} />
+                  <button type="button" aria-label="上传图片" title="点击或拖拽上传图片（单张 ≤ 2M，最多 4 张）" onClick={() => fileRef.current?.click()}
+                    className="flex items-center gap-1 border-2 border-[#555] px-2 py-1.5 text-xs font-bold text-[#9A9A9A] hover:border-[#8BC34A] hover:text-[#8BC34A]"><ImagePlus className="h-4 w-4" />图片</button>
+                </div>
+                <button type="button" onClick={() => void sendReply()} className="flex items-center justify-center gap-1 bg-[#8BC34A] px-5 py-2 text-xs font-black text-[#1B2B0B] hover:bg-[#9CD455]"><Send className="h-4 w-4" />发送</button>
               </div>
             </div>
           </>

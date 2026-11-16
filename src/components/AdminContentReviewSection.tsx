@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, Check, FileText, FolderPlus, LayoutList, Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
-import { adminApi, type RoundtableApply, type RoundtableSnapshot, type RoundtableTopic, type RoundtableResourceRef } from '../services/api';
+import { BookOpen, Check, ChevronDown, ChevronRight, FileText, FolderPlus, LayoutList, Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
+import { adminApi, type RoundtableApply, type RoundtableSnapshot, type RoundtableTopic, type RoundtableResourceRef, type RoundtableOrigin } from '../services/api';
 import { AdminResourcesSection } from './AdminResourcesSection';
-import { RoundtableTopicForm, emptyTopicForm, type TopicFormValue } from './RoundtableTopicForm';
+import { RoundtableTopicForm, emptyTopicForm, ORIGIN_OPTIONS, type TopicFormValue } from './RoundtableTopicForm';
 
 /**
  * 后台「内容审核」：资源审核（真实功能）+ 圆桌审核（真实持久化数据）。
@@ -48,6 +48,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
   const [newChannel, setNewChannel] = useState('');
   const [topicSearch, setTopicSearch] = useState('');
   const [topicChannelFilter, setTopicChannelFilter] = useState('all');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +119,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
     try {
       await adminApi.addRoundtableTopic({
         channelId: v.channelId, title: v.name, tags: v.tags, resources: v.resources,
+        origin: v.origin, ruleVersion: v.ruleVersion,
       });
       onNotice('主题已新建');
       setNewTopicOpen(false);
@@ -180,8 +182,11 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h4 className="text-base font-black text-[#121212]">《{a.name}》主题申请</h4>
-                  <p className="mt-1 text-xs text-[#666]">申请人：{a.applicant} · {a.time}{a.rule ? ` · 原版规则：${a.rule}` : ''}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">{a.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}</div>
+                  <p className="mt-1 text-xs text-[#666]">申请人：{a.applicant} · {a.time}{a.ruleVersion ? ` · 规则版本：${a.ruleVersion}` : ''}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {!!a.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[11px] font-black text-[#B45309]">{a.origin}</span>}
+                    {a.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}
+                  </div>
                   {!!a.resources?.length && (
                     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[#004E98]">
                       {a.resources.map((r) => <span key={r.id} className="flex items-center gap-1 border border-[#004E98] px-1.5 py-0.5 font-bold"><BookOpen size={11} />{r.name}</span>)}
@@ -231,19 +236,26 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
             <button type="button" onClick={() => setNewTopicOpen(true)} className="bauhaus-btn bg-[#176B57] px-4 py-2 text-sm text-white"><Plus size={15} />新建主题</button>
           </div>
 
-          {groups.map(({ channel, items }) => (
-            <div key={channel.id} className="mb-4">
-              <div className="mb-1.5 flex items-center gap-2 border-l-4 border-[#176B57] pl-2">
-                <h4 className="text-sm font-black text-[#121212]">{channel.label}</h4>
-                <span className="text-xs text-[#777]">{items.length} 个主题</span>
+          {groups.map(({ channel, items }) => {
+            const collapsed = !!collapsedGroups[channel.id];
+            return (
+              <div key={channel.id} className="mb-4">
+                <button type="button" onClick={() => setCollapsedGroups((prev) => ({ ...prev, [channel.id]: !prev[channel.id] }))}
+                  className="mb-1.5 flex w-full items-center gap-2 border-l-4 border-[#176B57] pl-2 text-left hover:opacity-80">
+                  {collapsed ? <ChevronRight size={16} className="text-[#176B57]" /> : <ChevronDown size={16} className="text-[#176B57]" />}
+                  <h4 className="text-sm font-black text-[#121212]">{channel.label}</h4>
+                  <span className="text-xs text-[#777]">{items.length} 个主题</span>
+                </button>
+                {!collapsed && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {items.length === 0 && <div className="col-span-full bauhaus-card bg-white p-5 text-center text-xs text-[#999]">该规则页暂无主题</div>}
+                    {items.map((t) => <TopicCard key={t.id} topic={t} channels={channels}
+                      onSave={(patch) => void saveTopic(t, patch)} onDelete={() => void deleteTopic(t)} />)}
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {items.length === 0 && <div className="col-span-full bauhaus-card bg-white p-5 text-center text-xs text-[#999]">该规则页暂无主题</div>}
-                {items.map((t) => <TopicCard key={t.id} topic={t} channels={channels}
-                  onSave={(patch) => void saveTopic(t, patch)} onDelete={() => void deleteTopic(t)} />)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {channels.length === 0 && <div className="bauhaus-card bg-white p-8 text-center text-sm text-[#777]">请先到「规则页管理」新建规则页</div>}
         </div>
       )}
@@ -258,8 +270,11 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
             </div>
             <div className="mb-3 border-2 border-[#121212] bg-[#FAF9F5] p-3">
               <p className="mb-1 text-sm font-black text-[#121212]">《{approveTarget.name}》</p>
-              <p className="text-xs text-[#666]">申请人：{approveTarget.applicant} · {approveTarget.time}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">{approveTarget.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}</div>
+              <p className="text-xs text-[#666]">申请人：{approveTarget.applicant} · {approveTarget.time}{approveTarget.ruleVersion ? ` · 规则版本：${approveTarget.ruleVersion}` : ''}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {!!approveTarget.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[11px] font-black text-[#B45309]">{approveTarget.origin}</span>}
+                {approveTarget.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}
+              </div>
               {!!approveTarget.resources?.length && <p className="mt-2 text-[11px] text-[#004E98]">引用资源：{approveTarget.resources.map((r) => r.name).join('、')}</p>}
             </div>
             <label className="mb-2 block text-xs font-bold text-[#444]">主题放在哪个规则下</label>
@@ -315,15 +330,15 @@ const ChannelCard: React.FC<{ id: string; label: string; onSave: (name: string) 
           </div>
         </div>
       ) : (
-        <div className="flex min-w-0 items-start gap-2">
-          <BookOpen size={16} className="mt-0.5 shrink-0 text-[#176B57]" />
+        <div className="flex min-w-0 items-center gap-2">
+          <BookOpen size={16} className="shrink-0 text-[#176B57]" />
           <strong className="min-w-0 flex-1 break-words text-sm text-[#121212]">{label}</strong>
-          <button type="button" onClick={() => setEditing(true)} title="编辑名称" className="shrink-0 text-[#999] hover:text-[#004E98]"><Pencil size={15} /></button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={() => setEditing(true)} title="编辑名称" className="text-[#999] hover:text-[#004E98]"><Pencil size={15} /></button>
+            <button type="button" onClick={onDelete} title="删除规则页" className="text-[#999] hover:text-[#D62828]"><Trash2 size={16} /></button>
+          </div>
         </div>
       )}
-      <div className="mt-3 flex justify-end">
-        <button type="button" onClick={onDelete} title="删除规则页" className="text-[#999] hover:text-[#D62828]"><Trash2 size={16} /></button>
-      </div>
     </div>
   );
 };
@@ -332,16 +347,21 @@ const ChannelCard: React.FC<{ id: string; label: string; onSave: (name: string) 
 const TopicCard: React.FC<{
   topic: RoundtableTopic;
   channels: Array<{ id: string; label: string }>;
-  onSave: (patch: { title?: string; channelId?: string; tags?: string[]; resources?: RoundtableResourceRef[] }) => void;
+  onSave: (patch: { title?: string; channelId?: string; tags?: string[]; resources?: RoundtableResourceRef[]; origin?: RoundtableOrigin; ruleVersion?: string }) => void;
   onDelete: () => void;
 }> = ({ topic, channels, onSave, onDelete }) => {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(topic.title);
   const [tagsDraft, setTagsDraft] = useState((topic.tags || []).join(', '));
-  useEffect(() => { setTitle(topic.title); setTagsDraft((topic.tags || []).join(', ')); }, [topic.title, topic.tags]);
+  const [origin, setOrigin] = useState<RoundtableOrigin>(topic.origin || '');
+  const [ruleVersion, setRuleVersion] = useState(topic.ruleVersion || '');
+  useEffect(() => {
+    setTitle(topic.title); setTagsDraft((topic.tags || []).join(', '));
+    setOrigin(topic.origin || ''); setRuleVersion(topic.ruleVersion || '');
+  }, [topic.title, topic.tags, topic.origin, topic.ruleVersion]);
   const save = () => {
     const tags = tagsDraft.split(/[,，]/).map((s) => s.trim()).filter(Boolean).slice(0, 6);
-    onSave({ title: title.trim(), tags });
+    onSave({ title: title.trim(), tags, origin, ruleVersion: ruleVersion.trim() });
     setEditing(false);
   };
   return (
@@ -353,6 +373,13 @@ const TopicCard: React.FC<{
             className="w-full border-2 border-[#121212] px-2 py-1 text-sm outline-none" />
           <input value={tagsDraft} onChange={(e) => setTagsDraft(e.target.value)} placeholder="标签（英文逗号分隔，最多 6 个）"
             className="w-full border-2 border-[#121212] px-2 py-1 text-[11px] outline-none" />
+          <select value={origin} onChange={(e) => setOrigin(e.target.value as RoundtableOrigin)}
+            className="w-full border-2 border-[#121212] bg-white px-2 py-1 text-[11px] outline-none">
+            <option value="">来源（未设置）</option>
+            {ORIGIN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <input value={ruleVersion} onChange={(e) => setRuleVersion(e.target.value)} placeholder="规则版本（例：ADND、COC6th）"
+            className="w-full border-2 border-[#121212] px-2 py-1 text-[11px] outline-none" />
           <div className="flex gap-2">
             <button type="button" onClick={save} className="bauhaus-btn bg-[#176B57] px-2.5 py-1 text-xs text-white"><Check size={14} />保存</button>
             <button type="button" onClick={() => setEditing(false)} className="text-[#999] hover:text-[#121212]"><X size={16} /></button>
@@ -362,12 +389,14 @@ const TopicCard: React.FC<{
         <>
           <div className="flex min-w-0 items-start gap-2">
             <h4 className="min-w-0 flex-1 break-words text-sm font-black text-[#121212]">{topic.title}</h4>
-            <button type="button" onClick={() => setEditing(true)} title="编辑主题名称/标签" className="shrink-0 text-[#999] hover:text-[#004E98]"><Pencil size={15} /></button>
+            <button type="button" onClick={() => setEditing(true)} title="编辑主题名称/标签/来源" className="shrink-0 text-[#999] hover:text-[#004E98]"><Pencil size={15} /></button>
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
+            {!!topic.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[10px] font-black text-[#B45309]">{topic.origin}</span>}
             {topic.tags.map((tag) => <span key={tag} className="border border-[#999] px-1.5 py-0.5 text-[10px] font-bold text-[#555]">{tag}</span>)}
-            {topic.tags.length === 0 && <span className="text-[10px] text-[#AAA]">无标签</span>}
+            {topic.tags.length === 0 && !topic.origin && <span className="text-[10px] text-[#AAA]">无标签</span>}
           </div>
+          {!!topic.ruleVersion && <div className="mt-1.5 text-[10px] text-[#777]">规则版本：{topic.ruleVersion}</div>}
           {!!topic.resources?.length && <div className="mt-1.5 text-[10px] text-[#004E98]">引用 {topic.resources.length} 个爱心资源</div>}
         </>
       )}

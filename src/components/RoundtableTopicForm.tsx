@@ -1,12 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { FolderPlus, Link2, Plus, Search, X } from 'lucide-react';
-import { api, type RoundtableResourceRef } from '../services/api';
+import { api, type RoundtableResourceRef, type RoundtableOrigin } from '../services/api';
 
 /**
  * GM圆桌主题表单：前台「申请主题」与后台「新建主题」共用同一套字段，
  * 保证"申请界面等同于新建界面，同意=新建"。
- * 字段：主题名称 / 规则分页（可选新建）/ 模组风格 tag / 引用站内爱心资源。
- * （原「模组原版规则」字段已删除。）
+ * 字段：主题名称 / 原模组所属规则版本 / 模组来源(必填,作为标签) / 规则分页（可选新建）/ tag / 引用站内爱心资源。
  */
 export interface TopicFormValue {
   name: string;
@@ -14,10 +13,14 @@ export interface TopicFormValue {
   newChannelName: string;
   tags: string[];
   resources: RoundtableResourceRef[];
+  origin: RoundtableOrigin;
+  ruleVersion: string;
 }
 
+export const ORIGIN_OPTIONS: RoundtableOrigin[] = ['官方', '第三方', '国内原创'];
+
 export const emptyTopicForm = (): TopicFormValue => ({
-  name: '', channelId: '', newChannelName: '', tags: [], resources: [],
+  name: '', channelId: '', newChannelName: '', tags: [], resources: [], origin: '', ruleVersion: '',
 });
 
 const cnLen = (s: string) => Array.from(s.trim()).reduce((n, ch) => {
@@ -82,10 +85,12 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
     if (!value.channelId) { flash('请选择主题放置的规则分页'); return; }
     if (value.channelId === '__new__' && !value.newChannelName.trim()) { flash('请填写新建规则分页名称'); return; }
     if (value.tags.length === 0) { flash('请至少填写 1 个 tag'); return; }
+    if (!value.origin) { flash('请选择模组来源（官方 / 第三方 / 国内原创）'); return; }
     onSave({
       ...value,
       name: value.name.trim(),
       newChannelName: value.newChannelName.trim(),
+      ruleVersion: value.ruleVersion.trim(),
     });
   };
 
@@ -97,6 +102,24 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
         <label className={`mb-1 block text-xs font-bold ${T.label}`}>主题名称</label>
         <input value={value.name} onChange={(e) => setValue((v) => ({ ...v, name: e.target.value }))} placeholder="例如：魔藤"
           className={inputCls} />
+      </div>
+
+      <div>
+        <label className={`mb-1 block text-xs font-bold ${T.label}`}>原模组所属规则版本</label>
+        <input value={value.ruleVersion} onChange={(e) => setValue((v) => ({ ...v, ruleVersion: e.target.value }))}
+          placeholder="例：ADND、COC6th等，如无特殊便不填" className={inputCls} />
+      </div>
+
+      <div>
+        <label className={`mb-1 block text-xs font-bold ${T.label}`}>模组来源 <span className="text-[#D62828]">*</span></label>
+        <div className="flex flex-wrap gap-2">
+          {ORIGIN_OPTIONS.map((opt) => (
+            <button key={opt} type="button" onClick={() => setValue((v) => ({ ...v, origin: opt }))}
+              className={`border-2 px-3 py-1.5 text-xs font-bold transition-colors ${value.origin === opt ? T.chip : (dark ? 'border-[#555] bg-[#242426] text-[#C9C9C9] hover:border-[#8BC34A]' : 'border-[#CCC] bg-white text-[#555] hover:border-[#176B57]')}`}>
+              {value.origin === opt ? '✓ ' : ''}{opt}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>

@@ -205,6 +205,37 @@ html {
     animation: none;
   }
 }
+/* ===== GM圆桌：日间浅色皮肤（仅日间生效，夜间保留原深色）=====
+   GM圆桌组件内部用深色任意值类写死；这里在日间把它们覆盖为浅色，做到日/夜分明。
+   全部限定在 html:not([data-theme="dark"])，夜间模式不介入。 */
+html:not([data-theme="dark"]) .gm-roundtable [class~="border-[#3A3A3A]"] { border-color: #C9C6BC !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="border-[#555]"] { border-color: #B9B6AC !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="bg-[#2B2B2D]"] { background-color: #FFFFFF !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="bg-[#242426]"] { background-color: #F2F0E8 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="bg-[#262628]"] { background-color: #F2F0E8 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="bg-[#2E2E30]"] { background-color: #FFFFFF !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="bg-[#343437]"] { background-color: #F2F0E8 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#E8E8E8]"] { color: #121212 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#8A8A8A]"],
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#9A9A9A]"],
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#BDBDBD]"],
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#C9C9C9]"],
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#777]"] { color: #6B6B6B !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#DCDCDC]"] { color: #333333 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#DCE8CF]"] { color: #2A4A12 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#7FC7FF]"] { color: #004E98 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#8BC34A]"] { color: #33691E !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#F4A261]"] { color: #B45309 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="placeholder:text-[#777]"]::placeholder { color: #999999 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="hover:bg-[#343437]"]:hover { background-color: #EAE8E0 !important; }
+/* 普通白字转深色；彩色按钮上的白字单独还原 */
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-white"] { color: #121212 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="hover:text-white"]:hover { color: #121212 !important; }
+html:not([data-theme="dark"]) .gm-roundtable button[class*="bg-[#8BC34A]"],
+html:not([data-theme="dark"]) .gm-roundtable button[class*="bg-[#D62828]"],
+html:not([data-theme="dark"]) .gm-roundtable span[class*="bg-[#D62828]"],
+html:not([data-theme="dark"]) .gm-roundtable span[class*="bg-[#8BC34A]"] { color: #FFFFFF !important; }
+
 /* ===== ZGB_DARK_THEME_START ===== */
 /* 夜间模式：由右上角名字下拉里的单个按钮切换，<html data-theme="dark"> 生效。
    用 [class~="..."] 属性选择器匹配 Tailwind 任意值类名，避免 #/[] 的 CSS 转义。 */
