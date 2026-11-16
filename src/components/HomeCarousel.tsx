@@ -44,18 +44,20 @@ const CampaignSlide: React.FC<{
   const remain = Math.max(0, (campaign.maxPlayers || 0) - (campaign.currentPlayers || 0));
   const deadline = deadlineOf(campaign);
   const isPromo = campaign.kind === 'promo';
+  const [imgError, setImgError] = useState(false);
+  const showImage = !!campaign.imageUrl && !imgError;
   return (
     <button
       type="button"
       onClick={() => onOpen(campaign)}
       className="hc-slide w-full text-center bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col"
     >
-      {/* 封面大图：标题不叠在图上 */}
-      <div className="relative h-[190px] sm:h-[220px] shrink-0 border-b-2 border-[#121212]">
-        {campaign.imageUrl ? (
-          <img src={campaign.imageUrl} alt="" className="w-full h-full object-cover" />
+      {/* 封面大图：固定比例区域，图片正常比例居中裁切铺满；加载失败回退几何占位图 */}
+      <div className="relative w-full h-[230px] sm:h-[270px] lg:h-[300px] shrink-0 overflow-hidden border-b-2 border-[#121212] bg-[#F2F0E8]">
+        {showImage ? (
+          <img src={campaign.imageUrl} alt="" onError={() => setImgError(true)} className="absolute inset-0 h-full w-full object-cover object-center" />
         ) : (
-          <BauhausPlaceholder rule={campaign.rule} seedColor={meta.color} className="h-full w-full" showLabel={false} />
+          <BauhausPlaceholder rule={campaign.rule} seedColor={meta.color} className="absolute inset-0 h-full w-full" showLabel={false} />
         )}
       </div>
 
@@ -64,7 +66,7 @@ const CampaignSlide: React.FC<{
         <h3 className="text-xl sm:text-2xl font-black leading-tight text-[#121212] break-words">{campaign.title}</h3>
       </div>
 
-      {/* 标签行：规则 / 时段或地点 / 平台 */}
+      {/* 标签行：规则 / 时段或地点 / 平台（居中） */}
       <div className="flex flex-wrap justify-center gap-1.5 px-4 pb-3">
         <span className="px-2.5 py-0.5 bg-[#004E98] text-white text-xs font-bold border border-[#121212]">{campaign.rule}</span>
         <span className="px-2.5 py-0.5 bg-[#F0F5FA] text-[#004E98] text-xs font-bold border border-[#121212]">
@@ -75,18 +77,18 @@ const CampaignSlide: React.FC<{
         ))}
       </div>
 
-      {/* 发布者行：头像 + 昵称 + 铭牌 + 赞（整体居中，简介除外） */}
-      <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-2.5 border-y-2 border-[#121212] bg-[#FAF9F5]">
-        <div className="flex min-w-0 items-center gap-2">
+      {/* 发布者行：头像 + 昵称 + 铭牌 + 赞，整体作为一组水平居中 */}
+      <div className="flex justify-center px-4 py-2.5 border-y-2 border-[#121212] bg-[#FAF9F5]">
+        <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
           <span className={`h-9 w-9 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white border-2 border-[#121212] ${campaign.gmIsMember ? 'gilded-avatar' : ''}`} style={{ backgroundColor: campaign.gmIsMember ? undefined : '#D62828' }}>
             {campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span>{campaign.gmName?.charAt(0)}</span>}
           </span>
           <span className="truncate text-sm font-black text-[#121212]">{campaign.gmName}</span>
           {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
+          <span className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-xs font-black text-white shadow-[2px_2px_0px_#121212]">
+            <ThumbsUp className="h-3.5 w-3.5" />赞 {campaign.gmPraises ?? 0}
+          </span>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 border-2 border-[#121212] bg-[#D62828] px-2 py-1 text-xs font-black text-white shadow-[2px_2px_0px_#121212]">
-          <ThumbsUp className="h-3.5 w-3.5" />赞 {campaign.gmPraises ?? 0}
-        </span>
       </div>
 
       {/* 简介摘要（唯一保留左对齐的内容） */}
@@ -103,9 +105,9 @@ const CampaignSlide: React.FC<{
         </div>
       )}
 
-      {/* 状态条：网团/面团显示剩余空位 + 截止时间；宣群不显示截止时间 */}
-      <div className="px-4 pb-4 mt-auto">
-        <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
+      {/* 状态条：网团/面团显示剩余空位 + 截止时间；宣群不显示截止时间。整行居中 */}
+      <div className="px-4 pb-4 mt-auto text-center">
+        <div className="mb-2.5 flex flex-wrap items-center justify-center gap-2">
           {isPromo ? (
             <span className="px-2.5 py-0.5 bg-[#121212] text-white text-xs font-bold">展示中</span>
           ) : (
@@ -115,7 +117,7 @@ const CampaignSlide: React.FC<{
             </>
           )}
         </div>
-        <div className="mx-auto inline-block text-base font-black text-white px-5 py-2.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
+        <div className="mx-auto block w-fit text-base font-black text-white px-5 py-2.5 border-2 border-[#121212] shadow-[2px_2px_0px_#121212]" style={{ backgroundColor: meta.badge }}>
           进入{meta.label}
         </div>
       </div>
@@ -125,8 +127,8 @@ const CampaignSlide: React.FC<{
 
 /** 轮播占位卡：不足 5 个时补齐，保持每栏固定 5 页 */
 const PlaceholderSlide: React.FC<{ meta: { label: string; color: string; badge: string } }> = ({ meta }) => (
-  <div className="hc-slide w-full bg-white border-2 border-dashed border-[#121212] shadow-[5px_5px_0px_#121212] flex flex-col items-center justify-center overflow-hidden" style={{ minHeight: 420 }}>
-    <div className="h-[190px] w-full shrink-0 border-b-2 border-dashed border-[#CCC] sm:h-[220px]" style={{ backgroundColor: `${meta.color}12` }} />
+  <div className="hc-slide w-full bg-white border-2 border-dashed border-[#121212] shadow-[5px_5px_0px_#121212] flex flex-col items-center justify-center overflow-hidden">
+    <div className="h-[230px] w-full shrink-0 border-b-2 border-dashed border-[#CCC] sm:h-[270px] lg:h-[300px]" style={{ backgroundColor: `${meta.color}12` }} />
     <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
       <span className="text-3xl font-black text-[#D3D1C7]">+</span>
       <span className="text-sm font-bold text-[#999]">暂无更多{meta.label}</span>
@@ -185,11 +187,11 @@ const CarouselLane: React.FC<{
         {slots.length > 1 && (
           <>
             <button type="button" aria-label={`${meta.label}上一页`} onClick={() => step(-1)}
-              className="hc-nav absolute left-2 top-[110px] z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-[#121212]/70 text-white shadow-[2px_2px_0px_#121212] opacity-0 backdrop-blur-sm transition-all hover:bg-[#D62828] group-hover:opacity-100">
+              className="hc-nav absolute left-2 top-[115px] z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-[#121212]/70 text-white shadow-[2px_2px_0px_#121212] opacity-0 backdrop-blur-sm transition-all hover:bg-[#D62828] group-hover:opacity-100 sm:top-[135px] lg:top-[150px]">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
             <button type="button" aria-label={`${meta.label}下一页`} onClick={() => step(1)}
-              className="hc-nav absolute right-2 top-[110px] z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-[#121212]/70 text-white shadow-[2px_2px_0px_#121212] opacity-0 backdrop-blur-sm transition-all hover:bg-[#D62828] group-hover:opacity-100">
+              className="hc-nav absolute right-2 top-[115px] z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/90 bg-[#121212]/70 text-white shadow-[2px_2px_0px_#121212] opacity-0 backdrop-blur-sm transition-all hover:bg-[#D62828] group-hover:opacity-100 sm:top-[135px] lg:top-[150px]">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
           </>
@@ -246,14 +248,10 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({
       <style>{`
         .hc-lane-track { display:flex; gap:0; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:10px; align-items:stretch; }
         .hc-lane-track::-webkit-scrollbar { display:none; }
-        .hc-slide { flex:0 0 100%; scroll-snap-align:start; min-width:0; }
+        .hc-slide { flex:0 0 100%; scroll-snap-align:start; min-width:0; min-height:560px; }
+        @media (min-width:640px){ .hc-slide { min-height:610px; } }
+        @media (min-width:1024px){ .hc-slide { min-height:650px; } }
       `}</style>
-
-      {/* 区块标题 */}
-      <div className="flex items-center gap-3">
-        <span className="inline-block h-7 w-2 border-2 border-[#121212] bg-[#004E98]" />
-        <h2 className="text-2xl font-black tracking-wider text-[#121212] sm:text-3xl">正在招募</h2>
-      </div>
 
       {/* 三栏同步轮播：悬停任一处全部暂停 */}
       <div ref={areaRef} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
