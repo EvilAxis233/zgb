@@ -38,6 +38,42 @@ export const MARKDOWN_SUPPORT_HINT = `支持如下markdown语法：
 > 引用
 - 列表`;
 
+// === 发布草稿：填写内容自动暂存在本机浏览器，意外关闭/刷新后可恢复 ===
+// 只保存文本与选项，不保存封面（裁剪后的 data URL 可能数 MB，会撑爆 localStorage）。
+const DRAFT_KEY_PREFIX = 'zgb_publish_draft_v1';
+const DRAFT_TTL = 7 * 24 * 60 * 60 * 1000;
+type PublishDraft = {
+  savedAt: number;
+  kind: CampaignKind;
+  title: string;
+  rule: string;
+  sessionType: string;
+  platforms: string[];
+  location: string;
+  address: string;
+  customTags: string[];
+  contact: string;
+  description: string;
+  timeSchedule: string;
+  timeSlots: string[];
+  maxPlayers: number;
+  bannerColor: string;
+  stickerKeys: string[];
+};
+const publishDraftKey = (qq: string, kind: CampaignKind) => `${DRAFT_KEY_PREFIX}_${qq}_${kind}`;
+const readPublishDraft = (key: string): PublishDraft | null => {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PublishDraft;
+    if (!parsed || typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > DRAFT_TTL) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+};
+
 export const PublishModal: React.FC<PublishModalProps> = ({
   isOpen,
   kind,
@@ -75,6 +111,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
   const [stickerKeys, setStickerKeys] = useState<string[]>(currentUser?.stickerKeys || []);
   const [submitting, setSubmitting] = useState(false);
+  const [draftOffer, setDraftOffer] = useState<PublishDraft | null>(null);
+  const clearOnNextOpen = useRef(false);
 
   // 规则系统与昵称同一套字数口径：中文/全角算 2，英文数字算 1，上限 20（即 10 个中文字符）。
   const textWeight = (value: string) => Array.from(value).reduce((total, character) => total + (/^[\x00-\x7F]$/.test(character) ? 1 : 2), 0);
@@ -101,7 +139,79 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     setTimeSlots([]);
     setTimeSchedule('');
     setStickerKeys(currentUser?.stickerKeys || []);
+    // 发布成功后重新打开发布页，给一张干净的表单，避免已发布的内容又被当成草稿。
+    if (clearOnNextOpen.current) {
+      clearOnNextOpen.current = false;
+      setTitle('');
+      setRule('');
+      setSelectedCustomTags([]);
+      setContact(currentUser?.qq || '');
+      setDescription('');
+      setMaxPlayers(4);
+      setBannerColor(BAUHAUS_COLORS[0].hex);
+      setImageUrl('');
+      setCoverSource(null);
+      setCoverAnimated(false);
+    }
   }, [isOpen, kind]);
+
+  // 打开发布页时检查 7 天内的未发布草稿；当前表单已有内容时不提示（取消后重开本来就在）。
+  useEffect(() => {
+    if (!isOpen || !currentUser?.qq) { setDraftOffer(null); return; }
+    const found = readPublishDraft(publishDraftKey(currentUser.qq, kind));
+    const formIsEmpty = !title.trim() && !rule.trim() && !description.trim() && !timeSlots.length;
+    setDraftOffer(found && found.kind === kind && formIsEmpty ? found : null);
+  }, [isOpen, kind, currentUser?.qq, title, rule, description, timeSlots.length]);
+
+  // 输入防抖 500ms 自动暂存；空表单不写入，避免打开又关闭时覆盖上次草稿。
+  const draftSnapshot = JSON.stringify({
+    kind, title, rule, sessionType, platforms, location, address,
+    customTags: selectedCustomTags, contact, description, timeSchedule, timeSlots,
+    maxPlayers, bannerColor, stickerKeys,
+  });
+  useEffect(() => {
+    if (!isOpen || !currentUser?.qq) return;
+    const snapshot = JSON.parse(draftSnapshot) as Omit<PublishDraft, 'savedAt'>;
+    const hasContent = Boolean(
+      snapshot.title.trim() || snapshot.rule.trim() || snapshot.description.trim() ||
+      snapshot.location.trim() || snapshot.address.trim() || snapshot.timeSlots.length ||
+      snapshot.customTags.length || snapshot.platforms.length ||
+      (snapshot.contact.trim() && snapshot.contact.trim() !== currentUser.qq) ||
+      snapshot.maxPlayers !== 4 || snapshot.bannerColor !== BAUHAUS_COLORS[0].hex
+    );
+    if (!hasContent) return;
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(publishDraftKey(currentUser.qq, snapshot.kind), JSON.stringify({ ...snapshot, savedAt: Date.now() }));
+      } catch { /* 存储不可用或超限时静默跳过，不影响发布 */ }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, currentUser?.qq, draftSnapshot]);
+
+  const restoreDraft = (draft: PublishDraft) => {
+    const slots = Array.isArray(draft.timeSlots) ? draft.timeSlots : [];
+    setTitle(draft.title || '');
+    setRule(draft.rule || '');
+    setSessionType(draft.sessionType || (kind === 'promo' ? '群扩招' : '语音'));
+    setPlatforms(Array.isArray(draft.platforms) ? draft.platforms : []);
+    setLocation(draft.location || '');
+    setAddress(draft.address || '');
+    setSelectedCustomTags(Array.isArray(draft.customTags) ? draft.customTags : []);
+    setContact(draft.contact || currentUser?.qq || '');
+    setDescription(draft.description || '');
+    setTimeSlots(slots);
+    setTimeSchedule(draft.timeSchedule || slots[0] || '');
+    setMaxPlayers(Number(draft.maxPlayers) || 4);
+    setBannerColor(draft.bannerColor || BAUHAUS_COLORS[0].hex);
+    setStickerKeys(Array.isArray(draft.stickerKeys) ? draft.stickerKeys : (currentUser?.stickerKeys || []));
+    setDraftOffer(null);
+  };
+  const discardDraft = () => {
+    if (currentUser?.qq) {
+      try { window.localStorage.removeItem(publishDraftKey(currentUser.qq, kind)); } catch { /* ignore */ }
+    }
+    setDraftOffer(null);
+  };
 
   const processFile = async (selected: File) => {
     const file = normalizeImageFile(selected);
@@ -226,7 +336,14 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     });
 
     } finally { setSubmitting(false); }
-    if (success) onClose();
+    if (success) {
+      if (currentUser?.qq) {
+        try { window.localStorage.removeItem(publishDraftKey(currentUser.qq, kind)); } catch { /* ignore */ }
+      }
+      setDraftOffer(null);
+      clearOnNextOpen.current = true;
+      onClose();
+    }
   };
 
   // Live preview campaign object
@@ -324,6 +441,20 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               className="w-full lg:w-[594px] shrink-0 lg:h-full overflow-y-auto no-scrollbar p-5 sm:p-6 text-sm flex flex-col"
             >
               <div className="space-y-3 flex-1 pb-3">
+                {draftOffer && (
+                  <div data-role="draft-offer" className="border-2 border-[#004E98] bg-[#F0F5FA] p-2.5 text-[11px]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-black text-[#004E98]">
+                        发现上次没发布完的内容（{new Date(draftOffer.savedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}）
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => restoreDraft(draftOffer)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1 text-[11px] font-black">恢复草稿</button>
+                        <button type="button" onClick={discardDraft} className="bauhaus-btn bg-white text-[#121212] px-3 py-1 text-[11px] font-bold">不恢复</button>
+                      </div>
+                    </div>
+                    <p className="mt-1 font-bold text-[#666]">草稿只保存在这台设备的浏览器里，换设备或清理浏览器数据不会保留；封面图片需要重新选择。</p>
+                  </div>
+                )}
                 {/* Title */}
                 <div>
                   <label className="block font-bold text-[#121212] mb-1">
@@ -748,7 +879,10 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </div>
 
             {/* Sticky Submit & Cancel Buttons */}
-            <div className="pt-3 pb-1 flex items-center justify-end gap-3 border-t-2 border-[#121212] shrink-0 bg-white">
+            <div className="pt-3 pb-1 flex flex-wrap items-center justify-end gap-3 border-t-2 border-[#121212] shrink-0 bg-white">
+              <p className="mr-auto max-w-[19rem] text-[10px] font-bold leading-tight text-[#777]">
+                填写内容自动暂存在本机浏览器，意外关闭后可在下次发布时恢复 · 封面图片需重新选择
+              </p>
               <button
                 type="button"
                 onClick={onClose}
