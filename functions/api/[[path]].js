@@ -677,7 +677,18 @@ export async function onRequest(context) {
         const thirtyDaysAgo = new Date(`${today}T00:00:00+08:00`);
         thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
         const asDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
-        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources, viewTotals, dailyViews] = await db.batch([
+        // 环比基准：昨日、上月同期（按香港时区的日粒度比较）
+        const yesterday = new Date(`${today}T00:00:00+08:00`);
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        const yesterdayStr = asDate(yesterday);
+        const [thisYear, thisMonth, thisDay] = today.split('-').map(Number);
+        const prevMonthBase = new Date(Date.UTC(thisYear, thisMonth - 2, 1));
+        const prevYear = prevMonthBase.getUTCFullYear();
+        const prevMon = String(prevMonthBase.getUTCMonth() + 1).padStart(2, '0');
+        const prevMonthDays = new Date(Date.UTC(thisYear, thisMonth - 1, 0)).getUTCDate();
+        const prevMonthStart = `${prevYear}-${prevMon}-01`;
+        const prevMonthEnd = `${prevYear}-${prevMon}-${String(Math.min(thisDay, prevMonthDays)).padStart(2, '0')}`;
+        const [users, campaigns, engagement, submissions, campaignKinds, topRules, dailyUsers, dailyCampaigns, abandons, pendingResources, viewTotals, dailyViews, prevDayViews, prevMonthViews, activeUsers, topPaths] = await db.batch([
           db.prepare(`SELECT COUNT(*) total,
             SUM(CASE WHEN substr(created_at,1,10)=? THEN 1 ELSE 0 END) today,
             SUM(CASE WHEN substr(created_at,1,10)>=? THEN 1 ELSE 0 END) last7,
@@ -740,7 +751,24 @@ export async function onRequest(context) {
           db.prepare(`SELECT day,
             COALESCE(SUM(CASE WHEN visitor='user' THEN 1 ELSE 0 END),0) users,
             COALESCE(SUM(CASE WHEN visitor='guest' THEN 1 ELSE 0 END),0) guests
-            FROM page_views WHERE day>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo))
+            FROM page_views WHERE day>=? GROUP BY day ORDER BY day`).bind(asDate(thirtyDaysAgo)),
+          // 昨日同期浏览（截至当前香港时刻，作为今日环比基准，避免凌晨对比失真）
+          db.prepare(`SELECT
+            COALESCE(SUM(CASE WHEN visitor='user' THEN 1 ELSE 0 END),0) users,
+            COALESCE(SUM(CASE WHEN visitor='guest' THEN 1 ELSE 0 END),0) guests
+            FROM page_views WHERE day=? AND time(created_at,'+8 hours')<=?`).bind(yesterdayStr, nowHK().slice(11, 19)),
+          // 上月同期浏览（1 号至与今日相同的日号，本月环比基准）
+          db.prepare(`SELECT
+            COALESCE(SUM(CASE WHEN visitor='user' THEN 1 ELSE 0 END),0) users,
+            COALESCE(SUM(CASE WHEN visitor='guest' THEN 1 ELSE 0 END),0) guests
+            FROM page_views WHERE day>=? AND day<=?`).bind(prevMonthStart, prevMonthEnd),
+          // 活跃回访：近 7 / 30 天有过请求的去重用户数（last_seen_at 为秒级时间戳）
+          db.prepare(`SELECT
+            COUNT(DISTINCT CASE WHEN last_seen_at>=? THEN qq END) u7,
+            COUNT(DISTINCT CASE WHEN last_seen_at>=? THEN qq END) u30
+            FROM sessions WHERE expires_at>?`).bind(now() - 7 * 86400, now() - 30 * 86400, now()),
+          // 热门页面：近 30 天各浏览路径的次数
+          db.prepare(`SELECT path, COUNT(*) count FROM page_views WHERE day>=? GROUP BY path ORDER BY count DESC`).bind(asDate(thirtyDaysAgo))
         ]);
         return json({
           users: users.results[0],
@@ -750,9 +778,18 @@ export async function onRequest(context) {
           campaignKinds: campaignKinds.results, topRules: topRules.results, dailyUsers: dailyUsers.results, dailyCampaigns: dailyCampaigns.results,
           views: {
             today: { user: Number(viewTotals.results[0]?.today_user || 0), guest: Number(viewTotals.results[0]?.today_guest || 0) },
+            yesterday: { user: Number(prevDayViews.results[0]?.users || 0), guest: Number(prevDayViews.results[0]?.guests || 0) },
             month: { user: Number(viewTotals.results[0]?.month_user || 0), guest: Number(viewTotals.results[0]?.month_guest || 0) },
+            prevMonth: { user: Number(prevMonthViews.results[0]?.users || 0), guest: Number(prevMonthViews.results[0]?.guests || 0) },
+            prevMonthRange: { start: prevMonthStart, end: prevMonthEnd },
             daily: dailyViews.results.map((row) => ({ day: row.day, user: Number(row.users || 0), guest: Number(row.guests || 0) }))
           },
+          active: {
+            users7: Number(activeUsers.results[0]?.u7 || 0),
+            users30: Number(activeUsers.results[0]?.u30 || 0),
+            totalUsers: Number(users.results[0]?.total || 0)
+          },
+          topPaths: topPaths.results.map((row) => ({ path: row.path || '/', count: Number(row.count || 0) })),
           onlineWindow: 15, generatedAt: new Date().toISOString()
         });
       }

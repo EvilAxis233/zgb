@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Activity, Archive, Eye, FileSliders, Headphones, KeyRound, LayoutDashboard, LogOut, Plus, Shield, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
 import { adminApi, type AdminDashboard, type AdminNotices, type AdminUser, type MembershipGrant } from '../services/api';
 import { AdminUsersSection } from './AdminUsersSection';
@@ -20,9 +20,17 @@ const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDash
   { id: 'resources', label: '资源审核', icon: ShieldCheck },
 ];
 
-function MetricCard({ label, value, note, tone = 'blue', live = false }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black' | 'teal'; live?: boolean }) {
+function DeltaBadge({ current, previous, basis }: { current: number; previous: number; basis: string }) {
+  if (previous <= 0 && current <= 0) return <span className="ml-1 text-[10px] font-bold text-[#999]" title={basis}>—</span>;
+  if (previous <= 0) return <span className="ml-1 text-[10px] font-black text-[#2E7D32]" title={basis}>新增</span>;
+  const pct = Math.round((current - previous) / previous * 100);
+  const up = pct >= 0;
+  return <span className="ml-1 text-[11px] font-black" style={{ color: up ? '#2E7D32' : '#D62828' }} title={basis}>{up ? '↑' : '↓'}{Math.abs(pct)}%</span>;
+}
+
+function MetricCard({ label, value, note, tone = 'blue', live = false, delta }: { label: string; value: unknown; note: string; tone?: 'red' | 'blue' | 'yellow' | 'black' | 'teal'; live?: boolean; delta?: ReactNode }) {
   const color = { red: '#D62828', blue: '#004E98', yellow: '#C85C16', black: '#121212', teal: '#176B57' }[tone];
-  return <article className="bauhaus-card bg-white px-3 py-2 relative overflow-hidden flex flex-col justify-center" title={`${label} · ${note}`}><span className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }} /><p className="text-[10px] font-black text-[#666] leading-tight flex items-center gap-1.5 truncate">{live && <span className="w-2 h-2 shrink-0 bg-[#2E7D32] animate-pulse" />}{label}</p><strong className="block text-2xl font-black leading-tight" style={{ color }}>{number(value)}</strong><p className="text-[10px] text-[#777] leading-tight truncate">{note}</p></article>;
+  return <article className="bauhaus-card bg-white px-3 py-2 relative overflow-hidden flex flex-col justify-center" title={`${label} · ${note}`}><span className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }} /><p className="text-[10px] font-black text-[#666] leading-tight flex items-center gap-1.5 truncate">{live && <span className="w-2 h-2 shrink-0 bg-[#2E7D32] animate-pulse" />}{label}</p><strong className="block text-2xl font-black leading-tight" style={{ color }}>{number(value)}{delta}</strong><p className="text-[10px] text-[#777] leading-tight truncate">{note}</p></article>;
 }
 
 function StatCell({ label, value, color }: { label: string; value: unknown; color?: string }) {
@@ -40,7 +48,14 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
   const userMap = new Map(data.dailyUsers.map((item) => [item.day, Number(item.count)]));
   const campaignMap = new Map(data.dailyCampaigns.map((item) => [item.day, Number(item.count)]));
   // 浏览统计可能因后端尚未升级而缺失，这里兜底成全 0，避免看板白屏。
-  const views = data.views || { today: { user: 0, guest: 0 }, month: { user: 0, guest: 0 }, daily: [] };
+  const views: AdminDashboard['views'] = data.views || {
+    today: { user: 0, guest: 0 }, yesterday: { user: 0, guest: 0 }, month: { user: 0, guest: 0 },
+    prevMonth: { user: 0, guest: 0 }, prevMonthRange: { start: '', end: '' }, daily: []
+  };
+  const yesterdayViews = views.yesterday || { user: 0, guest: 0 };
+  const prevMonthViews = views.prevMonth || { user: 0, guest: 0 };
+  const active: AdminDashboard['active'] = data.active || { users7: 0, users30: 0, totalUsers: data.users?.total || 0 };
+  const topPaths: AdminDashboard['topPaths'] = data.topPaths || [];
   const viewUserMap = new Map(views.daily.map((item) => [item.day, Number(item.user)]));
   const viewGuestMap = new Map(views.daily.map((item) => [item.day, Number(item.guest)]));
   const sumUsers = trends.reduce((sum, day) => sum + (userMap.get(day) || 0), 0);
@@ -55,14 +70,20 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
   const peakViewGuest = Math.max(0, ...trends.map((day) => viewGuestMap.get(day) || 0));
   const todayViews = views.today.user + views.today.guest;
   const monthViews = views.month.user + views.month.guest;
+  const yesterdayTotal = yesterdayViews.user + yesterdayViews.guest;
+  const prevMonthTotal = prevMonthViews.user + prevMonthViews.guest;
+  const activeRate = active.totalUsers > 0 ? Math.round(active.users30 / active.totalUsers * 100) : 0;
   // 图表底部只标 6 个日期刻度，30 根柱子全标会挤成一团。
   const tickIdx = [0, 5, 11, 17, 23, 29];
   const c = data.campaigns, e = data.engagement, sub = data.submissions;
+  const pathLabel: Record<string, string> = { '/board/portal': '首页', '/board/online': '网团大厅', '/board/offline': '面团大厅', '/board/promo': '宣群', '/profile': '个人档案', '/manage': '团务管理', '/resources': '规则资源' };
+  const pathColor: Record<string, string> = { '/board/portal': '#004E98', '/board/online': '#D62828', '/board/offline': '#C85C16', '/board/promo': '#176B57', '/profile': '#7B4FB5', '/manage': '#5B5646', '/resources': '#B8860B' };
+  const maxPath = Math.max(1, ...topPaths.map((p) => p.count));
   return <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
     <div className="flex items-center justify-between gap-3 shrink-0"><div className="flex items-baseline gap-2"><h3 className="text-base font-black">平台总览</h3><p className="text-[11px] text-[#666]">宣群不计入团次与报名率 · 浏览仅统计正式站 · 每 30 秒自动刷新</p></div><time className="text-[11px] text-[#777] shrink-0">更新于 {new Date(data.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div>
     <section className="grid grid-cols-2 lg:grid-cols-5 gap-2 shrink-0">
-      <MetricCard label="今日浏览" value={todayViews} note={`注册 ${number(views.today.user)} · 游客 ${number(views.today.guest)}`} tone="teal" />
-      <MetricCard label="本月浏览" value={monthViews} note={`注册 ${number(views.month.user)} · 游客 ${number(views.month.guest)}`} tone="yellow" />
+      <MetricCard label="今日浏览" value={todayViews} note={`注册 ${number(views.today.user)} · 游客 ${number(views.today.guest)} · 较昨日同期`} tone="teal" delta={<DeltaBadge current={todayViews} previous={yesterdayTotal} basis={`昨日同期 ${number(yesterdayTotal)} 次（截至同一时刻）`} />} />
+      <MetricCard label="本月浏览" value={monthViews} note={`注册 ${number(views.month.user)} · 游客 ${number(views.month.guest)} · 较上月同期`} tone="yellow" delta={<DeltaBadge current={monthViews} previous={prevMonthTotal} basis={`上月同期 ${number(prevMonthTotal)} 次（${views.prevMonthRange?.start || ''} 至 ${views.prevMonthRange?.end || ''}）`} />} />
       <MetricCard label="注册用户" value={data.users.total} note={`今日 +${number(data.users.today)} · 近 30 天 +${number(data.users.last30)}`} />
       <MetricCard label="全部团次" value={c.total} note={`网团 ${number(c.online_total)} + 面团 ${number(c.offline_total)} · 不含宣群`} tone="red" />
       <MetricCard label="实时在线人数" value={e.online_now} note={`近 ${number(data.onlineWindow)} 分钟活跃 · 会话 ${number(e.active_sessions)}`} live />
@@ -74,8 +95,8 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
       <MetricCard label="宣群（现存）" value={c.promo_live} note={`历史 ${number(c.promo_history)} · 共计 ${number(c.promo_total)} · 不算开团`} tone="yellow" />
       <MetricCard label="累计点赞" value={e.praises} note={`GM ${number(e.gm_praises)} · 玩家 ${number(e.player_praises)}`} tone="yellow" />
     </section>
-    <div className="grid grid-cols-1 grid-rows-2 gap-3 min-h-[420px] lg:flex-1 lg:min-h-0">
-      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[190px] lg:min-h-0">
+    <div className="grid grid-cols-1 grid-rows-2 gap-3 min-h-[330px] lg:flex-1 lg:min-h-0">
+      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[150px] lg:min-h-0">
         <div className="flex items-center justify-between gap-2 border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Activity size={16} className="text-[#004E98]" />近 30 天增长</h3><div className="flex items-center gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#004E98]" />用户 +{number(sumUsers)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#D62828]" />开团 +{number(sumCampaigns)}（不含宣群）</span><span className="hidden text-[10px] font-normal text-[#777] xl:inline">单日峰值 用户 {number(peakUsers)} · 开团 {number(peakCampaigns)}</span></div></div>
         <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 30 天用户与开团增长柱状图">
           <div className="absolute left-0 top-4 bottom-0 w-7 flex flex-col justify-between text-[10px] font-bold text-[#777] text-right pr-1 pointer-events-none"><span>{maxTrend}</span><span>{Math.round(maxTrend / 2)}</span><span>0</span></div>
@@ -84,7 +105,7 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
         </div>
         <div className="mt-1 flex justify-between pl-8 pr-1 text-[10px] text-[#777] shrink-0">{tickIdx.map((i) => <span key={i}>{trends[i].slice(5)}</span>)}</div>
       </section>
-      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[190px] lg:min-h-0">
+      <section className="bauhaus-card bg-white p-3 min-w-0 flex flex-col min-h-[150px] lg:min-h-0">
         <div className="flex items-center justify-between gap-2 border-b-2 border-[#121212] pb-1.5 mb-2 shrink-0"><h3 className="text-base font-black flex items-center gap-1.5"><Eye size={16} className="text-[#176B57]" />近 30 天浏览</h3><div className="flex items-center gap-3 text-[11px] font-bold"><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#176B57]" />注册 {number(sumViewUser)}</span><span className="flex items-center gap-1"><i className="w-2.5 h-2.5 bg-[#C85C16]" />游客 {number(sumViewGuest)}</span><span className="hidden text-[10px] font-normal text-[#777] xl:inline">单日峰值 注册 {number(peakViewUser)} · 游客 {number(peakViewGuest)}</span></div></div>
         <div className="relative flex-1 min-h-0 border-b border-l border-[#AAA] pl-8 pr-1 pt-5" aria-label="近 30 天浏览次数柱状图（分注册与游客）">
           <div className="absolute left-0 top-4 bottom-0 w-7 flex flex-col justify-between text-[10px] font-bold text-[#777] text-right pr-1 pointer-events-none"><span>{maxViews}</span><span>{Math.round(maxViews / 2)}</span><span>0</span></div>
@@ -92,6 +113,26 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
           <div className="relative h-full flex items-end gap-[2px]">{trends.map((day) => { const u = viewUserMap.get(day) || 0, g = viewGuestMap.get(day) || 0; return <div key={day} className="group relative flex-1 min-w-0 h-full flex items-end justify-center gap-[1px] transition-colors hover:bg-[#F1F0EB]" title={`${day}：注册 ${u} 次 · 游客 ${g} 次`}><span data-role="bar-tip" className="pointer-events-none invisible absolute -top-4 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-sm border border-[#DDD] bg-white px-1 text-[9px] font-black leading-[13px] group-hover:visible"><b className="text-[#176B57]">{u}</b><span className="text-[#BBB]">/</span><b className="text-[#C85C16]">{g}</b></span><div className="relative w-1/2 min-h-[2px] bg-[#176B57]" style={{ height: `${Math.max(2, (u / maxViews) * 100)}%` }} /><div className="relative w-1/2 min-h-[2px] bg-[#C85C16]" style={{ height: `${Math.max(2, (g / maxViews) * 100)}%` }} /></div>; })}</div>
         </div>
         <div className="mt-1 flex justify-between pl-8 pr-1 text-[10px] text-[#777] shrink-0">{tickIdx.map((i) => <span key={i}>{trends[i].slice(5)}</span>)}</div>
+      </section>
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.3fr] gap-3 shrink-0">
+      <section className="bauhaus-card bg-white px-3 py-2">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">活跃回访</h3><span className="text-[10px] font-bold text-[#777]">去重用户 · 近 30 天有过访问</span></div>
+        <div className="grid grid-cols-3 gap-2 text-center"><StatCell label="近 7 天活跃" value={active.users7} color="#004E98" /><StatCell label="近 30 天活跃" value={active.users30} color="#176B57" /><StatCell label="占注册用户" value={`${number(activeRate)}%`} color="#C85C16" /></div>
+        <p className="text-[10px] text-[#777] mt-1">活跃 = 会话有效期内发过请求的用户；同一用户跨天多次只算 1 人 · 注册总数 {number(active.totalUsers)}</p>
+      </section>
+      <section className="bauhaus-card bg-white px-3 py-2">
+        <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">热门页面</h3><span className="text-[10px] font-bold text-[#777]">近 30 天浏览次数 · 玩家最常逛的地方</span></div>
+        <div className="space-y-1">
+          {topPaths.length === 0 && <p className="text-[11px] text-[#999]">暂无浏览数据</p>}
+          {topPaths.slice(0, 7).map((p) => (
+            <div key={p.path} className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-[10px] font-bold text-[#444] truncate" title={p.path}>{pathLabel[p.path] || p.path}</span>
+              <div className="flex-1 h-2.5 bg-[#F1F0EB] border border-[#DDD]"><div className="h-full" style={{ width: `${Math.max(4, p.count / maxPath * 100)}%`, backgroundColor: pathColor[p.path] || '#888' }} /></div>
+              <span className="w-9 shrink-0 text-right text-[10px] font-black" style={{ color: pathColor[p.path] || '#666' }}>{number(p.count)}</span>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3 shrink-0">

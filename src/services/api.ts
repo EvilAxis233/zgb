@@ -146,12 +146,19 @@ export interface AdminDashboard {
   topRules: Array<{ rule: string; total: number }>;
   dailyUsers: Array<{ day: string; count: number }>;
   dailyCampaigns: Array<{ day: string; count: number }>;
-  /** 浏览统计：今日/本月的注册用户与游客次数，daily 为近 7 天明细（仅正式域名计入）。 */
+  /** 浏览统计：今日/本月及其环比基准，daily 为近 30 天明细（仅正式域名计入）。 */
   views: {
     today: { user: number; guest: number };
+    yesterday: { user: number; guest: number };
     month: { user: number; guest: number };
+    prevMonth: { user: number; guest: number };
+    prevMonthRange: { start: string; end: string };
     daily: Array<{ day: string; user: number; guest: number }>;
   };
+  /** 活跃回访：近 7 / 30 天有过请求的去重用户数，totalUsers 为注册总数。 */
+  active: { users7: number; users30: number; totalUsers: number };
+  /** 热门页面：近 30 天各浏览路径次数，按次数降序。 */
+  topPaths: Array<{ path: string; count: number }>;
   onlineWindow: number;
   generatedAt: string;
 }
