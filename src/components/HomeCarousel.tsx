@@ -12,8 +12,7 @@ interface HomeCarouselProps {
   onOpenCampaign: (campaign: Campaign) => void;
   onSelectManage: () => void;
   onSelectResources: () => void;
-  chatUnread: number;
-  onSelectChat: () => void;
+  onSelectRoundtable: () => void;
 }
 
 type Kind = 'online' | 'offline' | 'promo';
@@ -200,7 +199,7 @@ const CarouselLane: React.FC<{
 
 export const HomeCarousel: React.FC<HomeCarouselProps> = ({
   online, offline, promo, onOpenCampaign, onSelectManage, onSelectResources,
-  chatUnread, onSelectChat,
+  onSelectRoundtable,
 }) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
@@ -248,14 +247,11 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({
         </div>
       </div>
 
-      {/* 功能入口：团务管理 / 爱心资源 / 猪猪客服（删掉顶栏铃铛后，首页保留对话入口） */}
+      {/* 功能入口：团务管理 / 爱心资源 / GM圆桌 */}
       <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3 sm:gap-5">
         <button type="button" onClick={onSelectManage} className="bg-[#121212] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">团务管理</button>
         <button type="button" onClick={onSelectResources} className="bg-[#B51F5C] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">爱心资源</button>
-        <button type="button" onClick={onSelectChat} className="relative bg-[#004E98] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">
-          猪猪客服
-          {chatUnread > 0 && <span className="absolute right-3 top-2 min-w-[22px] rounded-full border-2 border-white bg-[#D62828] px-1 text-xs font-black text-white">{chatUnread > 9 ? '9+' : chatUnread}</span>}
-        </button>
+        <button type="button" onClick={onSelectRoundtable} className="bg-[#004E98] py-4 text-center text-lg font-black tracking-wider text-white shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] sm:py-5 sm:text-xl">GM圆桌</button>
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import { ManageView } from './components/ManageView';
 import { LoginModal } from './components/LoginModal';
 import { HomePortal } from './components/HomePortal';
 import { HomeCarousel } from './components/HomeCarousel';
+import { GmRoundTableView } from './components/GmRoundTableView';
 import { CampaignEditModal } from './components/CampaignEditModal';
 import { ResourceView } from './components/ResourceView';
 import { CalendarFilter } from './components/CalendarFilter';
@@ -47,9 +48,9 @@ export function App() {
 
   // UI States
   // 报名通知邮件里的按钮带 ?view=manage，点开直接落在团务管理。
-  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage' | 'resources'>(() => {
+  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage' | 'resources' | 'roundtable'>(() => {
     const view = new URLSearchParams(window.location.search).get('view');
-    return view === 'manage' ? 'manage' : view === 'resources' ? 'resources' : 'board';
+    return view === 'manage' ? 'manage' : view === 'resources' ? 'resources' : view === 'roundtable' ? 'roundtable' : 'board';
   });
   const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
@@ -113,7 +114,7 @@ export function App() {
     refresh().catch((error) => showToast(error.message, 'error')).finally(() => setLoading(false));
   }, []);
 
-  // 浏览统计：整页加载与切换主板块（团大厅 / 个人档案 / 团务 / 爱心资源）各记一次。
+  // 浏览统计：整页加载与切换主板块（团大厅 / 个人档案 / 团务 / 爱心资源 / GM圆桌）各记一次。
   // 注册 / 游客由后端按登录 cookie 判定；30 秒内不重复上报，避免连点或严格模式重复调用把数字刷高。
   useEffect(() => {
     const stamp = Date.now();
@@ -549,7 +550,7 @@ export function App() {
     return enrichedCampaigns.filter((campaign) => campaign.isSignedUp);
   }, [enrichedCampaigns, currentUser]);
 
-  const isSectionView = (activeTab === 'board' && boardView !== 'portal') || activeTab === 'resources';
+  const isSectionView = (activeTab === 'board' && boardView !== 'portal') || activeTab === 'resources' || activeTab === 'roundtable';
   const isCarouselPortal = PORTAL_CAROUSEL && activeTab === 'board' && boardView === 'portal';
   const mainContainerMaxWidth = isSectionView
     ? 'max-w-[1760px]'
@@ -601,8 +602,7 @@ export function App() {
                   }
                 }}
                 onSelectResources={() => setActiveTab('resources')}
-                chatUnread={chatInbox.unread}
-                onSelectChat={openChat}
+                onSelectRoundtable={() => setActiveTab('roundtable')}
               />
             ) : (
               <HomePortal
@@ -855,6 +855,9 @@ export function App() {
         {activeTab === 'resources' && (
           <ResourceView currentUser={currentUser} onOpenLogin={() => setIsLoginOpen(true)} />
         )}
+
+        {/* VIEW 5: GM圆桌（主题讨论频道，可引用爱心资源，支持讨论回复与举报） */}
+        {activeTab === 'roundtable' && <GmRoundTableView />}
       </main>
 
       {/* 猪猪客服对话窗：全局常驻，顶栏铃铛 / 首页提示条 / 首页客服块都能唤起 */}
