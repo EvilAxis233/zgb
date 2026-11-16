@@ -146,16 +146,29 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     );
     // 发布者 / GM 详情区：两组左右对齐。
     // 左组：等比例放大的正方形头像 + 昵称 / 铭牌 / 获赞数 / 点赞按钮，靠左垂直居中。
-    // 右组：喜好、雷区紧靠「个人档案」按钮并整体右对齐；标签多行时自动换行，不挤压左侧昵称。
+    // 右组：喜好、雷区紧靠「个人档案」按钮并整体右对齐。
+    // 每组最多 3 个标签一行，超过 3 个（档案上限 6 个）就按 3 个一组折行，避免挤成一条压住按钮。
     if (member.role === 'gm') {
       const prefs = member.preferences ?? [];
       const tabooList = member.taboos ?? [];
-      const traitRow = (label: string, list: string[], textCls: string, tagCls: string, keyPrefix: string) => list.length > 0 && (
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 text-right text-[11px] font-bold">
-          <span className={`shrink-0 ${textCls}`}>{label}</span>
-          {list.map((tag, i) => <span key={`${keyPrefix}-${i}-${tag}`} className={`max-w-full break-all border px-1.5 py-0.5 ${tagCls}`}>{tag}</span>)}
-        </div>
-      );
+      const TRAITS_PER_ROW = 3;
+      const traitRow = (label: string, list: string[], textCls: string, tagCls: string, keyPrefix: string) => {
+        if (!list.length) return null;
+        const rows: string[][] = [];
+        for (let i = 0; i < list.length; i += TRAITS_PER_ROW) rows.push(list.slice(i, i + TRAITS_PER_ROW));
+        return (
+          <div data-role="gm-traits" data-group={label} className="flex min-w-0 items-start justify-end gap-1 text-right text-[11px] font-bold">
+            <span className={`mt-0.5 shrink-0 ${textCls}`}>{label}</span>
+            <div className="flex min-w-0 flex-col items-end gap-1">
+              {rows.map((row, rowIndex) => (
+                <div key={`${keyPrefix}-row-${rowIndex}`} data-role="trait-line" className="flex min-w-0 flex-wrap items-center justify-end gap-1">
+                  {row.map((tag, i) => <span key={`${keyPrefix}-${rowIndex}-${i}-${tag}`} className={`max-w-full break-all border px-1.5 py-0.5 ${tagCls}`}>{tag}</span>)}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      };
       return (
         <div key={member.id} className="border-b border-[#D8D5CC] last:border-b-0">
           <div className="flex flex-wrap items-stretch gap-3 px-4 py-3">
