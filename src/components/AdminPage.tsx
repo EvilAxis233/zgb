@@ -89,9 +89,12 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
   // 图表底部只标 6 个日期刻度，30 根柱子全标会挤成一团。
   const tickIdx = [0, 5, 11, 17, 23, 29];
   const c = data.campaigns, e = data.engagement, sub = data.submissions;
-  const pathLabel: Record<string, string> = { '/board/portal': '首页', '/board/online': '网团大厅', '/board/offline': '面团大厅', '/board/promo': '宣群', '/profile': '个人档案', '/manage': '团务管理', '/resources': '规则资源' };
-  const pathColor: Record<string, string> = { '/board/portal': '#004E98', '/board/online': '#D62828', '/board/offline': '#C85C16', '/board/promo': '#176B57', '/profile': '#7B4FB5', '/manage': '#5B5646', '/resources': '#B8860B' };
-  const maxPath = Math.max(1, ...topPaths.map((p) => p.count));
+  const pathLabel: Record<string, string> = { '/board/portal': '首页', '/board/online': '网团大厅', '/board/offline': '面团大厅', '/board/promo': '宣群', '/profile': '个人档案', '/manage': '团务管理', '/resources': '规则资源', '/roundtable': 'GM圆桌' };
+  const pathColor: Record<string, string> = { '/board/portal': '#004E98', '/board/online': '#D62828', '/board/offline': '#C85C16', '/board/promo': '#176B57', '/profile': '#7B4FB5', '/manage': '#5B5646', '/resources': '#B8860B', '/roundtable': '#A0266B' };
+  // 热门页面不列首页（访问量基数大、常年第一，参考意义小），其余照常按次数排序。
+  const hiddenPath = (p: string) => p === '/board/portal' || p === '/';
+  const shownPaths = topPaths.filter((p) => !hiddenPath(p.path));
+  const maxPath = Math.max(1, ...shownPaths.map((p) => p.count));
   return <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
     <div className="flex items-center justify-between gap-3 shrink-0"><div className="flex items-baseline gap-2"><h3 className="text-base font-black">平台总览</h3><p className="text-[11px] text-[#666]">宣群不计入团次与报名率 · 浏览仅统计正式站 · 每 30 秒自动刷新</p></div><time className="text-[11px] text-[#777] shrink-0">更新于 {new Date(data.generatedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong' })}</time></div>
     <section className="grid grid-cols-2 lg:grid-cols-5 gap-2 shrink-0">
@@ -141,8 +144,8 @@ function Dashboard({ data, loading }: { data: AdminDashboard | null; loading: bo
       <section className="bauhaus-card bg-white px-3 py-2">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-1 mb-2"><h3 className="text-sm font-black">热门页面</h3><span className="text-[10px] font-bold text-[#777]">近 30 天浏览次数 · 玩家最常逛的地方</span></div>
         <div className="space-y-1">
-          {topPaths.length === 0 && <p className="text-[11px] text-[#999]">暂无浏览数据</p>}
-          {topPaths.slice(0, 7).map((p) => (
+          {shownPaths.length === 0 && <p className="text-[11px] text-[#999]">暂无浏览数据</p>}
+          {shownPaths.slice(0, 7).map((p) => (
             <div key={p.path} className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-[10px] font-bold text-[#444] truncate" title={p.path}>{pathLabel[p.path] || p.path}</span>
               <div className="flex-1 h-2.5 bg-[#F1F0EB] border border-[#DDD]"><div className="h-full" style={{ width: `${Math.max(4, p.count / maxPath * 100)}%`, backgroundColor: pathColor[p.path] || '#888' }} /></div>
