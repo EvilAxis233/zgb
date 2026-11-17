@@ -66,6 +66,7 @@ export const api = {
   roundtableMine: () => request<RoundtableMine>('roundtable/mine'),
   roundtableFav: (topicId: string, on: boolean) => post<{ ok: boolean; favCount: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/fav`, { on }),
   roundtableSeen: (topicId: string) => post<{ ok: boolean }>(`roundtable/topic/${encodeURIComponent(topicId)}/seen`, {}),
+  roundtableView: (topicId: string) => post<{ ok: boolean; views: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/view`, {}),
   checkin: () => post<{ ok: boolean; streak: number; checkinCount: number; memberCheckinCount: number; isMember: boolean; daysUntilGmReward: number; gmHeartsAwarded: number; gmAwarded: boolean }>('checkin'),
   praise: (campaignId: string, toUserId: string, type: 'gm' | 'player') => post('praise', { campaignId, toUserId, type }),
   campaign: (id: string) => request<{ campaign: CampaignDetail }>(`campaigns/${id}`),

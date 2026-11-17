@@ -1304,6 +1304,13 @@ export async function onRequest(context) {
     let user = await auth(request, db);
     // === GM圆桌·公开读取 ===
     if (path[0] === 'roundtable' && path.length === 1 && method === 'GET') return json(await roundtableSnapshot(db, false));
+    // 主题浏览计数：打开主题详情时 +1（匿名也计），返回最新值供前端即时刷新「眼睛」旁的数字
+    if (path[0] === 'roundtable' && path[1] === 'topic' && path[2] && path[3] === 'view' && path.length === 4 && method === 'POST') {
+      await db.prepare('UPDATE roundtable_topics SET views=views+1 WHERE id=?').bind(path[2]).run();
+      const row = await db.prepare('SELECT views FROM roundtable_topics WHERE id=?').bind(path[2]).first();
+      if (!row) return fail('主题不存在', 404);
+      return json({ ok: true, views: Number(row.views || 0) });
+    }
     // 我的圆桌：收藏列表 / 我参与过讨论的主题 / 新回复与收藏更新未读数（未登录返回空结构）
     if (path[0] === 'roundtable' && path[1] === 'mine' && path.length === 2 && method === 'GET') {
       if (!user) return json({ favorites: [], follows: [], unreadReply: {}, unreadFav: {} });

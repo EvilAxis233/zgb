@@ -267,6 +267,13 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   };
   const canEdit = (r: RoundtableReply) => isAdmin || (!!currentUserQq && !!r.userQq && String(r.userQq) === String(currentUserQq));
 
+  // 浏览数同步：列表卡片与详情页共用同一份数字，避免两边不一致。
+  const patchViews = (topicId: string, views: number) => {
+    const n = Math.max(0, Number(views) || 0);
+    setTopics((prev) => prev.map((x) => x.id === topicId ? { ...x, views: n } : x));
+    setOpenTopic((prev) => prev && prev.id === topicId ? { ...prev, views: n } : prev);
+  };
+
   const openDetail = (t: RoundtableTopic) => {
     setOpenTopic(t);
     setReplyText(''); setReplyImages([]);
@@ -275,6 +282,16 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     setUnreadFav((prev) => { const n = { ...prev }; delete n[t.id]; return n; });
     setUnreadReply((prev) => { const n = { ...prev }; delete n[t.id]; return n; });
     if (currentUserQq) api.roundtableSeen(t.id).catch(() => {});
+    // 记一次浏览（卡片/详情左下角那个「眼睛」就是浏览次数）：
+    // 同一标签页内同一主题只计一次，避免反复开关把数字刷高；本地先 +1 让数字立刻变，再用服务端返回值校正。
+    const viewKey = `rt-view:${t.id}`;
+    let viewed = false;
+    try { viewed = sessionStorage.getItem(viewKey) === '1'; } catch { /* 隐私模式取不到就按未看过处理 */ }
+    if (!viewed) {
+      try { sessionStorage.setItem(viewKey, '1'); } catch { /* 忽略 */ }
+      patchViews(t.id, (t.views || 0) + 1);
+      api.roundtableView(t.id).then((r) => patchViews(t.id, r.views)).catch(() => { /* 计数失败不影响浏览 */ });
+    }
   };
   const backToList = () => { setOpenTopic(null); resetNested(); cancelEdit(); void load(); };
 
@@ -483,8 +500,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
           )}
         </button>
         <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
-          <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{t.views}</span>
-          <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
+          <span className="flex items-center gap-1" title="浏览次数"><Eye className="h-3 w-3" />{t.views}</span>
+          <span className="flex items-center gap-1" title="回复数"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
           <div className="ml-auto flex items-center gap-2.5">
             <button type="button" aria-label={`${favorited ? '取消收藏' : '收藏'} ${t.title}`} title={favorited ? '取消收藏' : '收藏主题'} onClick={() => void toggleFav(t)}
               className={`flex items-center gap-1 font-black transition-colors ${favorited ? 'text-[#E9C46A]' : 'hover:text-[#E9C46A]'}`}>
@@ -594,8 +611,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                             {mine && <p className="mt-1 line-clamp-1 text-[11px] text-[#BDBDBD]">我的回复：{plainText(mine.content) || '（图片回复）'}</p>}
                             <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-[#8A8A8A]">
                               <span className="border border-[#555] px-1.5 py-0.5 font-bold text-[#C9C9C9]">{t.rule || '综合'}</span>
-                              <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
-                              <span className="flex items-center gap-1"><Star className="h-3 w-3" />{t.favCount || 0}</span>
+                              <span className="flex items-center gap-1" title="回复数"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
+                              <span className="flex items-center gap-1" title="收藏数"><Star className="h-3 w-3" />{t.favCount || 0}</span>
                               <span>{mineView === 'reply' && mine ? `我回复于 ${mine.time.slice(5)}` : t.lastReplyTs ? `最近回复 ${fmtTs(t.lastReplyTs)}` : '暂无回复'}</span>
                               {unread > 0 && <span className="font-black text-[#F4A261]">有新回复，点开查看</span>}
                             </div>
