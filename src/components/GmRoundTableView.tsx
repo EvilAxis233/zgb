@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Bold, BookOpen, ChevronDown, ChevronRight, Clock3, Eye, Flame, Heading2, ImagePlus, Italic,
-  Link2, List, MessageSquare, Pencil, Plus, Quote, Search, Send, ThumbsUp, X, Flag,
+  Link2, List, MessageSquare, Pencil, Plus, Quote, Search, Send, Star, ThumbsUp, X, Flag,
 } from 'lucide-react';
 import { api, adminApi, type RoundtableReply, type RoundtableTopic, type RoundtableResourceRef } from '../services/api';
 import { NameplateBadge } from './NameplateBadge';
@@ -52,6 +52,13 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const [ruleFilter, setRuleFilter] = useState('全部规则');
   const [channelBump, setChannelBump] = useState<Record<string, number>>({});
   const [likedTopics, setLikedTopics] = useState<Record<string, boolean>>({});
+
+  // 我的圆桌：收藏、我参与过讨论的主题（我的回复）、未读数
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
+  const [followIds, setFollowIds] = useState<Record<string, boolean>>({});
+  const [unreadFav, setUnreadFav] = useState<Record<string, number>>({});
+  const [unreadReply, setUnreadReply] = useState<Record<string, number>>({});
+  const [mineView, setMineView] = useState<'reply' | 'fav' | null>(null);
 
   // 申请主题表单（与后台新建共用组件）
   const [applyOpen, setApplyOpen] = useState(false);
@@ -121,6 +128,19 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
 
   useEffect(() => { void load(); }, [load]);
 
+  // 拉取「我的收藏 / 我的回复 / 未读数」：仅登录用户；未登录时保持空态。
+  const loadMine = useCallback(async () => {
+    if (!currentUserQq) { setFavorites({}); setFollowIds({}); setUnreadFav({}); setUnreadReply({}); return; }
+    try {
+      const data = await api.roundtableMine();
+      setFavorites(Object.fromEntries((data.favorites || []).map((id) => [id, true])));
+      setFollowIds(Object.fromEntries((data.follows || []).map((id) => [id, true])));
+      setUnreadFav(data.unreadFav || {});
+      setUnreadReply(data.unreadReply || {});
+    } catch { /* 忽略：不影响主题浏览 */ }
+  }, [currentUserQq]);
+  useEffect(() => { void loadMine(); }, [loadMine]);
+
   const rules = useMemo(() => ['全部规则', ...Array.from(new Set(topics.map((t) => t.rule).filter(Boolean)))], [topics]);
 
   const filtered = useMemo(() => topics.filter((t) => {
@@ -167,7 +187,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
       ? b.likes - a.likes : b.time.localeCompare(a.time));
   }, [openTopic, replySort]);
 
-  const applyChannel = (cid: string) => { setChannel(cid); setOpenTopic(null); };
+  const applyChannel = (cid: string) => { setChannel(cid); setOpenTopic(null); setMineView(null); };
+  const openMine = (kind: 'reply' | 'fav') => { setMineView(kind); setOpenTopic(null); };
 
   const submitApply = async (v: TopicFormValue) => {
     try {
@@ -223,6 +244,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
       setChannelBump((prev) => ({ ...prev, [openTopic.channelId]: Date.now() }));
       flash('回复已发布');
       await load(tid);
+      // 发过回复即进入「我的回复」，立即刷新侧栏数据
+      void loadMine();
     } catch (e) { flash(e instanceof Error ? e.message : '回复失败'); }
   };
 
@@ -248,6 +271,10 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     setOpenTopic(t);
     setReplyText(''); setReplyImages([]);
     resetNested(); cancelEdit();
+    // 打开即视为已读：清掉「我的回复 / 我的收藏」里这个主题的新动态提醒
+    setUnreadFav((prev) => { const n = { ...prev }; delete n[t.id]; return n; });
+    setUnreadReply((prev) => { const n = { ...prev }; delete n[t.id]; return n; });
+    if (currentUserQq) api.roundtableSeen(t.id).catch(() => {});
   };
   const backToList = () => { setOpenTopic(null); resetNested(); cancelEdit(); void load(); };
 
@@ -261,6 +288,53 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     setOpenTopic((prev) => prev && prev.id === t.id ? { ...prev, likes: Math.max(0, prev.likes + delta) } : prev);
     try { await api.roundtableLike(t.id, delta as 1 | -1); } catch { /* 忽略 */ }
   };
+
+  // 收藏 / 取消收藏：卡片与详情共用，计数同步。
+  const toggleFav = async (t: RoundtableTopic) => {
+    if (!currentUserQq) { flash('登录后才能收藏主题'); return; }
+    const next = !favorites[t.id];
+    const bump = (n?: number) => Math.max(0, Number(n || 0) + (next ? 1 : -1));
+    setFavorites((prev) => ({ ...prev, [t.id]: next }));
+    setTopics((prev) => prev.map((x) => x.id === t.id ? { ...x, favCount: bump(x.favCount) } : x));
+    setOpenTopic((prev) => prev && prev.id === t.id ? { ...prev, favCount: bump(prev.favCount) } : prev);
+    try {
+      const r = await api.roundtableFav(t.id, next);
+      setTopics((prev) => prev.map((x) => x.id === t.id ? { ...x, favCount: r.favCount } : x));
+      setOpenTopic((prev) => prev && prev.id === t.id ? { ...prev, favCount: r.favCount } : prev);
+      flash(next ? '已收藏主题' : '已取消收藏');
+      void loadMine();
+    } catch (e) {
+      setFavorites((prev) => ({ ...prev, [t.id]: !next }));
+      flash(e instanceof Error ? e.message : '操作失败');
+    }
+  };
+
+  // 我在该主题下的最后一条回复（用于「我的回复」列表摘要）
+  const myLastReply = (t: RoundtableTopic): RoundtableReply | null => {
+    if (!currentUserQq) return null;
+    const flat: RoundtableReply[] = [];
+    const walk = (list: RoundtableReply[]) => list.forEach((r) => { flat.push(r); walk(r.children || []); });
+    walk(t.replies);
+    const mine = flat.filter((r) => r.userQq && String(r.userQq) === String(currentUserQq)).sort((a, b) => b.time.localeCompare(a.time));
+    return mine[0] || null;
+  };
+  const plainText = (s: string) => (s || '').replace(/[#*`>_~]/g, '').replace(/\s+/g, ' ').trim();
+  const fmtTs = (ts: number) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const totalUnreadReply = Object.values(unreadReply).reduce((a, b) => a + b, 0);
+  const totalUnreadFav = Object.values(unreadFav).reduce((a, b) => a + b, 0);
+  const myReplyTopics = useMemo(
+    () => topics.filter((t) => followIds[t.id]).sort((a, b) => (unreadReply[b.id] || 0) - (unreadReply[a.id] || 0) || b.lastReplyTs - a.lastReplyTs),
+    [topics, followIds, unreadReply],
+  );
+  const myFavTopics = useMemo(
+    () => topics.filter((t) => favorites[t.id]).sort((a, b) => b.lastReplyTs - a.lastReplyTs),
+    [topics, favorites],
+  );
 
   const reportBtn = (label: string) => (
     <button type="button" onClick={() => flash(`已举报${label}`)} className="flex items-center gap-1 text-[11px] text-[#8A8A8A] hover:text-[#D62828]">
@@ -389,15 +463,15 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     </div>
   );
 
-  const TopicCard = ({ t }: { t: RoundtableTopic }) => {
+  const TopicCard = ({ t, newCount = 0 }: { t: RoundtableTopic; newCount?: number }) => {
     const liked = !!likedTopics[t.id];
+    const favorited = !!favorites[t.id];
     return (
       <div className="relative flex h-full flex-col border border-[#3A3A3A] bg-[#2E2E30] p-4 transition-colors hover:border-[#8BC34A] hover:bg-[#343437]">
         <button type="button" onClick={() => void openDetail(t)} className="flex flex-1 flex-col text-left">
-          <h3 className="line-clamp-2 text-sm font-black leading-snug text-white">
-            {t.isPinned && <span className="mr-1.5 bg-[#D62828] px-1.5 py-0.5 align-middle text-[10px] font-black text-white">置顶</span>}
-            {t.title}
-          </h3>
+          {t.isPinned && <span className="mb-1.5 inline-block w-fit bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black leading-none text-white">置顶</span>}
+          {newCount > 0 && <span className="mb-1.5 inline-block w-fit bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black leading-none text-white">新 {newCount}</span>}
+          <h3 className="line-clamp-2 text-sm font-black leading-snug text-white">{t.title}</h3>
           <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
           {!!t.ruleVersion && <div className="mt-1 text-[10px] text-[#8A8A8A]">规则版本：{t.ruleVersion}</div>}
           {!!t.resources?.length && <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[#7FC7FF]"><Link2 className="h-3 w-3" />引用 {t.resources.length} 个爱心资源</div>}
@@ -411,10 +485,16 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
         <div className="mt-auto flex items-center gap-3 pt-3 text-[11px] text-[#9A9A9A]">
           <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{t.views}</span>
           <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
-          <button type="button" aria-label={`点赞 ${t.title}`} onClick={() => void toggleLike(t)}
-            className={`ml-auto flex items-center gap-1 font-black transition-colors ${liked ? 'text-[#8BC34A]' : 'hover:text-[#8BC34A]'}`}>
-            <ThumbsUp className="h-3 w-3" />{t.likes}
-          </button>
+          <div className="ml-auto flex items-center gap-2.5">
+            <button type="button" aria-label={`${favorited ? '取消收藏' : '收藏'} ${t.title}`} title={favorited ? '取消收藏' : '收藏主题'} onClick={() => void toggleFav(t)}
+              className={`flex items-center gap-1 font-black transition-colors ${favorited ? 'text-[#E9C46A]' : 'hover:text-[#E9C46A]'}`}>
+              <Star className="h-3 w-3" fill={favorited ? 'currentColor' : 'none'} />{t.favCount || 0}
+            </button>
+            <button type="button" aria-label={`点赞 ${t.title}`} onClick={() => void toggleLike(t)}
+              className={`flex items-center gap-1 font-black transition-colors ${liked ? 'text-[#8BC34A]' : 'hover:text-[#8BC34A]'}`}>
+              <ThumbsUp className="h-3 w-3" />{t.likes}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -452,10 +532,21 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                 </div>
                 {orderedChannels.map((c) => (
                   <button key={c.id} type="button" onClick={() => applyChannel(c.id)}
-                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
+                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id && !mineView ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
                     {c.label}
                   </button>
                 ))}
+                <span className="mx-0.5 h-4 w-px shrink-0 bg-[#3A3A3A]" />
+                <button type="button" onClick={() => openMine('reply')}
+                  className={`flex items-center gap-1 border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${mineView === 'reply' ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
+                  <MessageSquare className="h-3.5 w-3.5" />我的回复
+                  {totalUnreadReply > 0 && <span className="ml-0.5 bg-[#D62828] px-1 py-0.5 text-[10px] font-black leading-none text-white">{totalUnreadReply}</span>}
+                </button>
+                <button type="button" onClick={() => openMine('fav')}
+                  className={`flex items-center gap-1 border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${mineView === 'fav' ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
+                  <Star className="h-3.5 w-3.5" fill={mineView === 'fav' ? 'currentColor' : 'none'} />我的收藏
+                  {totalUnreadFav > 0 && <span className="ml-0.5 bg-[#D62828] px-1 py-0.5 text-[10px] font-black leading-none text-white">{totalUnreadFav}</span>}
+                </button>
                 <div className="ml-auto flex items-center gap-2">
                   <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)} title="主题排序"
                     className="border border-[#555] bg-[#242426] px-2 py-1.5 text-xs font-bold text-[#C9C9C9] outline-none focus:border-[#8BC34A]">
@@ -468,6 +559,68 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                 </div>
               </div>
             </div>
+
+            {mineView ? (
+              <div className="px-3 py-3 sm:px-4">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-black text-[#F4A261]">
+                  {mineView === 'reply' ? <MessageSquare className="h-3.5 w-3.5" /> : <Star className="h-3.5 w-3.5" />}
+                  {mineView === 'reply' ? `我的回复（${myReplyTopics.length}）` : `我的收藏（${myFavTopics.length}）`}
+                  <span className="ml-1 font-bold text-[#8A8A8A]">{mineView === 'reply' ? '有人回复了你时，这里会标「新」' : '收藏的主题有新回复时，这里会标「新」'}</span>
+                </div>
+                {(mineView === 'reply' ? myReplyTopics : myFavTopics).length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-[#9A9A9A]">
+                    {!currentUserQq ? '登录后可以看到自己的回复与收藏'
+                      : mineView === 'reply' ? '还没有参与过讨论，去主题里回复一条就会出现在这里'
+                        : '还没有收藏主题，点主题卡片上的星标即可收藏'}
+                  </div>
+                ) : mineView === 'fav' ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {myFavTopics.map((t) => <TopicCard key={t.id} t={t} newCount={unreadFav[t.id] || 0} />)}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(mineView === 'reply' ? myReplyTopics : myFavTopics).map((t) => {
+                      const unread = mineView === 'reply' ? (unreadReply[t.id] || 0) : (unreadFav[t.id] || 0);
+                      const mine = mineView === 'reply' ? myLastReply(t) : null;
+                      return (
+                        <button key={t.id} type="button" onClick={() => openDetail(t)}
+                          className="flex w-full items-start gap-2 border border-[#3A3A3A] bg-[#2E2E30] px-3 py-2.5 text-left transition-colors hover:border-[#8BC34A] hover:bg-[#343437]">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="truncate text-sm font-black text-white">{t.title}</span>
+                              {unread > 0 && <span className="bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black leading-none text-white">新 {unread}</span>}
+                              {t.isPinned && <span className="border border-[#555] px-1 py-0.5 text-[10px] font-bold text-[#9A9A9A]">置顶</span>}
+                            </div>
+                            {mine && <p className="mt-1 line-clamp-1 text-[11px] text-[#BDBDBD]">我的回复：{plainText(mine.content) || '（图片回复）'}</p>}
+                            <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-[#8A8A8A]">
+                              <span className="border border-[#555] px-1.5 py-0.5 font-bold text-[#C9C9C9]">{t.rule || '综合'}</span>
+                              <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{countReplies(t.replies)}</span>
+                              <span className="flex items-center gap-1"><Star className="h-3 w-3" />{t.favCount || 0}</span>
+                              <span>{mineView === 'reply' && mine ? `我回复于 ${mine.time.slice(5)}` : t.lastReplyTs ? `最近回复 ${fmtTs(t.lastReplyTs)}` : '暂无回复'}</span>
+                              {unread > 0 && <span className="font-black text-[#F4A261]">有新回复，点开查看</span>}
+                            </div>
+                          </div>
+                          <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-[#555]" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+            <>
+            {/* 新动态提示条：有未读回复 / 收藏更新时置顶显示，点「查看」直接进对应列表 */}
+            {(totalUnreadReply > 0 || totalUnreadFav > 0) && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-[#3A3A3A] bg-[#F4A261]/12 px-4 py-2 text-xs font-bold text-[#F4A261]">
+                <Star className="h-3.5 w-3.5" fill="currentColor" />
+                <span>
+                  {totalUnreadReply > 0 && `有 ${totalUnreadReply} 条新回复`}
+                  {totalUnreadReply > 0 && totalUnreadFav > 0 && ' · '}
+                  {totalUnreadFav > 0 && `${totalUnreadFav} 个收藏主题有新动态`}
+                </span>
+                <button type="button" onClick={() => openMine(totalUnreadReply > 0 ? 'reply' : 'fav')} className="underline hover:no-underline">查看</button>
+              </div>
+            )}
 
             {/* 首排：热度最高主题（无热门标签） */}
             {featured.length > 0 && (
@@ -487,6 +640,8 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                 {rest.map((t) => <TopicCard key={t.id} t={t} />)}
               </div>
             </div>
+            </>
+            )}
           </>
         ) : (
           <>
@@ -497,6 +652,10 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                 {openTopic.isPinned && <span className="bg-[#D62828] px-2 py-0.5 text-[11px] font-black text-white">置顶</span>}
                 <span className="bg-[#8BC34A] px-2 py-0.5 text-[11px] font-black text-[#1B2B0B]">{openTopic.rule || '综合'}</span>
                 <h3 className="text-lg font-black leading-snug text-white">{openTopic.title}</h3>
+                <button type="button" aria-label={`${favorites[openTopic.id] ? '取消收藏' : '收藏'} ${openTopic.title}`} title={favorites[openTopic.id] ? '取消收藏' : '收藏主题'} onClick={() => void toggleFav(openTopic)}
+                  className={`ml-1 flex items-center gap-1 border-2 px-2 py-0.5 text-xs font-black transition-colors ${favorites[openTopic.id] ? 'border-[#E9C46A] bg-[#E9C46A] text-[#2A2205]' : 'border-[#555] text-[#C9C9C9] hover:border-[#E9C46A] hover:text-[#E9C46A]'}`}>
+                  <Star className="h-3.5 w-3.5" fill={favorites[openTopic.id] ? 'currentColor' : 'none'} />{openTopic.favCount || 0}
+                </button>
                 <button type="button" aria-label={`点赞 ${openTopic.title}`} onClick={() => void toggleLike(openTopic)}
                   className={`ml-1 flex items-center gap-1 border-2 px-2 py-0.5 text-xs font-black transition-colors ${likedTopics[openTopic.id] ? 'border-[#8BC34A] bg-[#8BC34A] text-[#1B2B0B]' : 'border-[#555] text-[#C9C9C9] hover:border-[#8BC34A] hover:text-[#8BC34A]'}`}>
                   <ThumbsUp className="h-3.5 w-3.5" />{openTopic.likes}

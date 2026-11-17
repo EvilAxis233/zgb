@@ -165,6 +165,10 @@ async function roundtableSnapshot(db, withApplies = false) {
   const res = await db.batch(stmts);
   const ch = res[0].results, tp = res[1].results, rp = res[2].results;
   const ap = withApplies ? res[3].results : [];
+  // 收藏数：单独查询并容错，迁移未应用时退化为 0，不影响整页加载。
+  let favRows = [];
+  try { favRows = (await db.prepare("SELECT topic_id, COUNT(*) c FROM roundtable_follows WHERE kind='fav' GROUP BY topic_id").all()).results || []; } catch { favRows = []; }
+  const favCount = new Map(favRows.map((r) => [r.topic_id, Number(r.c || 0)]));
   const byTopic = new Map();
   for (const r of rp) {
     const dto = rtReplyDto(r);
@@ -187,6 +191,7 @@ async function roundtableSnapshot(db, withApplies = false) {
     createdTs: rtTs(t.created_at), lastReplyTs: rtTs(t.last_reply_at || t.created_at),
     tags: parseTags(t.tags), resources: rtResources(t.resources), views: Number(t.views || 0), likes: Number(t.likes || 0),
     isPinned: !!t.is_pinned, origin: t.origin || '', ruleVersion: t.rule_version || '',
+    favCount: favCount.get(t.id) || 0,
     replies: tree(t.id),
   }));
   const channels = ch.map((r) => ({ id: r.id, label: r.name }));
@@ -1299,6 +1304,53 @@ export async function onRequest(context) {
     let user = await auth(request, db);
     // === GM圆桌·公开读取 ===
     if (path[0] === 'roundtable' && path.length === 1 && method === 'GET') return json(await roundtableSnapshot(db, false));
+    // 我的圆桌：收藏列表 / 我参与过讨论的主题 / 新回复与收藏更新未读数（未登录返回空结构）
+    if (path[0] === 'roundtable' && path[1] === 'mine' && path.length === 2 && method === 'GET') {
+      if (!user) return json({ favorites: [], follows: [], unreadReply: {}, unreadFav: {} });
+      const qq = String(user.qq);
+      let rows = [];
+      try { rows = (await db.prepare('SELECT topic_id, kind, last_seen_at FROM roundtable_follows WHERE user_qq=?').bind(qq).all()).results || []; } catch { rows = []; }
+      const favorites = rows.filter((r) => r.kind === 'fav').map((r) => r.topic_id);
+      const follows = rows.filter((r) => r.kind === 'reply').map((r) => r.topic_id);
+      const seen = new Map(rows.map((r) => [`${r.kind}:${r.topic_id}`, rtTs(r.last_seen_at)]));
+      // 我发过的回复 -> 用于判断「有人回复了我」
+      const myReplies = (await db.prepare('SELECT id, topic_id FROM roundtable_replies WHERE user_qq=?').bind(qq).all()).results || [];
+      const myReplyTopic = new Map(myReplies.map((r) => [r.id, r.topic_id]));
+      // 别人的回复（含旧数据 user_qq 为空的行）
+      const others = (await db.prepare("SELECT parent_id, topic_id, created_at FROM roundtable_replies WHERE user_qq<>?").bind(qq).all()).results || [];
+      const unreadFav = {}, unreadReply = {};
+      const favSet = new Set(favorites), followSet = new Set(follows);
+      for (const o of others) {
+        if (!o.topic_id) continue;
+        const ts = rtTs(o.created_at);
+        if (favSet.has(o.topic_id) && ts > (seen.get(`fav:${o.topic_id}`) || 0)) unreadFav[o.topic_id] = (unreadFav[o.topic_id] || 0) + 1;
+        if (o.parent_id && myReplyTopic.has(o.parent_id)) {
+          const tid = myReplyTopic.get(o.parent_id);
+          if (followSet.has(tid) && ts > (seen.get(`reply:${tid}`) || 0)) unreadReply[tid] = (unreadReply[tid] || 0) + 1;
+        }
+      }
+      return json({ favorites, follows, unreadReply, unreadFav });
+    }
+    // 收藏 / 取消收藏主题
+    if (path[0] === 'roundtable' && path[1] === 'topic' && path[2] && path[3] === 'fav' && path.length === 4 && method === 'POST') {
+      if (!user) return fail('请先登录', 401);
+      const on = (await body(request)).on !== false;
+      const qq = String(user.qq), ts = nowHK();
+      if (on) {
+        await db.prepare("INSERT INTO roundtable_follows(user_qq,topic_id,kind,last_seen_at,created_at) VALUES(?,?,'fav',?,?) ON CONFLICT(user_qq,topic_id,kind) DO NOTHING")
+          .bind(qq, path[2], ts, ts).run();
+      } else {
+        await db.prepare("DELETE FROM roundtable_follows WHERE user_qq=? AND topic_id=? AND kind='fav'").bind(qq, path[2]).run();
+      }
+      const row = await db.prepare("SELECT COUNT(*) c FROM roundtable_follows WHERE topic_id=? AND kind='fav'").bind(path[2]).first();
+      return json({ ok: true, favCount: Number(row?.c || 0) });
+    }
+    // 打开主题时标记已读，清掉「我的回复 / 我的收藏」的更新提醒
+    if (path[0] === 'roundtable' && path[1] === 'topic' && path[2] && path[3] === 'seen' && path.length === 4 && method === 'POST') {
+      if (!user) return json({ ok: true });
+      await db.prepare('UPDATE roundtable_follows SET last_seen_at=? WHERE user_qq=? AND topic_id=?').bind(nowHK(), String(user.qq), path[2]).run();
+      return json({ ok: true });
+    }
     // 申请开主题：写入申请，等后台审核；目标规则页可新建。
     if (path[0] === 'roundtable' && path[1] === 'apply' && path.length === 2 && method === 'POST') {
       const b = await body(request);
@@ -1340,6 +1392,9 @@ export async function onRequest(context) {
         db.prepare('INSERT INTO roundtable_replies(id,topic_id,parent_id,user_qq,author,avatar_key,nameplate,content,images,likes,created_at) VALUES(?,?,?,?,?,?,?,?,?,0,?)')
           .bind(id(), path[2], parentId, String(user.qq), String(user.name).slice(0, 40), user.avatar_key || '', user.nameplate || '', content, JSON.stringify(images), ts),
         db.prepare('UPDATE roundtable_topics SET last_reply_at=? WHERE id=?').bind(ts, path[2]),
+        // 发过回复即进「我的回复」，并把自己这次的发言视为已读
+        db.prepare("INSERT INTO roundtable_follows(user_qq,topic_id,kind,last_seen_at,created_at) VALUES(?,?,'reply',?,?) ON CONFLICT(user_qq,topic_id,kind) DO UPDATE SET last_seen_at=excluded.last_seen_at")
+          .bind(String(user.qq), path[2], ts, ts),
       ]);
       return json({ ok: true });
     }
