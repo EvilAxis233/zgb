@@ -236,6 +236,18 @@ html:not([data-theme="dark"]) .gm-roundtable button[class*="bg-[#D62828]"],
 html:not([data-theme="dark"]) .gm-roundtable span[class*="bg-[#D62828]"],
 html:not([data-theme="dark"]) .gm-roundtable span[class*="bg-[#8BC34A]"] { color: #FFFFFF !important; }
 
+/* 表单/爱心资源检索区（RoundtableTopicForm）新增色值的日间换算：深色分支的深底、灰边框、浅字
+   在日间统一翻成白底 / 硬黑边框 / 深字，保持包豪斯硬边观感 */
+html:not([data-theme="dark"]) .gm-roundtable [class~="bg-[#1B1B1D]"] { background-color: #FAF9F5 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="border-[#6B6B6B]"] { border-color: #121212 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#F1EEE6]"] { color: #121212 !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#B0B4BB]"] { color: #6B6B6B !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#A8ADB5]"] { color: #6B6B6B !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="text-[#9CD455]"] { color: #2F6B1A !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="placeholder:text-[#8E8E8E]"]::placeholder { color: #8A8A8A !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="hover:border-[#8BC34A]"]:hover { border-color: #2F6B1A !important; }
+html:not([data-theme="dark"]) .gm-roundtable [class~="hover:text-[#9CD455]"]:hover { color: #2F6B1A !important; }
+
 /* ===== ZGB_DARK_THEME_START ===== */
 /* 夜间模式：由右上角名字下拉里的单个按钮切换，<html data-theme="dark"> 生效。
    用 [class~="..."] 属性选择器匹配 Tailwind 任意值类名，避免 #/[] 的 CSS 转义。 */

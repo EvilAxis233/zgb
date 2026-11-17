@@ -46,15 +46,31 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
   const [resResults, setResResults] = useState<Array<{ id: string; name: string; url: string; type: string; category: string }>>([]);
   const [resSearched, setResSearched] = useState(false);
 
-  // 主题表单样式 token：前台深色 / 后台浅色。
+  // 主题表单样式 token：dark=前台 GM 圆桌（深色面板）/ light=后台（浅色面板）。
+  // 注意：夜间模式是全局反色规则，light 分支必须只用会被夜间映射的色值（bg-white / text-[#121212] /
+  // border-[#DDD] 等），否则会出现"浅底浅字"看不清。资源检索区单独给 resBox/resRow/resName 等令牌。
   const T = useMemo(() => dark ? {
-    input: 'border-[#555] bg-[#242426] text-white placeholder:text-[#777] focus:border-[#8BC34A]',
-    label: 'text-[#BDBDBD]', sub: 'text-[#9A9A9A]', chip: 'border-[#8BC34A] bg-[#343437] text-[#DCE8CF]',
-    primary: 'bg-[#8BC34A] text-[#1B2B0B] hover:bg-[#9CD455]', secondary: 'border-[#555] text-[#C9C9C9] hover:border-[#999]',
+    input: 'border-[#6B6B6B] bg-[#242426] text-[#F1EEE6] placeholder:text-[#8E8E8E] focus:border-[#8BC34A]',
+    label: 'text-[#C9C9C9]', sub: 'text-[#A8ADB5]', chip: 'border-[#8BC34A] bg-[#343437] text-[#DCE8CF]',
+    primary: 'bg-[#8BC34A] text-[#1B2B0B] hover:bg-[#9CD455]',
+    secondary: 'border-[#6B6B6B] bg-[#343437] text-[#E8E8E8] hover:border-[#8BC34A] hover:text-[#9CD455]',
+    resBox: 'border-[#6B6B6B] bg-[#1B1B1D]',
+    resRow: 'border-[#3F3F41]',
+    resName: 'text-[#F1EEE6]',
+    resMeta: 'text-[#B0B4BB]',
+    resAdd: 'text-[#9CD455] hover:bg-[#343437] hover:underline',
+    resAdded: 'text-[#8A8A8A]',
   } : {
     input: 'border-[#121212] bg-white text-[#121212] placeholder:text-[#999] focus:border-[#004E98]',
     label: 'text-[#444]', sub: 'text-[#777]', chip: 'border-[#176B57] bg-[#EAF5F1] text-[#176B57]',
-    primary: 'bg-[#176B57] text-white hover:opacity-90', secondary: 'bg-white text-[#121212] hover:opacity-80',
+    primary: 'bg-[#176B57] text-white hover:opacity-90',
+    secondary: 'border-[#121212] bg-white text-[#121212] hover:bg-[#FAF9F5]',
+    resBox: 'border-[#121212] bg-white',
+    resRow: 'border-[#DDD]',
+    resName: 'text-[#121212]',
+    resMeta: 'text-[#666]',
+    resAdd: 'text-[#004E98] hover:bg-[#EAF3FB] hover:underline',
+    resAdded: 'text-[#888]',
   }, [dark]);
 
   const addTag = useCallback(() => {
@@ -170,17 +186,17 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
           <button type="button" onClick={() => void searchResources()} className={`flex items-center gap-1 border-2 px-3 text-sm font-bold ${T.secondary}`}><Search size={14} />检索</button>
         </div>
         {resSearched && (
-          <div className={`mt-2 max-h-32 overflow-auto border-2 ${dark ? 'border-[#555] bg-[#242426]' : 'border-[#DDD] bg-[#FAFAFA]'}`}>
-            {resResults.length === 0 && <div className={`px-3 py-2 text-xs ${T.sub}`}>没有匹配的站内资源</div>}
+          <div className={`mt-2 max-h-32 overflow-auto border-2 ${T.resBox}`}>
+            {resResults.length === 0 && <div className={`px-3 py-2 text-xs font-bold ${T.resMeta}`}>没有匹配的站内资源</div>}
             {resResults.map((r) => {
               const added = value.resources.some((x) => x.id === r.id);
               return (
-                <div key={r.id} className={`flex items-center gap-2 border-b px-2 py-1.5 last:border-b-0 ${dark ? 'border-[#3A3A3A]' : 'border-[#EEE]'}`}>
-                  <Link2 size={13} className={T.sub} />
-                  <span className="min-w-0 flex-1 truncate text-xs font-bold">{r.name}</span>
-                  <span className={`text-[10px] ${T.sub}`}>{r.category}</span>
+                <div key={r.id} className={`flex items-center gap-2 border-b px-2 py-1.5 last:border-b-0 ${T.resRow}`}>
+                  <Link2 size={13} className={T.resMeta} />
+                  <span className={`min-w-0 flex-1 truncate text-xs font-bold ${T.resName}`}>{r.name}</span>
+                  <span className={`shrink-0 text-[10px] font-bold ${T.resMeta}`}>{r.category}</span>
                   <button type="button" disabled={added} onClick={() => addResource(r)}
-                    className={`flex items-center gap-1 text-[11px] font-bold ${added ? T.sub : 'text-[#004E98] hover:underline'}`}>
+                    className={`flex shrink-0 items-center gap-1 px-1.5 py-0.5 text-[11px] font-bold ${added ? T.resAdded : T.resAdd}`}>
                     {added ? '已引用' : <><Plus size={12} />引用</>}
                   </button>
                 </div>
