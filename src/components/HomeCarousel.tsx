@@ -91,9 +91,12 @@ const CampaignSlide: React.FC<{
         </div>
       </div>
 
-      {/* 简介摘要（唯一保留左对齐的内容），高度固定 3 行，卡片上下节奏一致 */}
+      {/* 简介摘要（唯一保留左对齐的内容）：容器高度严格等于 3 行（14px×22px=66px），
+          由 line-clamp-3 在第三行末尾打省略号，overflow-hidden 兜底，避免露出第四行半截 */}
       <div className="w-full flex-1 px-5 py-3 text-left">
-        <p className="line-clamp-3 min-h-[78px] text-sm leading-relaxed text-[#444]">{stripMarkdown(campaign.description) || '暂无简介'}</p>
+        <p className="line-clamp-3 h-[66px] overflow-hidden text-sm leading-[22px] text-[#444]">
+          {stripMarkdown(campaign.description) || '暂无简介'}
+        </p>
       </div>
 
       {/* 自定义标签 */}
