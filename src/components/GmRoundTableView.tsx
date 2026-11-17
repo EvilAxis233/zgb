@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft, Bold, BookOpen, ChevronDown, ChevronRight, Clock3, Eye, Flame, Heading2, ImagePlus, Italic,
   Link2, List, MessageSquare, Pencil, Plus, Quote, Search, Send, Star, ThumbsUp, X, Flag,
@@ -104,10 +105,14 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
       });
     };
 
+  // 提示条：固定浮在视口顶部，避免弹窗打开时提示被渲染在页面顶端而看不到。
+  const noticeTimer = useRef<number | null>(null);
   const flash = useCallback((msg: string) => {
     setNotice(msg);
-    window.setTimeout(() => setNotice(''), 2600);
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(''), 3200);
   }, []);
+  useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current); }, []);
 
   const load = useCallback(async (keepTopicId?: string) => {
     try {
@@ -520,8 +525,11 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   // 去掉热门标签：不在 featured 上透传 hot。
   return (
     <div className="gm-roundtable w-full">
-      {notice && (
-        <div className="mb-3 border-2 border-[#121212] bg-[#F4A261] px-4 py-2 text-center text-sm font-black text-[#121212] shadow-[3px_3px_0px_#121212]">{notice}</div>
+      {notice && createPortal(
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-center px-3" role="alert" aria-live="assertive">
+          <div className="pointer-events-auto max-w-md cursor-pointer border-2 border-[#121212] bg-[#F4A261] px-4 py-2.5 text-center text-sm font-black leading-relaxed text-[#121212] shadow-[4px_4px_0px_#121212]" onClick={() => setNotice('')}>{notice}</div>
+        </div>,
+        document.body,
       )}
 
       <div className="overflow-hidden border-2 border-[#3A3A3A] bg-[#2B2B2D] text-[#E8E8E8] shadow-[6px_6px_0px_#121212]">
@@ -754,13 +762,15 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
 
       {/* 申请主题弹窗：与后台新建共用同一表单 */}
       {applyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setApplyOpen(false)}>
-          <div className="w-full max-w-lg border-2 border-[#3A3A3A] bg-[#2B2B2D] p-5 text-[#E8E8E8] shadow-[6px_6px_0px_#121212]" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">申请主题</h3>
-              <button type="button" aria-label="关闭" onClick={() => setApplyOpen(false)} className="text-[#9A9A9A] hover:text-white"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4" onClick={() => setApplyOpen(false)}>
+          <div className="mx-auto flex min-h-full items-center justify-center">
+            <div className="my-2 w-full max-w-lg border-2 border-[#3A3A3A] bg-[#2B2B2D] p-5 text-[#E8E8E8] shadow-[6px_6px_0px_#121212]" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-black text-white">申请主题</h3>
+                <button type="button" aria-label="关闭" onClick={() => setApplyOpen(false)} className="text-[#9A9A9A] hover:text-white"><X className="h-5 w-5" /></button>
+              </div>
+              <RoundtableTopicForm channels={channels} dark submitLabel="提交申请" flash={flash} onSave={submitApply} onCancel={() => setApplyOpen(false)} />
             </div>
-            <RoundtableTopicForm channels={channels} dark submitLabel="提交申请" flash={flash} onSave={submitApply} onCancel={() => setApplyOpen(false)} />
           </div>
         </div>
       )}
