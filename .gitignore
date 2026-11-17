@@ -17,6 +17,7 @@ dist-ssr
 .dev.vars*
 .wrangler/
 .tmp/
+previews/
 backups/
 *.pem
 membership-keys-*.txt

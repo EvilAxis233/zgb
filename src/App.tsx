@@ -37,6 +37,29 @@ interface ToastState {
 // 首页形态③轮播预览开关：true=横向卡片轮播，false=旧版通栏按钮。
 const PORTAL_CAROUSEL = true;
 
+type AppTab = 'board' | 'profile' | 'manage' | 'resources' | 'roundtable';
+type BoardView = 'portal' | 'online' | 'offline' | 'promo';
+
+// 地址栏 ?view= 与页面状态一一对应：刷新、复制链接、报名通知邮件里的按钮都落在同一页。
+// 首页（board + portal）不带参数，保持干净的 pigbee.fun/。
+const VIEW_STATE: Record<string, { tab: AppTab; board: BoardView }> = {
+  board: { tab: 'board', board: 'portal' },
+  online: { tab: 'board', board: 'online' },
+  offline: { tab: 'board', board: 'offline' },
+  promo: { tab: 'board', board: 'promo' },
+  profile: { tab: 'profile', board: 'portal' },
+  manage: { tab: 'manage', board: 'portal' },
+  resources: { tab: 'resources', board: 'portal' },
+  roundtable: { tab: 'roundtable', board: 'portal' },
+};
+
+const readUrlView = () => VIEW_STATE[new URLSearchParams(window.location.search).get('view') || 'board'] || VIEW_STATE.board;
+
+const viewKeyOf = (tab: AppTab, board: BoardView) => (tab === 'board' ? (board === 'portal' ? 'board' : board) : tab);
+
+// 刷新前的滚动位置按板块分别记在 sessionStorage 里，回到同一页时还原。
+const scrollKeyOf = (key: string) => `zgb:scroll:${key}`;
+
 export function App() {
   // Application Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -47,12 +70,9 @@ export function App() {
   const currentUserQq = users.find((u) => u.id === currentUserId)?.qq ?? null;
 
   // UI States
-  // 报名通知邮件里的按钮带 ?view=manage，点开直接落在团务管理。
-  const [activeTab, setActiveTab] = useState<'board' | 'profile' | 'manage' | 'resources' | 'roundtable'>(() => {
-    const view = new URLSearchParams(window.location.search).get('view');
-    return view === 'manage' ? 'manage' : view === 'resources' ? 'resources' : view === 'roundtable' ? 'roundtable' : 'board';
-  });
-  const [boardView, setBoardView] = useState<'portal' | 'online' | 'offline' | 'promo'>('portal');
+  // 报名通知邮件里的按钮带 ?view=manage，点开直接落在团务管理；其它板块同理，刷新也不会跳回首页。
+  const [activeTab, setActiveTab] = useState<AppTab>(() => readUrlView().tab);
+  const [boardView, setBoardView] = useState<BoardView>(() => readUrlView().board);
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
@@ -76,6 +96,62 @@ export function App() {
   const endingPromoIdsRef = useRef<Set<string>>(new Set());
   // 浏览统计：记录上次上报时间，整页加载与切换主板块各记一次，30 秒内不重复。
   const viewTrackedAtRef = useRef(0);
+
+  // 状态 → 地址栏：切换板块 / 大厅时同步 ?view=。用 replaceState 不污染历史记录，
+  // 刷新、复制链接、重新打开都能回到当前这一页。
+  const viewKey = viewKeyOf(activeTab, boardView);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (viewKey === 'board') url.searchParams.delete('view');
+    else url.searchParams.set('view', viewKey);
+    const next = url.toString();
+    if (next !== window.location.href) window.history.replaceState({ view: viewKey }, '', next);
+  }, [viewKey]);
+
+  // 地址栏 → 状态：浏览器前进 / 后退时跟着切页（只在参数真的变化时触发，避免和上一条互相打架）。
+  useEffect(() => {
+    const onPop = () => {
+      const v = readUrlView();
+      setActiveTab(v.tab);
+      setBoardView(v.board);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // 离开页面（刷新 / 关标签）前记下当前滚动位置，按板块分开存，互不干扰。
+  const viewKeyRef = useRef(viewKey);
+  viewKeyRef.current = viewKey;
+  useEffect(() => {
+    const save = () => {
+      try { window.sessionStorage.setItem(scrollKeyOf(viewKeyRef.current), String(Math.round(window.scrollY))); } catch { /* 隐私模式下忽略 */ }
+    };
+    window.addEventListener('pagehide', save);
+    window.addEventListener('beforeunload', save);
+    const onHide = () => { if (document.visibilityState === 'hidden') save(); };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', save);
+      window.removeEventListener('beforeunload', save);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, []);
+
+  // 数据到齐后再还原滚动位置：提前还原会因内容高度不够被浏览器夹回顶部。
+  const initialViewKeyRef = useRef(viewKey);
+  const scrollRestoredRef = useRef(false);
+  useEffect(() => {
+    if (loading || scrollRestoredRef.current) return;
+    scrollRestoredRef.current = true;
+    let y = 0;
+    try { y = Number(window.sessionStorage.getItem(scrollKeyOf(initialViewKeyRef.current)) || 0); } catch { /* ignore */ }
+    if (!Number.isFinite(y) || y < 60) return;
+    const jump = () => window.scrollTo(0, y);
+    requestAnimationFrame(jump);
+    const t1 = window.setTimeout(jump, 200);
+    const t2 = window.setTimeout(jump, 520);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, [loading]);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
