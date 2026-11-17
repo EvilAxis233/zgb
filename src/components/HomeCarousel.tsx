@@ -50,7 +50,7 @@ const CampaignSlide: React.FC<{
     <button
       type="button"
       onClick={() => onOpen(campaign)}
-      className="hc-slide w-full text-center bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col items-stretch"
+      className="hc-slide w-full text-center bg-white border-2 border-[#121212] shadow-[5px_5px_0px_#121212] hover:shadow-[8px_8px_0px_#121212] hover:-translate-y-0.5 active:translate-y-0.5 transition-all cursor-pointer overflow-hidden flex flex-col items-stretch"
     >
       {/* 封面大图：固定比例区域，图片正常比例居中裁切铺满；加载失败回退几何占位图 */}
       <div className="relative w-full h-[230px] sm:h-[270px] lg:h-[300px] shrink-0 overflow-hidden border-b-2 border-[#121212] bg-[#F2F0E8]">
@@ -159,15 +159,32 @@ const CarouselLane: React.FC<{
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
+  // 单页宽度：优先取首张卡片的实际宽度（含 translate 也不影响宽度），退化时用容器宽。
+  const pageWidth = () => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const first = el.firstElementChild as HTMLElement | null;
+    const w = first ? first.getBoundingClientRect().width : el.clientWidth;
+    return w > 0 ? w : el.clientWidth;
+  };
+
+  // 手动翻页：支持首尾循环（与自动轮播一致），末页点「下一页」回第 1 页，首页点「上一页」到末页。
   const step = (direction: number) => {
     const el = trackRef.current;
     if (!el) return;
-    el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
+    const w = pageWidth();
+    if (!w) return;
+    const total = slots.length;
+    const current = Math.round(el.scrollLeft / w);
+    const next = ((current + direction) % total + total) % total;
+    el.scrollTo({ left: next * w, behavior: 'smooth' });
   };
 
   const goTo = (index: number) => {
     const el = trackRef.current;
-    if (el) el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
+    if (!el) return;
+    const w = pageWidth();
+    if (w) el.scrollTo({ left: index * w, behavior: 'smooth' });
   };
 
   return (
@@ -249,7 +266,8 @@ export const HomeCarousel: React.FC<HomeCarouselProps> = ({
   return (
     <div className="flex w-full flex-col gap-6">
       <style>{`
-        .hc-lane-track { display:flex; gap:0; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:10px; align-items:stretch; height:100%; }
+        /* padding-top 给卡片 hover 上浮留出余量，避免 2px 边框被 overflow 裁掉；底部留白放投影 */
+        .hc-lane-track { display:flex; gap:0; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; scrollbar-width:none; padding:4px 0 10px; align-items:stretch; height:100%; }
         .hc-lane-track::-webkit-scrollbar { display:none; }
         .hc-slide { flex:0 0 100%; scroll-snap-align:start; min-width:0; min-height:520px; }
       `}</style>
