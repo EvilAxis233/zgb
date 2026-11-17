@@ -112,7 +112,7 @@ export interface RoundtableReply {
   time: string; editedAt?: string; content: string; likes: number; images?: string[]; children?: RoundtableReply[];
   userQq?: string;
 }
-export type RoundtableOrigin = '' | '官方' | '第三方' | '国内原创';
+export type RoundtableOrigin = '' | '官方' | '第三方授权' | '民间创作';
 export interface RoundtableTopic {
   id: string; channelId: string; rule: string; title: string;
   time: string; createdTs: number; lastReplyTs: number;

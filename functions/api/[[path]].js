@@ -138,6 +138,8 @@ const rtReplyDto = (r) => ({
   content: r.content || '', likes: Number(r.likes || 0), images: parseTags(r.images), children: [],
 });
 const rtValidateTags = (v) => Array.isArray(v) ? [...new Set(v.map((t) => clean(t, 24)).filter(Boolean))].slice(0, 6) : [];
+// 主题必选来源标签（旧数据「第三方 / 国内原创」由迁移 0044 归一为新文案）
+const RT_ORIGINS = ['官方', '第三方授权', '民间创作'];
 // 每个规则页自动补建一个置顶「规则讨论」主题：新建规则页即时创建，已有规则页缺失时读取时补建。
 async function ensurePinnedTopics(db) {
   const chans = (await db.prepare('SELECT id,name FROM roundtable_channels ORDER BY sort_order ASC, created_at ASC').all()).results || [];
@@ -1181,7 +1183,7 @@ export async function onRequest(context) {
       if (path[1] === 'roundtable' && path[2] === 'topic' && path.length === 3 && method === 'POST') {
         const b = await body(request);
         const channelId = clean(b.channelId, 80), title = clean(b.title, 160), rule = clean(b.rule, 40);
-        const origin = ['官方', '第三方', '国内原创'].includes(b.origin) ? b.origin : '';
+        const origin = RT_ORIGINS.includes(b.origin) ? b.origin : '';
         const ruleVersion = clean(b.ruleVersion, 60);
         if (!channelId || !title) return fail('请选择规则页并填写主题名称');
         if (!await db.prepare('SELECT id FROM roundtable_channels WHERE id=?').bind(channelId).first()) return fail('规则页不存在');
@@ -1199,7 +1201,7 @@ export async function onRequest(context) {
         const rule = b.rule !== undefined ? clean(b.rule, 40) : cur.rule;
         const tags = b.tags !== undefined ? JSON.stringify(rtValidateTags(b.tags)) : cur.tags;
         const resources = b.resources !== undefined ? JSON.stringify(rtResources(b.resources)) : cur.resources;
-        const origin = b.origin !== undefined ? (['官方', '第三方', '国内原创'].includes(b.origin) ? b.origin : '') : (cur.origin || '');
+        const origin = b.origin !== undefined ? (RT_ORIGINS.includes(b.origin) ? b.origin : '') : (cur.origin || '');
         const ruleVersion = b.ruleVersion !== undefined ? clean(b.ruleVersion, 60) : (cur.rule_version || '');
         if (!title) return fail('主题名称不能为空');
         if (!await db.prepare('SELECT id FROM roundtable_channels WHERE id=?').bind(channelId).first()) return fail('规则页不存在');
@@ -1364,7 +1366,7 @@ export async function onRequest(context) {
       const name = clean(b.name, 60), rule = clean(b.rule, 40);
       const tags = rtValidateTags(b.tags);
       const resources = JSON.stringify(rtResources(b.resources));
-      const origin = ['官方', '第三方', '国内原创'].includes(b.origin) ? b.origin : '';
+      const origin = RT_ORIGINS.includes(b.origin) ? b.origin : '';
       const ruleVersion = clean(b.ruleVersion, 60);
       if (!name) return fail('请填写主题名称');
       // tag 非必填（站长要求取消至少 1 个的限制）

@@ -17,7 +17,7 @@ export interface TopicFormValue {
   ruleVersion: string;
 }
 
-export const ORIGIN_OPTIONS: RoundtableOrigin[] = ['官方', '第三方', '国内原创'];
+export const ORIGIN_OPTIONS: RoundtableOrigin[] = ['官方', '第三方授权', '民间创作'];
 
 export const emptyTopicForm = (): TopicFormValue => ({
   name: '', channelId: '', newChannelName: '', tags: [], resources: [], origin: '', ruleVersion: '',
@@ -103,7 +103,7 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
     if (!value.channelId) { flash('请选择主题放置的规则分页'); return; }
     if (value.channelId === '__new__' && !value.newChannelName.trim()) { flash('请填写新建规则分页名称'); return; }
     // tag 非必填：允许留空，编辑时可把已有 tag 全部删掉
-    if (!value.origin) { flash('请选择模组来源（官方 / 第三方 / 国内原创）'); return; }
+    if (!value.origin) { flash('请选择模组来源（官方 / 第三方授权 / 民间创作）'); return; }
     onSave({
       ...value,
       name: value.name.trim(),
