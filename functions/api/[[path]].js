@@ -1308,7 +1308,7 @@ export async function onRequest(context) {
       const origin = ['官方', '第三方', '国内原创'].includes(b.origin) ? b.origin : '';
       const ruleVersion = clean(b.ruleVersion, 60);
       if (!name) return fail('请填写主题名称');
-      if (!tags.length) return fail('请至少填写 1 个 tag');
+      // tag 非必填（站长要求取消至少 1 个的限制）
       if (!origin) return fail('请选择主题来源');
       let channelId = clean(b.channelId, 80);
       if (b.createNew) {

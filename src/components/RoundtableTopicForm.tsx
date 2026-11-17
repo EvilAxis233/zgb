@@ -102,7 +102,7 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
     if (!value.name.trim()) { flash('请填写主题名称'); return; }
     if (!value.channelId) { flash('请选择主题放置的规则分页'); return; }
     if (value.channelId === '__new__' && !value.newChannelName.trim()) { flash('请填写新建规则分页名称'); return; }
-    if (value.tags.length === 0) { flash('请至少填写 1 个 tag'); return; }
+    // tag 非必填：允许留空，编辑时可把已有 tag 全部删掉
     if (!value.origin) { flash('请选择模组来源（官方 / 第三方 / 国内原创）'); return; }
     onSave({
       ...value,
@@ -159,7 +159,7 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
 
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <label className={`text-xs font-bold ${T.label}`}>模组风格 tag（最多 6 个，每个 ≤ 6 中文字符）</label>
+          <label className={`text-xs font-bold ${T.label}`}>模组风格 tag（可选，最多 6 个，每个 ≤ 6 中文字符）</label>
           <span className={`text-[11px] ${T.sub}`}>{value.tags.length}/6</span>
         </div>
         <div className="mb-2 flex flex-wrap gap-1.5">
