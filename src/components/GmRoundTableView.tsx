@@ -431,7 +431,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#3A3A3A] bg-[#242426] px-4 py-3">
           <BookOpen className="h-5 w-5 shrink-0 text-[#8BC34A]" />
           <h2 className="text-lg font-black tracking-wide sm:text-xl">GM圆桌</h2>
-          <span className="border-l-2 border-[#8BC34A] pl-3 text-xs font-black leading-relaxed text-[#F4A261] sm:text-sm">仅限于GM的严肃会谈，玩家请谨慎踏入！诸诸研讨规则与模组相关内容，请遵守公序良俗。</span>
+          <span className="border-l-2 border-[#8BC34A] pl-3 text-xs font-black leading-relaxed text-[#F4A261] sm:text-sm">仅限于GM的严肃会谈，玩家请谨慎踏入！诸诸研讨规则与模组相关内容，分享带团经验和灵感，回复请遵守公序良俗。</span>
         </div>
 
         {loading ? (
