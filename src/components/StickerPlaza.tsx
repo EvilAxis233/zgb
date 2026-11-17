@@ -183,7 +183,7 @@ export function StickerPlaza({ isMember, library, onUserUpdate }: Props) {
               <section key={member.id} className="border-2 border-[#121212] bg-white">
                 <header className="flex items-center gap-2.5 border-b-2 border-[#121212] bg-[#FAF9F5] px-3 py-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden border-2 border-[#121212] bg-[#004E98] text-xs font-black text-white">
-                    {member.avatar ? <img src={member.avatar} alt="" className="h-full w-full object-cover" /> : member.name.slice(0, 1)}
+                    {member.avatar ? <img src={member.avatar} alt="" className="h-full w-full object-cover bg-white" /> : member.name.slice(0, 1)}
                   </span>
                   <strong className="truncate text-sm">{member.name}</strong>
                   <span className="ml-auto shrink-0 text-[11px] font-bold text-[#004E98]">{member.count} 张库存</span>

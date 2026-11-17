@@ -81,7 +81,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, onClick })
         {/* 第一行：头像 + ID + 会员铭牌，右侧为获赞徽章 */}
         <div className="flex items-center justify-between gap-3 pb-3">
           <div className="flex min-w-0 items-center gap-2 text-base font-black text-[#121212]">
-            <span className={`h-7 w-7 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white ${campaign.gmIsMember ? 'gilded-avatar' : 'border-2 border-[#121212] bg-[#D62828]'}`} aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#D62828]">{campaign.gmName.charAt(0)}</span>}</span>
+            <span className={`h-7 w-7 shrink-0 overflow-hidden flex items-center justify-center text-sm text-white ${campaign.gmIsMember ? 'gilded-avatar' : 'border-2 border-[#121212] bg-[#D62828]'}`} aria-hidden="true">{campaign.gmAvatar ? <img src={campaign.gmAvatar} alt="" className="h-full w-full object-cover bg-white" /> : <span className="flex h-full w-full items-center justify-center bg-[#D62828]">{campaign.gmName.charAt(0)}</span>}</span>
             <span className="truncate">{campaign.gmName}</span>
             {campaign.gmNameplate && <NameplateBadge nameplate={campaign.gmNameplate} className="shrink-0" />}
           </div>

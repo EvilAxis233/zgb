@@ -379,7 +379,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     <div key={r.id} className={nested ? 'bg-[#343437] px-3 py-2.5' : 'border-b border-[#3A3A3A] py-4'}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className={`shrink-0 overflow-hidden flex items-center justify-center border border-[#555] font-black text-white ${nested ? 'h-6 w-6 text-[10px]' : 'h-8 w-8 text-[11px]'}`} style={{ backgroundColor: r.avatarUrl ? undefined : r.color }}>
-          {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="h-full w-full object-cover" /> : r.avatar}
+          {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="h-full w-full object-cover bg-white" /> : r.avatar}
         </span>
         <span className="font-bold" style={{ color: r.color }}>{r.author}</span>
         {r.nameplate && <NameplateBadge nameplate={r.nameplate} />}

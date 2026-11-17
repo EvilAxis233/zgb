@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Minus, Move, Plus, RotateCcw, X } from 'lucide-react';
+import { flattenToWhite, whitenEdgeBlack } from '../utils/imageBackground';
 
 interface Props {
   file: File;
@@ -76,15 +77,15 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
     const drawnHeight = image.naturalHeight * scale;
     const position = clampOffset(offset, zoom);
     context.clearRect(0, 0, width, height);
-    // 缩小时图片四周会露出空白；先铺白底，否则导出 JPEG 时透明区域会变成黑块。
-    // 预览画布的背景同步变白，做到所见即所得；不缩小时保持原有行为（含透明 PNG）。
-    if (zoom < 1) {
-      context.fillStyle = '#FFFFFF';
-      context.fillRect(0, 0, width, height);
-    }
+    // 头像 / 封面最终编码成 JPEG，画布上的透明区域会被浏览器填成纯黑——这就是「上传透明 PNG 头像
+    // 却变成黑底」的原因。所以这两类一律先铺白底；贴纸存的是 PNG 要保留透明，只有缩小时才补白。
+    if (shape !== 'sticker' || zoom < 1) flattenToWhite(context, width, height);
     context.drawImage(image, (width - drawnWidth) / 2 + position.x, (height - drawnHeight) / 2 + position.y, drawnWidth, drawnHeight);
+    // 原图本身就是不透明的纯黑背景（常见于表情包导出的 PNG）：把与边缘连通的黑底刷成白色，
+    // 主体内部的黑色不受影响；研判没把握时（比如黑的是主体）会原样保留。
+    if (shape === 'avatar' && file.type === 'image/png') whitenEdgeBlack(context, width, height);
     if (shape === 'sticker') setStickerPreview(canvas.toDataURL('image/png'));
-  }, [image, zoom, offset, width, height, shape]);
+  }, [image, zoom, offset, width, height, shape, file]);
 
   const changeZoom = (nextPercent: number) => {
     const value = Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, Math.round(nextPercent)));
@@ -132,7 +133,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828]" aria-label="取消裁剪"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
-          <p className="flex items-start gap-2 text-xs text-[#555]"><Move className="mt-0.5 h-4 w-4 shrink-0 text-[#004E98]" /><span>{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪。' : ''}拖动图片调整取景位置；下方滑块 0% 为刚好铺满，往左到 -100% 可把整张图缩小完整显示（四周补白底），往右到 +300% 放大。{shape === 'sticker' ? '下面可预览发团后的实际效果。' : '也可聚焦图片后用方向键微调。'}</span></p>
+          <p className="flex items-start gap-2 text-xs text-[#555]"><Move className="mt-0.5 h-4 w-4 shrink-0 text-[#004E98]" /><span>{shape === 'sticker' ? '贴纸在发团卡片上独占整行、约 166×48（宽:高 3.5:1），这里按同样比例裁剪。' : ''}拖动图片调整取景位置；下方滑块 0% 为刚好铺满，往左到 -100% 可把整张图缩小完整显示（四周补白底），往右到 +300% 放大。{shape === 'avatar' ? 'PNG 的透明底或纯黑底会自动补成白色。' : ''}{shape === 'sticker' ? '下面可预览发团后的实际效果。' : '也可聚焦图片后用方向键微调。'}</span></p>
           <canvas
             ref={canvasRef}
             width={width}
@@ -141,7 +142,7 @@ export function ImageCropper({ file, shape, onClose, onConfirm }: Props) {
             role="img"
             aria-label="图片裁剪区域，可拖动或使用方向键调整位置"
             className={`block mx-auto max-w-full bg-[#EAE8E0] border-2 border-[#121212] cursor-grab active:cursor-grabbing select-none focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#004E98] ${shape === 'cover' ? 'w-full' : shape === 'sticker' ? 'w-full h-auto' : 'w-72'}`}
-            style={{ touchAction: 'none', ...(zoom < 1 ? { backgroundColor: '#FFFFFF' } : {}) }}
+            style={{ touchAction: 'none', ...(shape !== 'sticker' || zoom < 1 ? { backgroundColor: '#FFFFFF' } : {}) }}
             onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { x: event.clientX, y: event.clientY }; }}
             onPointerMove={(event) => {
               if (!dragRef.current) return;

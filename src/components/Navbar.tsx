@@ -262,7 +262,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <img
             src={currentUser.avatar}
             alt={currentUser.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover bg-white"
           />
         ) : (
           <span className="relative z-[1]">{(currentUser?.name || '?').charAt(0)}</span>
