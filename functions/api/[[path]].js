@@ -935,6 +935,16 @@ export async function onRequest(context) {
         ]);
         return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n, memberTotal: memberCount.results[0].n });
       }
+      // 账号详情里的带团 / 参团结团履历（与个人档案同源：只取已结团的网团与面团）。
+      if (path[1] === 'user-campaigns' && path.length === 2 && method === 'GET') {
+        const qq = clean(url.searchParams.get('qq'), 20);
+        if (!qqValid(qq)) return fail('QQ 号无效');
+        const [hosted, joined] = await db.batch([
+          db.prepare(`${campaignSelect} AND c.gm_qq=? AND c.finished_at IS NOT NULL AND c.kind IN ('online','offline') ORDER BY c.finished_at DESC`).bind(qq),
+          db.prepare(`${campaignSelect} AND c.finished_at IS NOT NULL AND c.kind IN ('online','offline') AND c.id IN (SELECT campaign_id FROM campaign_memberships WHERE user_qq=?) ORDER BY c.finished_at DESC`).bind(qq)
+        ]);
+        return json({ hosted: hosted.results.map((c) => campDto(c, false, false)), joined: joined.results.map((c) => campDto(c, false, false)) });
+      }
       if (path[1] === 'users' && path[2] && path[3] === 'blacklist' && path.length === 4) {
         const qq = path[2];
         if (!qqValid(qq)) return fail('QQ 号无效');

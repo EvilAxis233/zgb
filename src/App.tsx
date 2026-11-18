@@ -60,6 +60,11 @@ const viewKeyOf = (tab: AppTab, board: BoardView) => (tab === 'board' ? (board =
 // 刷新前的滚动位置按板块分别记在 sessionStorage 里，回到同一页时还原。
 const scrollKeyOf = (key: string) => `zgb:scroll:${key}`;
 
+// 宣群每日随机的日期种子键，统一用香港时区（与站点受众一致）的当天日期。
+const hkDayKey = () => new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
+
 export function App() {
   // Application Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -96,6 +101,20 @@ export function App() {
   const endingPromoIdsRef = useRef<Set<string>>(new Set());
   // 浏览统计：记录上次上报时间，整页加载与切换主板块各记一次，30 秒内不重复。
   const viewTrackedAtRef = useRef(0);
+  // 宣群每日随机用：当前香港日期。跨过零点（含页面长时间不刷新）自动更新，触发重新抽取。
+  const [promoDayKey, setPromoDayKey] = useState(hkDayKey);
+  useEffect(() => {
+    const check = () => setPromoDayKey((prev) => (prev === hkDayKey() ? prev : hkDayKey()));
+    const timer = window.setInterval(check, 60_000);
+    // 从后台切回前台时也立即核对一次，避免浏览器冻结计时器导致跨天没更新。
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
 
   // 团详情深链：?campaign=<团 id> 与弹窗一一对应，邀请同伴的链接就靠它落到同一条团。
   const setCampaignParam = (id: string | null) => {
@@ -631,10 +650,9 @@ export function App() {
       return [...newest, ...soonest];
     };
 
-    // 以当天日期为稳定种子，保证"每日随机、当日内固定"
-    const todayKey = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(new Date());
+    // 以当天日期为稳定种子，保证"每日随机、当日内固定"。
+    // 种子来自 promoDayKey state：跨零点会自动更新，因此页面不刷新也能在 0 点换一批。
+    const todayKey = promoDayKey;
     let seed = 2166136261;
     for (let i = 0; i < todayKey.length; i += 1) {
       seed ^= todayKey.charCodeAt(i);
@@ -657,7 +675,7 @@ export function App() {
       offline: pickRanked('offline'),
       promo: promoShuffled.slice(0, 5),
     };
-  }, [enrichedCampaigns]);
+  }, [enrichedCampaigns, promoDayKey]);
 
   // Derived user campaign records
   const myCampaigns = useMemo(() => {

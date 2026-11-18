@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Check, Search, Shield, ShieldBan, UserCog } from 'lucide-react';
 import { type AdminUser, type AdminUserSort, type MembershipGrant } from '../services/api';
+import type { Campaign } from '../types';
+import { CampaignHistoryPanel } from './CampaignHistoryPanel';
 import { useDialog } from './BauhausDialog';
 
 const USER_PAGE_SIZE = 100;
@@ -17,6 +19,7 @@ interface Props {
   grants: MembershipGrant[];
   grantTotal: number;
   grantOffset: number;
+  userCampaigns: { hosted: Campaign[]; joined: Campaign[] };
   searchInput: string;
   userOffset: number;
   userSort: AdminUserSort;
@@ -99,17 +102,16 @@ export function AdminUsersSection(props: Props) {
         </select>
       </label>
       <div className="space-y-1 max-h-[70vh] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-2.5 py-1.5 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}>
-        {/* 两行结构：昵称 + 被举报次数固定同排，QQ 与身份标签换到第二行，窄侧栏也不会把举报数挤掉 */}
-        <span className="flex items-center gap-2">
-          <strong className="min-w-0 flex-1 truncate text-xs font-black">{user.name}</strong>
-          <span title={`累计被举报 ${user.report_count} 次`} className={`shrink-0 border px-1 text-[11px] font-bold ${Number(user.report_count) > 0 ? 'border-[#B51F1F] bg-[#FAF0F0] text-[#B51F1F]' : 'border-[#CCC] bg-[#FAF9F5] text-[#777]'}`}>被举报 {user.report_count ?? 0}</span>
-        </span>
-        <span className="mt-1 flex flex-wrap items-center gap-1">
-          <span className="font-mono text-[11px] text-[#666]">{user.qq}</span>
-          {!!roleLabel(user) && <span className="text-[10px] font-bold text-[#004E98] border border-[#004E98] px-1">{roleLabel(user)}</span>}
-          {!!user.blacklisted && <span className="text-[10px] font-bold text-[#B51F1F] border border-[#B51F1F] px-1">黑名单</span>}
-          {isMember(user) && <span className="text-[10px] font-bold text-[#7A4B00] border border-[#C85C16] px-1">会员</span>}
-          <span className="ml-auto text-[10px] font-bold text-[#888]">带团 {user.hosted_count ?? 0}</span>
+        {/* 单行：昵称 + QQ + 身份标签靠左（与以前一样紧挨昵称），只有带团次数靠右 */}
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <strong className="min-w-0 truncate text-xs font-black">{user.name}</strong>
+            <span className="shrink-0 font-mono text-[11px] text-[#666]">{user.qq}</span>
+            {!!roleLabel(user) && <span className="shrink-0 text-[10px] font-bold text-[#004E98] border border-[#004E98] px-1">{roleLabel(user)}</span>}
+            {!!user.blacklisted && <span className="shrink-0 text-[10px] font-bold text-[#B51F1F] border border-[#B51F1F] px-1">黑名单</span>}
+            {isMember(user) && <span className="shrink-0 text-[10px] font-bold text-[#7A4B00] border border-[#C85C16] px-1">会员</span>}
+          </span>
+          <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]">带团 {user.hosted_count ?? 0}</span>
         </span>
       </button>)}</div>
       <Pager offset={props.userOffset} total={props.userTotal} onChange={props.setUserOffset} />
@@ -150,6 +152,14 @@ export function AdminUsersSection(props: Props) {
             <Pager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />
           </div>
         </section>
+
+        {/* 会员讯息下方：与个人档案完全同源的结团履历（可展开详情、年份筛选） */}
+        <CampaignHistoryPanel
+          hosted={props.userCampaigns.hosted}
+          joined={props.userCampaigns.joined}
+          gmHearts={selected.gm_hearts ?? 0}
+          playerHearts={selected.player_hearts ?? 0}
+        />
       </>}
     </section>
   </div>;

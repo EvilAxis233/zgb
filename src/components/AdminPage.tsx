@@ -9,6 +9,7 @@ import { AdminContentReviewSection } from './AdminContentReviewSection';
 import { AdminMembershipKeysSection } from './AdminMembershipKeysSection';
 import { number } from './AdminCommon';
 import { useDialog } from './BauhausDialog';
+import type { Campaign } from '../types';
 
 type AdminSection = 'dashboard' | 'content' | 'users' | 'keys' | 'support' | 'archive' | 'resources';
 const sections: Array<{ id: AdminSection; label: string; icon: typeof LayoutDashboard }> = [
@@ -178,6 +179,7 @@ export function AdminPage() {
   const [userSort, setUserSort] = useState<AdminUserSort>('latest');
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);
+  const [userCampaigns, setUserCampaigns] = useState<{ hosted: Campaign[]; joined: Campaign[] }>({ hosted: [], joined: [] });
   const [myRole, setMyRole] = useState<'owner' | 'admin' | null>(null);
   // 客服系统红点：三个板块任一有新内容即亮起，点开看过之后清零。
   const [notices, setNotices] = useState<AdminNotices>({ feedback: 0, report: 0, chat: 0, chatUnread: 0, resource: 0, roundtable: 0 });
@@ -221,6 +223,7 @@ export function AdminPage() {
   useEffect(() => { if (authenticated && activeSection === 'content') { loadRules().catch(message); adminApi.afdianSettings().then((data) => setAfdianUrl(data.afdianUrl)).catch(message); } }, [authenticated, activeSection]);
   useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset, userSort).then(applyUsers).catch(message); }, [authenticated, activeSection, search, userOffset, userSort]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.grants(selected.qq, grantOffset).then((data) => { setGrants(data.records); setGrantTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, grantOffset]);
+  useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.userCampaigns(selected.qq).then(setUserCampaigns).catch(() => setUserCampaigns({ hosted: [], joined: [] })); }, [authenticated, activeSection, selected?.qq]);
 
   const logout = async () => { try { await adminApi.logout(); setAuthenticated(false); setDashboard(null); setSelected(null); } catch (error) { message(error); } };
   const addRule = async (event: FormEvent) => { event.preventDefault(); setBusy(true); try { await adminApi.addRule(newRule.trim()); setNewRule(''); await loadRules(); setNotice('规则已添加'); } catch (error) { message(error); } finally { setBusy(false); } };
@@ -275,7 +278,7 @@ export function AdminPage() {
     {authenticated && <><nav aria-label="后台功能" className={`grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0 ${activeSection === 'dashboard' ? 'mb-2' : 'mb-6'}`}>{sections.map((item) => { const Icon = item.icon; const dot = item.id === 'support' ? noticeTotal : item.id === 'resources' ? reviewTotal : 0; const dotLabel = item.id === 'support' ? `客服系统有 ${noticeTotal} 条新内容` : `有 ${notices.resource} 条资源待审核、${notices.roundtable} 条圆桌主题申请待处理`; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn relative px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}{dot > 0 && <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#D62828] border-2 border-white rounded-full" title={dotLabel} aria-label={dotLabel} />}</button>; })}</nav><div className={`${activeSection === 'dashboard' ? 'mb-2' : 'mb-5'} flex items-center gap-2 shrink-0`}><span className="w-3 h-3 bg-[#D62828]" /><h2 className={activeSection === 'dashboard' ? 'text-lg font-black' : 'text-2xl font-black'}>{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <div className={fitDashboard ? 'lg:flex-1 lg:min-h-0' : ''}><Dashboard data={dashboard} loading={dashboardLoading} /></div>}
       {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} afdianUrl={afdianUrl} setNewRule={setNewRule} setAfdianUrl={setAfdianUrl} addRule={addRule} deleteRule={deleteRule} saveAfdian={saveAfdian} />}
-      {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} searchInput={searchInput} userOffset={userOffset} userSort={userSort} setUserSort={(next) => { setUserSort(next); setUserOffset(0); }} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
+      {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} userCampaigns={userCampaigns} searchInput={searchInput} userOffset={userOffset} userSort={userSort} setUserSort={(next) => { setUserSort(next); setUserOffset(0); }} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
       {activeSection === 'keys' && <AdminMembershipKeysSection onNotice={setNotice} onError={message} />}
       {activeSection === 'support' && <AdminSupportSection notices={notices} onSeen={(section) => setNotices((prev) => ({ ...prev, [section]: 0 }))} onNotice={setNotice} onError={message} />}
       {activeSection === 'archive' && <AdminArchivedSection onError={message} />}

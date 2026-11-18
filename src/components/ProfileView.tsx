@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { UserProfile, Campaign, CampaignDetail, CampaignMember, UserNameplate } from '../types';
-import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail, Heart, ThumbsUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { UserProfile, Campaign, UserNameplate } from '../types';
+import { Flame, Star, Edit3, Check, Upload, Crown, Tag, Sparkles, Mail, Heart } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
 import { useDialog } from './BauhausDialog';
 import { AccountSideActions } from './AccountSideActions';
@@ -13,6 +13,7 @@ import { api } from '../services/api';
 import { formatDisplayTime } from '../utils/date';
 import { MyResourcesModal } from './ResourceView';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
+import { CampaignHistoryPanel } from './CampaignHistoryPanel';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -78,12 +79,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [plazaOpen, setPlazaOpen] = useState(false);
   const [myResourcesOpen, setMyResourcesOpen] = useState(false);
   const [publicBusy, setPublicBusy] = useState(false);
-  // 档案收录卡：折叠态同封存团务，展开时按需拉详情拿成员名单；点赞后本地回写获赞数 + 回调刷新券数。
-  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
-  const [campaignDetails, setCampaignDetails] = useState<Record<string, CampaignDetail>>({});
-  const [detailLoading, setDetailLoading] = useState<string | null>(null);
-  const [praiseBusy, setPraiseBusy] = useState<string | null>(null);
-  const [praiseNotice, setPraiseNotice] = useState('');
   const [membershipNow, setMembershipNow] = useState(() => Date.now());
   const membershipActive = !!currentUser.membershipExpiresAt && currentUser.membershipExpiresAt * 1000 > membershipNow;
   const stickerMember = membershipActive || !!currentUser.membershipPermanent;
@@ -202,161 +197,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const removeTaboo = (tag: string) => {
     setTaboos(taboos.filter((t) => t !== tag));
-  };
-
-  // 展开收录卡时按需拉详情（含成员名单 / 获赞数），失败只提示不阻断其它卡。
-  const toggleCampaign = async (camp: Campaign) => {
-    const id = camp.id;
-    if (expandedCampaign === id) { setExpandedCampaign(null); return; }
-    setExpandedCampaign(id);
-    if (campaignDetails[id]) return;
-    setDetailLoading(id);
-    try {
-      const { campaign } = await api.campaign(id);
-      setCampaignDetails((prev) => ({ ...prev, [id]: campaign }));
-    } catch (error) {
-      setPraiseNotice(error instanceof Error ? error.message : '成员名单加载失败');
-    } finally {
-      setDetailLoading(null);
-    }
-  };
-
-  // 缩小版点赞按钮：仅已结团 + 自己是本团成员 + 非本人显示；点 GM 用红券，点玩家用蓝券。
-  // 与团详情一致为「切换」语义：已赞时显示黄色按钮，再点一次取消并返还券。GM 和玩家都不能给自己点赞。
-  const miniPraiseButton = (camp: CampaignDetail, member: CampaignMember) => {
-    if (member.id === currentUser.id || member.qq === currentUser.qq || !camp.hasEnded) return null;
-    const isGm = member.role === 'gm';
-    const heartName = isGm ? 'GM' : '玩家';
-    const busy = praiseBusy === member.id;
-    if (member.praisedByMe) {
-      return (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void handlePraise(camp, member)}
-          title={`已点赞，再点一次取消并返还 1 枚${heartName}点赞券`}
-          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center border border-[#121212] bg-[#F2C94C] text-[#121212] hover:opacity-90 ${busy ? 'opacity-60' : ''}`}
-        >
-          <ThumbsUp className="h-3 w-3 fill-current" />
-        </button>
-      );
-    }
-    const hasHeart = isGm
-      ? (currentUser.inventory?.gmHearts ?? 0) > 0
-      : (currentUser.inventory?.playerHearts ?? 0) > 0;
-    return (
-      <button
-        type="button"
-        disabled={!hasHeart || busy}
-        onClick={() => void handlePraise(camp, member)}
-        title={hasHeart ? `消耗 1 枚${heartName}点赞券` : '点赞券不足'}
-        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center border border-[#121212] ${hasHeart ? (isGm ? 'bg-[#D62828] text-white hover:opacity-90' : 'bg-[#004E98] text-white hover:opacity-90') : 'cursor-not-allowed bg-[#E5E5E0] text-[#999]'} ${busy ? 'opacity-60' : ''}`}
-      >
-        {isGm ? <Flame className="h-3 w-3 fill-current" /> : <Star className="h-3 w-3 fill-current" />}
-      </button>
-    );
-  };
-
-  const handlePraise = async (camp: CampaignDetail, member: CampaignMember) => {
-    if (praiseBusy) return;
-    // 双保险：即便界面状态异常，也不允许给自己点赞（后端同样拒绝）。
-    if (member.id === currentUser.id || member.qq === currentUser.qq) {
-      setPraiseNotice('不能给自己点赞');
-      return;
-    }
-    const type = member.role === 'gm' ? 'gm' : 'player';
-    setPraiseBusy(member.id);
-    setPraiseNotice('');
-    try {
-      const result = await api.praise(camp.id, member.id, type);
-      const liked = result.liked !== false;
-      // 获赞数与已赞状态直接回写本地详情，避免整页刷新打断档案浏览。
-      setCampaignDetails((prev) => {
-        const current = prev[camp.id];
-        if (!current) return prev;
-        return {
-          ...prev,
-          [camp.id]: {
-            ...current,
-            members: current.members.map((m) => m.id === member.id
-              ? { ...m, receivedPraises: Math.max(0, m.receivedPraises + (liked ? 1 : -1)), praisedByMe: liked }
-              : m),
-          },
-        };
-      });
-      // 券数由后端扣减/返还，回调 App 刷新当前用户资料让顶部券数同步。
-      const { user } = await api.me();
-      if (user) onUserUpdate(user);
-      setPraiseNotice(liked ? `已为 ${member.name} 点赞` : `已取消对 ${member.name} 的点赞，券已返还`);
-      window.setTimeout(() => setPraiseNotice(''), 2200);
-    } catch (error) {
-      setPraiseNotice(error instanceof Error ? error.message : '点赞失败');
-    } finally {
-      setPraiseBusy(null);
-    }
-  };
-
-  // 收录卡：仿后台封存团务的简略结构 —— 折叠态只留状态标签 + 结团日期 + 团名；
-  // 展开态为纯文字：规则 / GM / 开团时间 / 人数 / 联系方式 / 团简介 / 成员名单（无图片、无标签）。
-  const archivedCard = (camp: Campaign, hosted: boolean) => {
-    const open = expandedCampaign === camp.id;
-    const detail = campaignDetails[camp.id];
-    const date = camp.finishedAt || camp.createdAt;
-    const region = camp.province && camp.city && (camp.city.startsWith(camp.province) || camp.province.startsWith(camp.city))
-      ? camp.city : [camp.province, camp.city].filter(Boolean).join(' ');
-    const place = camp.kind === 'offline'
-      ? ([region, camp.address].filter(Boolean).join(' ') || '—')
-      : (camp.platforms?.length ? camp.platforms.join('、') : '—');
-    return (
-      <article key={camp.id} className="p-3 border-2 border-[#121212] hover:bg-[#F6F5F0] transition-colors">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="shrink-0 px-2 py-0.5 bg-[#FAE7E7] text-[#B51F1F] border-2 border-[#121212] text-[11px] font-black">已结团</span>
-          <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]">{date}</span>
-          <button type="button" onClick={() => void toggleCampaign(camp)} aria-expanded={open}
-            className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-black text-[#004E98] hover:text-[#D62828] cursor-pointer">
-            {open ? <>收起<ChevronUp size={12} /></> : <>详情<ChevronDown size={12} /></>}
-          </button>
-        </div>
-        <strong className="mt-1 block text-sm leading-snug break-words" title={camp.title}>{camp.title}</strong>
-        {open && <div className="mt-2 flex flex-col gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2 text-[11px] leading-snug text-[#444]">
-          <p className="truncate font-bold text-[#666]"><span className="text-[#121212]">{camp.rule}</span> · {camp.kind === 'offline' ? '面团' : '网团'}</p>
-          <p className="font-bold text-[#666]">GM {camp.gmName}{camp.gmQq && `（${camp.gmQq}）`}</p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-bold">
-            <span>{camp.timeSchedule}</span>
-            <span>{camp.currentPlayers}/{camp.maxPlayers} 人</span>
-            <span>{camp.kind === 'offline' ? '地址' : '平台'} {place}</span>
-          </div>
-          <div className="border-t border-dashed border-[#DDDDD5] pt-1.5">
-            <p className="font-black text-[#121212]">团简介</p>
-            <p className="mt-0.5 whitespace-pre-wrap break-words text-[#555]">{camp.description || '未填写团简介'}</p>
-          </div>
-          <div className="border-t border-dashed border-[#DDDDD5] pt-1.5">
-            <p className="font-black text-[#121212]">成员名单</p>
-            {detailLoading === camp.id ? (
-              <p className="mt-0.5 text-[#888]">正在读取成员名单…</p>
-            ) : detail ? (
-              <ul className="mt-1 space-y-1">
-                {detail.members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between gap-2 min-w-0">
-                    <span className="min-w-0 truncate">
-                      <span className={m.role === 'gm' ? 'font-black text-[#D62828]' : 'font-bold text-[#004E98]'}>{m.role === 'gm' ? 'GM' : '玩家'}</span>
-                      {' '}{m.name}
-                      {m.qq && <span className="ml-1 font-mono text-[#888]">（{m.qq}）</span>}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
-                      {m.id !== currentUser.id && miniPraiseButton(detail, m)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-0.5 text-[#888]">成员名单加载失败，点「收起」后再展开重试。</p>
-            )}
-          </div>
-        </div>}
-      </article>
-    );
   };
 
   return (
@@ -684,77 +524,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
 
-      {/* 点赞 / 详情加载的轻提示，2 秒后自动消失 */}
-      {praiseNotice && <div className="bauhaus-card px-4 py-2 bg-[#FFF9E6] border-2 border-[#C85C16] text-xs font-bold text-[#7A4B00]">{praiseNotice}</div>}
-
-      {/* Dual Column Records: GM History & Player History */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* GM History */}
-        <div className="bauhaus-card p-5 bg-white flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4 gap-2 flex-wrap sm:flex-nowrap">
-              <h2 className="text-base font-black text-[#121212] flex items-center gap-2">
-                <span className="w-3 h-3 bg-[#D62828]" />
-                带团履历 (共 {myCampaigns.length} 次)
-              </h2>
-              {/* 玩家点赞券（按站点要求与 GM 券展示位置互换） */}
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F0F5FB] border-2 border-[#004E98] shadow-[2px_2px_0px_#004E98]"
-                title="玩家点赞券：每日签到获得，可给玩家同伴点赞"
-              >
-                <Star className="w-4 h-4 text-[#004E98] fill-[#004E98]" />
-                <span className="font-bold text-xs text-[#121212]">玩家点赞券:</span>
-                <span className="font-black text-sm text-[#004E98] font-mono">
-                  {currentUser.inventory?.playerHearts ?? 0}
-                </span>
-              </div>
-            </div>
-
-            {myCampaigns.length === 0 ? (
-              <div className="py-8 text-center text-xs text-[#888888]">
-                暂无已结团的带团记录
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {myCampaigns.map((camp) => archivedCard(camp, true))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Player Participation History */}
-        <div className="bauhaus-card p-5 bg-white flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-4 gap-2 flex-wrap sm:flex-nowrap">
-              <h2 className="text-base font-black text-[#121212] flex items-center gap-2">
-                <span className="w-3 h-3 bg-[#004E98]" />
-                参团记录 (共 {myJoinedCampaigns.length} 次)
-              </h2>
-              {/* GM点赞券（按站点要求与玩家券展示位置互换） */}
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：累计签到每满7次，按当次身份得1张（会员3张）；会员期间断签不清零、身份变化不清零，普通用户断签重算。可在团详情给GM点赞"
-              >
-                <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
-                <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
-                <span className="font-black text-sm text-[#D62828] font-mono">
-                  {currentUser.inventory?.gmHearts ?? 0}
-                </span>
-              </div>
-            </div>
-
-            {myJoinedCampaigns.length === 0 ? (
-              <div className="py-8 text-center text-xs text-[#888888]">
-                暂无已结团的参团记录
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {myJoinedCampaigns.map((camp) => archivedCard(camp, false))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* 结团履历：与后台账号界面共用同一套样式与详情 */}
+      <CampaignHistoryPanel
+        hosted={myCampaigns}
+        joined={myJoinedCampaigns}
+        gmHearts={currentUser.inventory?.gmHearts ?? 0}
+        playerHearts={currentUser.inventory?.playerHearts ?? 0}
+        currentUser={currentUser}
+        onUserUpdate={onUserUpdate}
+      />
       {avatarToCrop && <ImageCropper file={avatarToCrop} shape="avatar" onClose={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); onUploadAvatar(file); }} />}
       {/* 页面一：我的贴纸。右上角按钮弹出独立的贴纸广场页面。 */}
       {stickerOpen && (
