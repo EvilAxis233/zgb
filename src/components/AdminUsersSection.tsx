@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Check, Search, Shield, ShieldBan, UserCog } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Search, Shield, ShieldBan, UserCog } from 'lucide-react';
 import { type AdminUser, type AdminUserSort, type MembershipGrant } from '../services/api';
 import type { Campaign } from '../types';
 import { CampaignHistoryPanel } from './CampaignHistoryPanel';
@@ -23,10 +23,12 @@ interface Props {
   searchInput: string;
   userOffset: number;
   userSort: AdminUserSort;
+  memberOnly: boolean;
   busy: boolean;
   canManageAdmins: boolean;
   setSearchInput: (value: string) => void;
   setUserSort: (sort: AdminUserSort) => void;
+  setMemberOnly: (value: boolean) => void;
   searchUsers: (event: FormEvent) => void;
   selectUser: (user: AdminUser) => void;
   setUserOffset: (offset: number) => void;
@@ -56,6 +58,7 @@ export function AdminUsersSection(props: Props) {
   const { showConfirm } = useDialog();
   const [duration, setDuration] = useState<typeof durations[number][0]>('7d');
   const [months, setMonths] = useState(1);
+  const [grantsOpen, setGrantsOpen] = useState(false);
   const selected = props.selected;
   // 会员状态直接贴在「会员」标题右侧，不再单独占一行。
   const membershipStatus = (() => {
@@ -91,8 +94,8 @@ export function AdminUsersSection(props: Props) {
     <section className="bauhaus-card p-5 bg-white">
       <div className="flex justify-between items-center border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">注册用户</h3><div className="flex items-center gap-1.5"><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">共 {props.userTotal} 个</span><span className="text-xs font-bold bg-[#C85C16] text-white px-2 py-1">会员 {props.memberTotal} 个</span></div></div>
       <form onSubmit={props.searchUsers} className="flex gap-2 mb-3"><input aria-label="搜索 QQ 号或昵称" value={props.searchInput} onChange={(e) => props.setSearchInput(e.target.value)} placeholder="输入 QQ 号后点搜索" className="bauhaus-input min-w-0 flex-1 px-3 py-2 text-sm" /><button className="bauhaus-btn bg-[#121212] text-white px-3" aria-label="搜索"><Search size={17} /></button></form>
-      {/* 排序：默认最新注册；点赞、带团与参团按次数降序 */}
-      <label className="mb-3 flex items-center gap-2 text-xs font-bold">
+      {/* 排序与「仅看会员」同一行：排序默认最新注册，点赞/带团/参团按次数降序 */}
+      <div className="mb-3 flex items-center gap-2 text-xs font-bold">
         <span className="shrink-0">排序</span>
         <select aria-label="账号排序方式" value={props.userSort} onChange={(event) => props.setUserSort(event.target.value as AdminUserSort)} className="bauhaus-input min-w-0 flex-1 px-2 py-1.5 text-xs font-bold">
           <option value="latest">最新注册（默认）</option>
@@ -101,7 +104,11 @@ export function AdminUsersSection(props: Props) {
           <option value="host">带团次数</option>
           <option value="joined">参团次数</option>
         </select>
-      </label>
+        <label className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-2 px-2 py-1.5 ${props.memberOnly ? 'border-[#C85C16] bg-[#FFF4DA] text-[#7A4B00]' : 'border-[#121212] bg-white text-[#444]'}`}>
+          <input type="checkbox" aria-label="仅看会员" checked={props.memberOnly} onChange={(event) => props.setMemberOnly(event.target.checked)} className="accent-[#C85C16]" />
+          仅会员
+        </label>
+      </div>
       <div className="space-y-1 max-h-[70vh] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-2.5 py-1.5 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}>
         {/* 单行：昵称 + QQ + 身份标签靠左（紧挨昵称），带团 / 参团次数靠右 */}
         <span className="flex items-center gap-1.5 whitespace-nowrap">
@@ -150,9 +157,14 @@ export function AdminUsersSection(props: Props) {
             </div>
           </div>
           <div className="border-t border-[#D8D6CC] mt-3 pt-3">
-            <p className="text-xs font-black mb-2">发放记录</p>
-            <div className="space-y-1.5 max-h-52 overflow-y-auto">{props.grants.map((record) => <div key={record.id} className="border border-[#121212] bg-white p-2 text-xs flex justify-between gap-2"><span><strong>{record.months} 个月</strong>（{record.days} 天） · 操作人 <span className="font-mono">{record.granted_by}</span></span><span className="text-[#666] shrink-0">{new Date(record.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}</span></div>)}{!props.grants.length && <p className="text-xs text-[#666]">暂无发放记录</p>}</div>
-            <Pager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />
+            <button type="button" aria-expanded={grantsOpen} onClick={() => setGrantsOpen((v) => !v)} className="w-full flex items-center justify-between text-xs font-black mb-2 hover:opacity-70">
+              <span>发放记录 <span className="font-normal text-[#888]">（共 {props.grantTotal} 条）</span></span>
+              <span className="flex items-center gap-1 text-[#666]">{grantsOpen ? '收起' : '展开'}{grantsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+            </button>
+            {grantsOpen && <>
+              <div className="space-y-1.5 max-h-52 overflow-y-auto">{props.grants.map((record) => <div key={record.id} className="border border-[#121212] bg-white p-2 text-xs flex justify-between gap-2"><span><strong>{record.months} 个月</strong>（{record.days} 天） · 操作人 <span className="font-mono">{record.granted_by}</span></span><span className="text-[#666] shrink-0">{new Date(record.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}</span></div>)}{!props.grants.length && <p className="text-xs text-[#666]">暂无发放记录</p>}</div>
+              <Pager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />
+            </>}
           </div>
         </section>
 

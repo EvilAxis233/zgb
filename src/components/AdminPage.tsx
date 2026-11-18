@@ -177,6 +177,8 @@ export function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]), [userTotal, setUserTotal] = useState(0), [memberTotal, setMemberTotal] = useState(0), [searchInput, setSearchInput] = useState(''), [search, setSearch] = useState(''), [userOffset, setUserOffset] = useState(0);
   // 账号列表排序：默认最新注册；GM 点赞 / 玩家点赞 / 带团 / 参团次数按降序。
   const [userSort, setUserSort] = useState<AdminUserSort>('latest');
+  // 仅看会员：站长 + 永久会员 + 未过期会员。
+  const [memberOnly, setMemberOnly] = useState(false);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);
   const [userCampaigns, setUserCampaigns] = useState<{ hosted: Campaign[]; joined: Campaign[] }>({ hosted: [], joined: [] });
@@ -221,7 +223,7 @@ export function AdminPage() {
     return () => window.clearInterval(timer);
   }, [authenticated]);
   useEffect(() => { if (authenticated && activeSection === 'content') { loadRules().catch(message); adminApi.afdianSettings().then((data) => setAfdianUrl(data.afdianUrl)).catch(message); } }, [authenticated, activeSection]);
-  useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset, userSort).then(applyUsers).catch(message); }, [authenticated, activeSection, search, userOffset, userSort]);
+  useEffect(() => { if (authenticated && activeSection === 'users') adminApi.users(search, userOffset, userSort, memberOnly).then(applyUsers).catch(message); }, [authenticated, activeSection, search, userOffset, userSort, memberOnly]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.grants(selected.qq, grantOffset).then((data) => { setGrants(data.records); setGrantTotal(data.total); }).catch(message); }, [authenticated, activeSection, selected?.qq, grantOffset]);
   useEffect(() => { if (authenticated && activeSection === 'users' && selected) adminApi.userCampaigns(selected.qq).then(setUserCampaigns).catch(() => setUserCampaigns({ hosted: [], joined: [] })); }, [authenticated, activeSection, selected?.qq]);
 
@@ -236,12 +238,12 @@ export function AdminPage() {
     } catch (error) { message(error); } finally { setBusy(false); }
   };
   const deleteRule = async (name: string) => { if (!await showConfirm({ title: '删除规则', message: `确定删除规则「${name}」？已有团的历史规则名称仍会保留。`, confirmText: '确定删除', type: 'danger' })) return; setBusy(true); try { await adminApi.deleteRule(name); await loadRules(); setNotice('规则已删除'); } catch (error) { message(error); } finally { setBusy(false); } };
-  const changeBlacklist = async (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent' | null) => { setBusy(true); try { if (duration) await adminApi.blacklist(qq, duration); else await adminApi.unblacklist(qq); const data = applyUsers(await adminApi.users(search, userOffset, userSort)); setSelected(data.users.find((item) => item.qq === qq) || null); setNotice(duration ? '已加入黑名单' : '已移出黑名单'); } catch (error) { message(error); } finally { setBusy(false); } };
+  const changeBlacklist = async (qq: string, duration: '7d' | '30d' | '6m' | '1y' | 'permanent' | null) => { setBusy(true); try { if (duration) await adminApi.blacklist(qq, duration); else await adminApi.unblacklist(qq); const data = applyUsers(await adminApi.users(search, userOffset, userSort, memberOnly)); setSelected(data.users.find((item) => item.qq === qq) || null); setNotice(duration ? '已加入黑名单' : '已移出黑名单'); } catch (error) { message(error); } finally { setBusy(false); } };
   const grantMembership = async (qq: string, months: number) => {
     setBusy(true);
     try {
       const result = await adminApi.grantMembership(qq, months);
-      const data = await adminApi.users(search, userOffset, userSort);
+      const data = await adminApi.users(search, userOffset, userSort, memberOnly);
       setUsers(data.users); setUserTotal(data.total);
       setSelected(data.users.find((item) => item.qq === qq) || null);
       setGrantOffset(0);
@@ -254,7 +256,7 @@ export function AdminPage() {
     setBusy(true);
     try {
       await adminApi.setRole(qq, makeAdmin ? 'admin' : '');
-      const data = await adminApi.users(search, userOffset, userSort);
+      const data = await adminApi.users(search, userOffset, userSort, memberOnly);
       setUsers(data.users); setUserTotal(data.total);
       setSelected(data.users.find((item) => item.qq === qq) || null);
       setNotice(makeAdmin ? '已任命为管理员' : '已取消管理员权限');
@@ -278,7 +280,7 @@ export function AdminPage() {
     {authenticated && <><nav aria-label="后台功能" className={`grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0 ${activeSection === 'dashboard' ? 'mb-2' : 'mb-6'}`}>{sections.map((item) => { const Icon = item.icon; const dot = item.id === 'support' ? noticeTotal : item.id === 'resources' ? reviewTotal : 0; const dotLabel = item.id === 'support' ? `客服系统有 ${noticeTotal} 条新内容` : `有 ${notices.resource} 条资源待审核、${notices.roundtable} 条圆桌主题申请待处理`; return <button key={item.id} onClick={() => changeSection(item.id)} className={`bauhaus-btn relative px-4 py-2.5 gap-2 text-sm ${activeSection === item.id ? 'bg-[#121212] text-white' : 'bg-white'}`}><Icon size={16} />{item.label}{dot > 0 && <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#D62828] border-2 border-white rounded-full" title={dotLabel} aria-label={dotLabel} />}</button>; })}</nav><div className={`${activeSection === 'dashboard' ? 'mb-2' : 'mb-5'} flex items-center gap-2 shrink-0`}><span className="w-3 h-3 bg-[#D62828]" /><h2 className={activeSection === 'dashboard' ? 'text-lg font-black' : 'text-2xl font-black'}>{sections.find((item) => item.id === activeSection)?.label}</h2></div>
       {activeSection === 'dashboard' && <div className={fitDashboard ? 'lg:flex-1 lg:min-h-0' : ''}><Dashboard data={dashboard} loading={dashboardLoading} /></div>}
       {activeSection === 'content' && <ContentSection rules={rules} newRule={newRule} busy={busy} afdianUrl={afdianUrl} setNewRule={setNewRule} setAfdianUrl={setAfdianUrl} addRule={addRule} deleteRule={deleteRule} saveAfdian={saveAfdian} />}
-      {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} userCampaigns={userCampaigns} searchInput={searchInput} userOffset={userOffset} userSort={userSort} setUserSort={(next) => { setUserSort(next); setUserOffset(0); }} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
+      {activeSection === 'users' && <AdminUsersSection users={users} userTotal={userTotal} memberTotal={memberTotal} selected={selected} busy={busy} grants={grants} grantTotal={grantTotal} grantOffset={grantOffset} userCampaigns={userCampaigns} searchInput={searchInput} userOffset={userOffset} userSort={userSort} setUserSort={(next) => { setUserSort(next); setUserOffset(0); }} memberOnly={memberOnly} setMemberOnly={(next) => { setMemberOnly(next); setUserOffset(0); }} canManageAdmins={myRole === 'owner'} setSearchInput={setSearchInput} searchUsers={(event) => { event.preventDefault(); setSelected(null); setSearch(searchInput.trim()); setUserOffset(0); }} selectUser={(user) => { setSelected(user); setGrantOffset(0); }} setUserOffset={setUserOffset} setGrantOffset={setGrantOffset} onBlacklistChange={changeBlacklist} onGrantMembership={grantMembership} onToggleAdmin={toggleAdmin} />}
       {activeSection === 'keys' && <AdminMembershipKeysSection onNotice={setNotice} onError={message} />}
       {activeSection === 'support' && <AdminSupportSection notices={notices} onSeen={(section) => setNotices((prev) => ({ ...prev, [section]: 0 }))} onNotice={setNotice} onError={message} />}
       {activeSection === 'archive' && <AdminArchivedSection onError={message} />}

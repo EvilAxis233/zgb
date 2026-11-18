@@ -318,7 +318,7 @@ export const adminApi = {
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
-  users: (search: string, offset: number, sort: AdminUserSort = 'latest') => request<{ users: AdminUser[]; total: number; memberTotal: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}&sort=${sort}`),
+  users: (search: string, offset: number, sort: AdminUserSort = 'latest', memberOnly = false) => request<{ users: AdminUser[]; total: number; memberTotal: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}&sort=${sort}&memberOnly=${memberOnly ? '1' : '0'}`),
   userCampaigns: (qq: string) => request<{ hosted: Campaign[]; joined: Campaign[] }>(`admin/user-campaigns?qq=${encodeURIComponent(qq)}`),
   grantMembership: (qq: string, months: number) => post<{ ok: boolean; months: number; days: number; membershipExpiresAt: number }>(`admin/users/${encodeURIComponent(qq)}/membership`, { months }),
   grants: (qq: string, offset: number) => request<{ records: MembershipGrant[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/grants?offset=${offset}`),

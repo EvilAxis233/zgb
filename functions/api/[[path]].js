@@ -926,20 +926,24 @@ export async function onRequest(context) {
           host: 'hosted_count DESC, u.created_at DESC',
           joined: 'joined_count DESC, u.created_at DESC',
         }[sortKey] || 'u.created_at DESC';
+        // 「仅看会员」：站长 + 永久会员 + 未过期会员，与个人档案/发放记录的会员口径一致。
+        const memberOnly = url.searchParams.get('memberOnly') === '1';
         const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
-        const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";
+        const where = `WHERE (u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\')`
+          + (memberOnly ? ` AND (u.role='owner' OR u.membership_expires_at=${PERMANENT_MEMBERSHIP} OR u.membership_expires_at>?)` : '');
+        const countBind = memberOnly ? [pattern, pattern, now()] : [pattern, pattern];
         const [count, users, memberCount] = await db.batch([
-          db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).bind(pattern, pattern),
+          db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).bind(...countBind),
           db.prepare(`SELECT u.qq,u.name,u.role,u.created_at,u.gm_hearts,u.player_hearts,u.received_gm,u.received_player,u.membership_expires_at,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count,` +
             `(SELECT COUNT(*) FROM submissions s WHERE s.type='report' AND s.reported_qq=u.qq) report_count,` +
-            // 带团/参团只算网团与面团：宣群不算开团；弃团（0 人报名封车）也不算开团记录。
-            `(SELECT COUNT(*) FROM campaigns c WHERE c.gm_qq=u.qq AND c.deleted_at IS NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline')) hosted_count,` +
-            `(SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=u.qq AND c.deleted_at IS NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline')) joined_count,` +
+            // 带团/参团只算网团与面团，且必须已结团：宣群不算开团、弃团不算、招募中/锁车不算，与个人档案结团履历一致。
+            `(SELECT COUNT(*) FROM campaigns c WHERE c.gm_qq=u.qq AND c.deleted_at IS NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline') AND c.finished_at IS NOT NULL) hosted_count,` +
+            `(SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=u.qq AND c.deleted_at IS NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline') AND c.finished_at IS NOT NULL) joined_count,` +
             `b.expires_at blacklist_expires_at,b.banned_at blacklist_banned_at,` +
             `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
-            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY ${orderBy} LIMIT 100 OFFSET ?`).bind(now(), pattern, pattern, offset),
+            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY ${orderBy} LIMIT 100 OFFSET ?`).bind(now(), ...countBind, offset),
           db.prepare('SELECT COUNT(*) n FROM users WHERE role=\'owner\' OR membership_expires_at=? OR membership_expires_at>?').bind(PERMANENT_MEMBERSHIP, now())
         ]);
         return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n, memberTotal: memberCount.results[0].n });
