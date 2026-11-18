@@ -150,7 +150,8 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   };
 
   const praiseButton = (member: CampaignMember) => {
-    if (!currentUser || !campaign.hasEnded || !isMember || member.id === currentUser.id) return null;
+    // GM 与玩家都不能给自己点赞（QQ 与 id 双保险，后端也会再拒一次）。
+    if (!currentUser || !campaign.hasEnded || !isMember || member.id === currentUser.id || member.qq === currentUser.qq) return null;
     const type = member.role === 'gm' ? 'gm' : 'player';
     const heartName = type === 'gm' ? 'GM' : '玩家';
     // 已赞：再点一次就是取消，券已扣完也要能点（取消会返还）。

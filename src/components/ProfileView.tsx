@@ -222,19 +222,34 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   // 缩小版点赞按钮：仅已结团 + 自己是本团成员 + 非本人显示；点 GM 用红券，点玩家用蓝券。
+  // 与团详情一致为「切换」语义：已赞时显示黄色按钮，再点一次取消并返还券。GM 和玩家都不能给自己点赞。
   const miniPraiseButton = (camp: CampaignDetail, member: CampaignMember) => {
-    if (member.id === currentUser.id || !camp.hasEnded) return null;
+    if (member.id === currentUser.id || member.qq === currentUser.qq || !camp.hasEnded) return null;
     const isGm = member.role === 'gm';
+    const heartName = isGm ? 'GM' : '玩家';
+    const busy = praiseBusy === member.id;
+    if (member.praisedByMe) {
+      return (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void handlePraise(camp, member)}
+          title={`已点赞，再点一次取消并返还 1 枚${heartName}点赞券`}
+          className={`inline-flex h-5 w-5 shrink-0 items-center justify-center border border-[#121212] bg-[#F2C94C] text-[#121212] hover:opacity-90 ${busy ? 'opacity-60' : ''}`}
+        >
+          <ThumbsUp className="h-3 w-3 fill-current" />
+        </button>
+      );
+    }
     const hasHeart = isGm
       ? (currentUser.inventory?.gmHearts ?? 0) > 0
       : (currentUser.inventory?.playerHearts ?? 0) > 0;
-    const busy = praiseBusy === member.id;
     return (
       <button
         type="button"
         disabled={!hasHeart || busy}
         onClick={() => void handlePraise(camp, member)}
-        title={hasHeart ? `消耗 1 枚${isGm ? 'GM' : '玩家'}点赞券` : '点赞券不足'}
+        title={hasHeart ? `消耗 1 枚${heartName}点赞券` : '点赞券不足'}
         className={`inline-flex h-5 w-5 shrink-0 items-center justify-center border border-[#121212] ${hasHeart ? (isGm ? 'bg-[#D62828] text-white hover:opacity-90' : 'bg-[#004E98] text-white hover:opacity-90') : 'cursor-not-allowed bg-[#E5E5E0] text-[#999]'} ${busy ? 'opacity-60' : ''}`}
       >
         {isGm ? <Flame className="h-3 w-3 fill-current" /> : <Star className="h-3 w-3 fill-current" />}
@@ -244,12 +259,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handlePraise = async (camp: CampaignDetail, member: CampaignMember) => {
     if (praiseBusy) return;
+    // 双保险：即便界面状态异常，也不允许给自己点赞（后端同样拒绝）。
+    if (member.id === currentUser.id || member.qq === currentUser.qq) {
+      setPraiseNotice('不能给自己点赞');
+      return;
+    }
     const type = member.role === 'gm' ? 'gm' : 'player';
     setPraiseBusy(member.id);
     setPraiseNotice('');
     try {
-      await api.praise(camp.id, member.id, type);
-      // 获赞数 +1 直接回写本地详情，避免整页刷新打断档案浏览。
+      const result = await api.praise(camp.id, member.id, type);
+      const liked = result.liked !== false;
+      // 获赞数与已赞状态直接回写本地详情，避免整页刷新打断档案浏览。
       setCampaignDetails((prev) => {
         const current = prev[camp.id];
         if (!current) return prev;
@@ -257,14 +278,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           ...prev,
           [camp.id]: {
             ...current,
-            members: current.members.map((m) => m.id === member.id ? { ...m, receivedPraises: m.receivedPraises + 1 } : m),
+            members: current.members.map((m) => m.id === member.id
+              ? { ...m, receivedPraises: Math.max(0, m.receivedPraises + (liked ? 1 : -1)), praisedByMe: liked }
+              : m),
           },
         };
       });
-      // 券数由后端扣减，回调 App 刷新当前用户资料让顶部券数同步。
+      // 券数由后端扣减/返还，回调 App 刷新当前用户资料让顶部券数同步。
       const { user } = await api.me();
       if (user) onUserUpdate(user);
-      setPraiseNotice(`已为 ${member.name} 点赞`);
+      setPraiseNotice(liked ? `已为 ${member.name} 点赞` : `已取消对 ${member.name} 的点赞，券已返还`);
       window.setTimeout(() => setPraiseNotice(''), 2200);
     } catch (error) {
       setPraiseNotice(error instanceof Error ? error.message : '点赞失败');
@@ -674,15 +697,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <span className="w-3 h-3 bg-[#D62828]" />
                 带团履历 (共 {myCampaigns.length} 次)
               </h2>
-              {/* 红框处：GM点赞券数量 */}
+              {/* 玩家点赞券（按站点要求与 GM 券展示位置互换） */}
               <div
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="GM点赞券：累计签到每满7次，按当次身份得1张（会员3张）；会员期间断签不清零、身份变化不清零，普通用户断签重算。可在团详情给GM点赞"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F0F5FB] border-2 border-[#004E98] shadow-[2px_2px_0px_#004E98]"
+                title="玩家点赞券：每日签到获得，可给玩家同伴点赞"
               >
-                <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
-                <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
-                <span className="font-black text-sm text-[#D62828] font-mono">
-                  {currentUser.inventory?.gmHearts ?? 0}
+                <Star className="w-4 h-4 text-[#004E98] fill-[#004E98]" />
+                <span className="font-bold text-xs text-[#121212]">玩家点赞券:</span>
+                <span className="font-black text-sm text-[#004E98] font-mono">
+                  {currentUser.inventory?.playerHearts ?? 0}
                 </span>
               </div>
             </div>
@@ -707,15 +730,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <span className="w-3 h-3 bg-[#004E98]" />
                 参团记录 (共 {myJoinedCampaigns.length} 次)
               </h2>
-              {/* 红框处：玩家点赞券数量 */}
+              {/* GM点赞券（按站点要求与玩家券展示位置互换） */}
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF0F0] border-2 border-[#D62828] shadow-[2px_2px_0px_#D62828]"
-                title="玩家点赞券：每日签到获得，可给玩家同伴点赞"
+                title="GM点赞券：累计签到每满7次，按当次身份得1张（会员3张）；会员期间断签不清零、身份变化不清零，普通用户断签重算。可在团详情给GM点赞"
               >
-                <Star className="w-4 h-4 text-[#004E98] fill-[#004E98]" />
-                <span className="font-bold text-xs text-[#121212]">玩家点赞券:</span>
-                <span className="font-black text-sm text-[#004E98] font-mono">
-                  {currentUser.inventory?.playerHearts ?? 0}
+                <Flame className="w-4 h-4 text-[#D62828] fill-[#D62828]" />
+                <span className="font-bold text-xs text-[#121212]">GM点赞券:</span>
+                <span className="font-black text-sm text-[#D62828] font-mono">
+                  {currentUser.inventory?.gmHearts ?? 0}
                 </span>
               </div>
             </div>

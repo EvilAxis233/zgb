@@ -1828,7 +1828,9 @@ export async function onRequest(context) {
     }
     if (path[0] === 'praise' && method === 'POST') {
       const b = await body(request), target = String(b.toUserId || ''), type = b.type, campaignId = String(b.campaignId || '');
-      if (!['gm','player'].includes(type) || !qqValid(target) || target === user.qq || !/^[0-9a-f-]{36}$/.test(campaignId)) return fail('点赞对象无效');
+      // GM 与玩家都不能给自己点赞，给明确提示而不是笼统的「对象无效」。
+      if (target === user.qq) return fail('不能给自己点赞');
+      if (!['gm','player'].includes(type) || !qqValid(target) || !/^[0-9a-f-]{36}$/.test(campaignId)) return fail('点赞对象无效');
       const c = await db.prepare('SELECT * FROM campaigns WHERE id=? AND deleted_at IS NULL').bind(campaignId).first();
       if (!c || c.kind === 'promo' || !c.finished_at) return fail('结团后才能点赞');
       const senderMember = c.gm_qq === user.qq || await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(campaignId, user.qq).first();
