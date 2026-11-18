@@ -89,6 +89,8 @@ export function App() {
   const chatInbox = useChatInbox(currentUserQq, chatOpen);
   const openChat = () => { if (!currentUserQq) setIsLoginOpen(true); else setChatOpen(true); };
   const [submissionType, setSubmissionType] = useState<'feedback' | 'report' | null>(null);
+  // 举报弹窗预填的被举报人：GM 圆桌回复等具体内容处发起举报时带入作者昵称
+  const [submissionReportedUser, setSubmissionReportedUser] = useState('');
   const [loading, setLoading] = useState(true);
   const [pendingActions, setPendingActions] = useState(0);
   const [loadingCampaignId, setLoadingCampaignId] = useState<string | null>(null);
@@ -526,7 +528,11 @@ export function App() {
   const handleCancelSignup = (campaignId: string) => mutateCampaign(() => api.cancelSignup(campaignId), '已取消报名', campaignId);
   const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
   const handleUploadAvatar = (file: File) => run(() => api.uploadAvatar(file), '头像已更新');
-  const openSubmission = (type: 'feedback' | 'report') => currentUser ? setSubmissionType(type) : setIsLoginOpen(true);
+  const openSubmission = (type: 'feedback' | 'report', reportedUser = '') => {
+    if (!currentUser) { setIsLoginOpen(true); return; }
+    setSubmissionReportedUser(type === 'report' ? reportedUser : '');
+    setSubmissionType(type);
+  };
   const handleSubmit = async (type: 'feedback' | 'report', content: string, images: File[], reportedUser: string) => {
     setPendingActions((count) => count + 1);
     try {
@@ -996,7 +1002,7 @@ export function App() {
         )}
 
         {/* VIEW 5: GM圆桌（主题讨论频道，可引用爱心资源，支持讨论回复与举报） */}
-        {activeTab === 'roundtable' && <GmRoundTableView currentUserQq={currentUserQq} isAdmin={!!currentUser?.role} />}
+        {activeTab === 'roundtable' && <GmRoundTableView currentUserQq={currentUserQq} isAdmin={!!currentUser?.role} onReport={(author) => openSubmission('report', author)} />}
       </main>
 
       {/* 猪猪客服对话窗：全局常驻，顶栏铃铛 / 首页提示条 / 首页客服块都能唤起 */}
@@ -1047,7 +1053,7 @@ export function App() {
       <LoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} onSuccess={refresh} />
       {isTicketsOpen && currentUser && <TicketsModal onClose={() => setIsTicketsOpen(false)} />}
       <InstructionsModal isOpen={isInstructionsOpen} onClose={() => setIsInstructionsOpen(false)} />
-      <SubmissionModal type={submissionType} onClose={() => setSubmissionType(null)} onSubmit={handleSubmit} />
+      <SubmissionModal type={submissionType} defaultReportedUser={submissionReportedUser} onClose={() => setSubmissionType(null)} onSubmit={handleSubmit} />
 
       {/* Toast Notifications */}
       <aside aria-label="系统通知" className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-[calc(100vw-2.5rem)] sm:max-w-sm pointer-events-none">

@@ -3,6 +3,8 @@ import { Flag, ImagePlus, MessageSquareText, X } from 'lucide-react';
 
 interface SubmissionModalProps {
   type: 'feedback' | 'report' | null;
+  /** 预填的被举报人：从 GM 圆桌等具体内容处举报时，自动带入作者昵称 */
+  defaultReportedUser?: string;
   onClose: () => void;
   onSubmit: (type: 'feedback' | 'report', content: string, images: File[], reportedUser: string) => Promise<boolean>;
 }
@@ -11,16 +13,16 @@ const MAX_FILES = 9;
 const MAX_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
-export function SubmissionModal({ type, onClose, onSubmit }: SubmissionModalProps) {
+export function SubmissionModal({ type, defaultReportedUser = '', onClose, onSubmit }: SubmissionModalProps) {
   const [content, setContent] = useState('');
-  const [reportedUser, setReportedUser] = useState('');
+  const [reportedUser, setReportedUser] = useState(defaultReportedUser);
   const [images, setImages] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const previews = useMemo(() => images.map((file) => ({ file, url: URL.createObjectURL(file) })), [images]);
 
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
-  useEffect(() => { setContent(''); setReportedUser(''); setImages([]); setError(''); setBusy(false); }, [type]);
+  useEffect(() => { setContent(''); setReportedUser(defaultReportedUser); setImages([]); setError(''); setBusy(false); }, [type, defaultReportedUser]);
   useEffect(() => {
     if (!type) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) onClose(); };
@@ -69,7 +71,7 @@ export function SubmissionModal({ type, onClose, onSubmit }: SubmissionModalProp
         </header>
 
         <form onSubmit={submit} className="mt-5 space-y-5">
-          {isReport && <div><label htmlFor="reported-user" className="block text-sm font-black mb-2">被举报人（昵称或 QQ 号） <span className="text-[#D62828]">*</span></label><input id="reported-user" required maxLength={40} value={reportedUser} onChange={(event) => setReportedUser(event.target.value)} placeholder="输入站内昵称或 QQ 号" className="bauhaus-input w-full px-3 py-2.5 text-sm" /></div>}
+          {isReport && <div><label htmlFor="reported-user" className="block text-sm font-black mb-2">被举报人（昵称或 QQ 号） <span className="text-[#D62828]">*</span></label><input id="reported-user" required maxLength={40} value={reportedUser} onChange={(event) => setReportedUser(event.target.value)} placeholder="输入站内昵称或 QQ 号" className="bauhaus-input w-full px-3 py-2.5 text-sm" />{!!defaultReportedUser && <p className="mt-1 text-[11px] text-[#666]">已自动填入你举报的内容作者，如需举报他人可直接修改</p>}</div>}
           <div>
             <label htmlFor="submission-content" className="block text-sm font-black mb-2">{isReport ? '举报说明' : '反馈内容'} <span className="text-[#D62828]">*</span></label>
             <textarea id="submission-content" required maxLength={5000} rows={6} value={content} onChange={(event) => setContent(event.target.value)} placeholder={isReport ? '请描述被举报的内容、所在页面及具体原因…' : '请描述你的建议、遇到的问题或希望改进的地方…'} className="bauhaus-input w-full px-3 py-2.5 text-sm resize-y" />

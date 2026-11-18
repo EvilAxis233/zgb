@@ -39,9 +39,14 @@ const countReplies = (replies: RoundtableReply[]): number =>
   replies.reduce((sum, r) => sum + 1 + countReplies(r.children || []), 0);
 const heatOf = (t: RoundtableTopic) => t.views + t.likes * 8 + countReplies(t.replies) * 12;
 
-type Props = { currentUserQq?: string | null; isAdmin?: boolean };
+type Props = {
+  currentUserQq?: string | null;
+  isAdmin?: boolean;
+  /** 举报入口：复用全站举报模板弹窗，传入被举报回复的作者昵称用于预填 */
+  onReport?: (author: string) => void;
+};
 
-export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = false }) => {
+export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = false, onReport }) => {
   const [loading, setLoading] = useState(true);
   const [channels, setChannels] = useState<Array<{ id: string; label: string }>>([]);
   const [topics, setTopics] = useState<RoundtableTopic[]>([]);
@@ -398,8 +403,9 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     [topics, favorites],
   );
 
-  const reportBtn = (label: string) => (
-    <button type="button" onClick={() => flash(`已举报${label}`)} className="flex items-center gap-1 text-[11px] text-[#8A8A8A] hover:text-[#D62828]">
+  // 举报：与首页/个人档案的「举报」共用同一套模板弹窗，作者昵称自动填入，提交后直接进后台工单。
+  const reportBtn = (author: string) => (
+    <button type="button" onClick={() => { if (onReport) onReport(author); else flash(`已举报 ${author}`); }} className="flex items-center gap-1 text-[11px] text-[#8A8A8A] hover:text-[#D62828]">
       <Flag className="h-3 w-3" />举报
     </button>
   );
@@ -487,7 +493,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
             className="flex items-center gap-1 text-xs font-bold text-[#7FC7FF] hover:underline"><MessageSquare className="h-3.5 w-3.5" />{nestedTo === r.id ? '收起回复' : '回复'}</button>
           {canEdit(r) && <button type="button" onClick={() => { resetNested(); startEdit(r); }} className="flex items-center gap-1 text-xs font-bold text-[#F4A261] hover:underline"><Pencil className="h-3 w-3" />编辑</button>}
           {canEdit(r) && <button type="button" onClick={() => void deleteReply(r)} className="flex items-center gap-1 text-xs font-bold text-[#E57373] hover:underline"><Trash2 className="h-3 w-3" />删除</button>}
-          {reportBtn('该回复')}
+          {reportBtn(r.author)}
         </div>
       )}
       {/* 楼中楼回复窗口：真实提交，parentId 指向当前回复。 */}
