@@ -12,6 +12,14 @@ const FILTERS: Array<{ key: ArchiveFilter; label: string }> = [
 ];
 const hkDate = (value: string | null) => value ? new Date(value).toLocaleDateString('zh-CN', { timeZone: 'Asia/Hong_Kong' }) : '—';
 
+// 年份筛选从 2026 年起（站点数据起点），最新一年跟随当前年份。
+const YEARS: number[] = (() => {
+  const now = new Date().getFullYear();
+  const last = Math.max(now, 2026);
+  return Array.from({ length: last - 2026 + 1 }, (_, i) => 2026 + i);
+})();
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+
 // 弃团记录默认保留 30 天（与后端自动清理规则一致）。
 const ABANDON_KEEP_DAYS = 30;
 const purgeAt = (closedAt: string | null) => closedAt ? new Date(new Date(closedAt).getTime() + ABANDON_KEEP_DAYS * 86400000) : null;
@@ -30,6 +38,9 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
   const [offset, setOffset] = useState(0);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
+  // 0 = 全部年份 / 全部月份；月份独立生效（选月份不选年份即「每年该月」）。
+  const [year, setYear] = useState(0);
+  const [month, setMonth] = useState(0);
   const [items, setItems] = useState<AdminArchivedCampaign[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -46,14 +57,17 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
 
   const load = useCallback(() => {
     setLoading(true);
-    adminApi.archivedCampaigns(filter, offset, search)
+    adminApi.archivedCampaigns(filter, offset, search, year, month)
       .then((data) => { setItems(data.items); setTotal(data.total); })
       .catch((error) => onErrorRef.current(error))
       .finally(() => setLoading(false));
-  }, [filter, offset, search]);
+  }, [filter, offset, search, year, month]);
   useEffect(() => { load(); }, [load]);
 
   const changeFilter = (next: ArchiveFilter) => { setFilter(next); setOffset(0); };
+  // 时间范围文案：年份 + 月份任意组合，供右上角计数与空态提示使用。
+  const rangeLabel = year ? `${year} 年${month ? ` ${month} 月` : ''}` : month ? `每年 ${month} 月` : '';
+  const condLabel = [rangeLabel, search ? `「${search}」` : ''].filter(Boolean).join(' ');
 
   const keep = async (id: string) => {
     setBusy(id);
@@ -78,7 +92,7 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
           {FILTERS.map((item) => <button key={item.key} type="button" role="tab" aria-selected={filter === item.key} onClick={() => changeFilter(item.key)}
             className={`bauhaus-btn px-4 py-2 text-sm ${filter === item.key ? 'bg-[#121212] text-white' : 'bg-white'}`}>{item.label}</button>)}
         </div>
-        <div className="relative w-full sm:w-72">
+        <div className="relative w-full sm:w-60">
           <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#666]" aria-hidden="true" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
             placeholder="检索团名 / GM / 规则"
@@ -86,12 +100,23 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
           {query && <button type="button" onClick={() => setQuery('')}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#666] cursor-pointer" aria-label="清空检索"><X size={13} /></button>}
         </div>
+        {/* 封存时间筛选：年份从 2026 年起，月份可单独使用 */}
+        <select aria-label="按封存年份筛选" value={year} onChange={(e) => { setYear(Number(e.target.value)); setOffset(0); }}
+          className="bauhaus-input px-2 py-1.5 text-xs font-bold">
+          <option value={0}>全部年份</option>
+          {YEARS.map((y) => <option key={y} value={y}>{y} 年</option>)}
+        </select>
+        <select aria-label="按封存月份筛选" value={month} onChange={(e) => { setMonth(Number(e.target.value)); setOffset(0); }}
+          className="bauhaus-input px-2 py-1.5 text-xs font-bold">
+          <option value={0}>全部月份</option>
+          {MONTHS.map((m) => <option key={m} value={m}>{m} 月</option>)}
+        </select>
       </div>
-      <p className="text-[11px] font-bold text-[#666]">仅网团 / 面团 · 宣群「结束宣发」不在此列 · {search ? `检索「${search}」命中 ${number(total)} 条` : `共 ${number(total)} 条`}</p>
+      <p className="text-[11px] font-bold text-[#666]">仅网团 / 面团 · 宣群「结束宣发」不在此列 · {rangeLabel ? `${rangeLabel} · ` : ''}{search ? `检索「${search}」命中 ${number(total)} 条` : `共 ${number(total)} 条`}</p>
     </div>
 
     {loading ? <div className="bauhaus-card bg-white p-12 text-center text-sm font-bold text-[#666]">正在读取封存团务…</div>
-      : !items.length ? <div className="bauhaus-card bg-white p-12 text-center text-sm text-[#666]">{search ? `没有匹配「${search}」的封存团务，换个关键词试试。` : '当前筛选下暂无封存团务。团封车或结团后会自动出现在这里。'}</div>
+      : !items.length ? <div className="bauhaus-card bg-white p-12 text-center text-sm text-[#666]">{condLabel ? `没有匹配 ${condLabel} 的封存团务，换个条件试试。` : '当前筛选下暂无封存团务。团封车或结团后会自动出现在这里。'}</div>
         : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
           {items.map((c) => {
             const tag = c.status === 'finished'
@@ -160,6 +185,6 @@ export function AdminArchivedSection({ onError }: { onError: (error: unknown) =>
         </div>}
 
     <Pager offset={offset} total={total} setOffset={setOffset} />
-    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。卡片默认只显示团名与封存日期，点右上「详情」展开规则、GM、开团时间、联系方式、平台/地址与报名名单（团介绍不展示）。检索支持团名、规则、简介、GM 昵称或 QQ、联系方式、平台地址与报名成员，可与状态筛选组合。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
+    <p className="mt-4 flex items-center gap-1.5 text-[11px] text-[#777]"><Archive size={13} />封存记录只供管理查看，不会重新出现在首页发车看板。卡片默认只显示团名与封存日期，点右上「详情」展开规则、GM、开团时间、联系方式、平台/地址与报名名单（团介绍不展示）。检索支持团名、规则、简介、GM 昵称或 QQ、联系方式、平台地址与报名成员，可与状态筛选组合；年份 / 月份按封存时间（结团取结团日期，其余取封车日期）过滤。弃团记录默认保留 30 天，到期自动清理，可点「保留记录」永久留存或「直接删除」立即移除。</p>
   </section>;
 }

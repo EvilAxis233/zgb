@@ -1079,6 +1079,23 @@ export async function onRequest(context) {
           where += ` AND (${clauses.join(' OR ')})`;
           for (let i = 0; i < fields.length + 2; i++) binds.push(like);
         }
+        // 封存时间筛选：年份 / 月份按香港时区（UTC+8）落在当月，与卡片展示的封存日期一致。
+        const yearNum = Math.floor(Number(url.searchParams.get('year')) || 0);
+        const monthNum = Math.floor(Number(url.searchParams.get('month')) || 0);
+        if (yearNum >= 1970 && yearNum <= 2100) {
+          const stamp = 'COALESCE(c.finished_at,c.closed_at)';
+          const startMonth = monthNum >= 1 && monthNum <= 12 ? monthNum : 1;
+          const start = new Date(Date.UTC(yearNum, startMonth - 1, 1) - 8 * 3600 * 1000).toISOString();
+          const end = monthNum >= 1 && monthNum <= 12
+            ? new Date(Date.UTC(yearNum, startMonth, 1) - 8 * 3600 * 1000).toISOString()
+            : new Date(Date.UTC(yearNum + 1, 0, 1) - 8 * 3600 * 1000).toISOString();
+          where += ` AND ${stamp} >= ? AND ${stamp} < ?`;
+          binds.push(start, end);
+        } else if (monthNum >= 1 && monthNum <= 12) {
+          // 只选月份：跨年份按该月筛选（香港时区）。
+          where += ` AND CAST(strftime('%m', COALESCE(c.finished_at,c.closed_at), '+8 hours') AS INTEGER) = ?`;
+          binds.push(monthNum);
+        }
         const countSql = `SELECT COUNT(*) n FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where}`;
         const rowSql = `SELECT c.*,u.name gm_name,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq ${where} ORDER BY COALESCE(c.finished_at,c.closed_at) DESC,c.id DESC LIMIT 30 OFFSET ?`;
         const [count, rows] = await db.batch([

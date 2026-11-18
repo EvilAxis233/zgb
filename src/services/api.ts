@@ -328,7 +328,8 @@ export const adminApi = {
   unblacklist: (qq: string) => request<{ ok: boolean }>(`admin/users/${encodeURIComponent(qq)}/blacklist`, { method: 'DELETE' }),
   submissions: (type: 'feedback' | 'report', status: string, offset: number) => request<{ submissions: AdminSubmission[]; total: number }>(`admin/submissions?type=${type}&status=${encodeURIComponent(status)}&offset=${offset}`),
   updateSubmission: (id: string, status: AdminSubmission['status'], adminNote: string) => patch(`admin/submissions/${id}`, { status, adminNote }),
-  archivedCampaigns: (status: 'all' | 'closed' | 'finished' | 'abandoned', offset: number, q = '') => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}&q=${encodeURIComponent(q)}`),
+  // 封存团务：年份 / 月份按「封存时间」（已结团取结团时间，其余取封车时间）筛选，0 表示不限。
+  archivedCampaigns: (status: 'all' | 'closed' | 'finished' | 'abandoned', offset: number, q = '', year = 0, month = 0) => request<{ items: AdminArchivedCampaign[]; total: number }>(`admin/archived-campaigns?status=${status}&offset=${offset}&q=${encodeURIComponent(q)}&year=${year}&month=${month}`),
   keepAbandoned: (id: string) => post<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/keep`),
   deleteAbandoned: (id: string) => request<{ ok: boolean }>(`campaigns/${encodeURIComponent(id)}/abandoned`, { method: 'DELETE' }),
   // GM圆桌管理：规则页 / 主题 / 申请
