@@ -302,8 +302,27 @@ html[data-theme="dark"] [class~="bg-[#F7DDDD]"] {
 }
 html[data-theme="dark"] [class~="bg-[#FFF4DA]"],
 html[data-theme="dark"] [class~="bg-[#FFF9E9]"],
-html[data-theme="dark"] [class~="bg-[#FAF0E6]"] {
+html[data-theme="dark"] [class~="bg-[#FAF0E6]"],
+html[data-theme="dark"] [class~="bg-[#FFF0D6]"],
+html[data-theme="dark"] [class~="bg-[#FFF4D6]"],
+html[data-theme="dark"] [class~="bg-[#FFF4E5]"] {
   background-color: #3A3020 !important;
+}
+/* 受理状态里的浅绿 / 浅粉（已解决 / 已驳回按钮与徽标）：夜里改成深底浅字，避免白底粉字看不见 */
+html[data-theme="dark"] [class~="bg-[#E6F4EA]"],
+html[data-theme="dark"] [class~="bg-[#E7F5F1]"],
+html[data-theme="dark"] [class~="bg-[#EAF5F1]"] {
+  background-color: #1E3A31 !important;
+}
+html[data-theme="dark"] [class~="bg-[#FAE7E7]"],
+html[data-theme="dark"] [class~="bg-[#FFEBEE]"] {
+  background-color: #382327 !important;
+}
+html[data-theme="dark"] [class~="bg-[#F1F0EB]"],
+html[data-theme="dark"] [class~="bg-[#EDEDE7]"],
+html[data-theme="dark"] [class~="bg-[#EEEAE0]"],
+html[data-theme="dark"] [class~="bg-[#E1ECFA]"] {
+  background-color: var(--zgb-surface2) !important;
 }
 /* 原来的黑底元素（弹窗标题栏、头像底、选中块）改成比面板略亮的深面 */
 html[data-theme="dark"] [class~="bg-[#121212]"],
@@ -340,6 +359,8 @@ html[data-theme="dark"] [class~="text-[#B51F1F]"] { color: #FFAAAA !important; }
 html[data-theme="dark"] [class~="text-[#004E98]"] { color: var(--zgb-blue) !important; }
 html[data-theme="dark"] [class~="text-[#5C4300]"],
 html[data-theme="dark"] [class~="text-[#7A4B00]"] { color: var(--zgb-gold) !important; }
+/* 绿色成功色在深底上要提亮，否则「已解决 / 已复制」这类字看不清 */
+html[data-theme="dark"] [class~="text-[#176B57]"] { color: #7FD1AB !important; }
 
 /* --- 边框 --- */
 html[data-theme="dark"] [class~="border-[#121212]"],
@@ -361,6 +382,8 @@ html[data-theme="dark"] [class~="border-[#004E98]"],
 html[data-theme="dark"] [class~="border-l-[#004E98]"] { border-color: var(--zgb-blue-line) !important; }
 html[data-theme="dark"] [class~="border-[#D62828]"],
 html[data-theme="dark"] [class~="border-l-[#D62828]"] { border-color: var(--zgb-red-line) !important; }
+html[data-theme="dark"] [class~="border-[#176B57]"] { border-color: #7FD1AB !important; }
+html[data-theme="dark"] [class~="border-[#7A4B00]"] { border-color: var(--zgb-gold) !important; }
 
 /* --- 硬阴影 --- */
 html[data-theme="dark"] [class~="shadow-[1px_1px_0px_#121212]"] { box-shadow: 1px 1px 0 var(--zgb-shadow) !important; }

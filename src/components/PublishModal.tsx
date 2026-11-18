@@ -3,7 +3,7 @@ import { Campaign, CampaignKind, UserProfile, GAME_PLATFORMS } from '../types';
 import { CampaignCard } from './CampaignCard';
 import { StickerPicker } from './StickerLibrary';
 import { CalendarPicker } from './CalendarPicker';
-import { X, Upload, Trash2, Clock, BookOpen } from 'lucide-react';
+import { X, Upload, Trash2, Clock, BookOpen, ChevronDown } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
 import { ImageCropper } from './ImageCropper';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
@@ -783,14 +783,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </p>
                 </div>
 
-              {/* 贴纸：可现场上传裁剪，也可从个人贴纸库挑；本团临时生效，不改默认佩戴 */}
-              <div>
-                <label className="block font-bold text-[#121212] mb-1">
-                  贴纸
-                  <span className="ml-1 text-[11px] font-normal text-[#666]">上传自动存入贴纸库，或从库里选，本团最多 2 张</span>
-                </label>
-                <StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} onUserUpdate={onUserUpdate} isMember={isMember} />
-              </div>
+              {/* 贴纸：默认折叠，展开后可现场上传裁剪或从个人贴纸库挑；本团临时生效，不改默认佩戴 */}
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+                  <span className="block font-bold text-[#121212]">贴纸
+                    <span className="ml-1 text-[11px] font-normal text-[#666]">上传自动存入贴纸库，或从库里选，本团最多 2 张</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-[#666]">{stickerKeys.length}/2<ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /></span>
+                </summary>
+                <div className="mt-2"><StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} onUserUpdate={onUserUpdate} isMember={isMember} /></div>
+              </details>
 
               {/* Cover Image: Drag & Drop / Click upload big rectangle */}
               <div className="border-2 border-[#121212] p-3 bg-[#FAF9F5]">

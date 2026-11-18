@@ -235,10 +235,12 @@ export const ManageView: React.FC<Props> = ({
                       {m.qq && <span className="ml-1 font-mono text-[#888]">（{m.qq}）</span>}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      {/* 团务里不给玩家点赞入口（点赞只在结团履历里做）：发布人看自己的团时，这里换成移除玩家。 */}
-                      {hosted && m.role === 'player' && !campaign.hasExpired ? (
-                        <button type="button" onClick={() => void removeMember(campaign, m)} title="移除玩家" aria-label={`移除玩家 ${m.name}`}
-                          className="bauhaus-btn shrink-0 bg-[#FAF0F0] p-1 text-[#D62828] border-[#D62828]"><Trash2 className="h-3 w-3" /></button>
+                      {/* 团务里不给玩家点赞入口（点赞只在结团履历里做）：发布人看自己的团时，玩家行只留移除；GM 行不再显示获赞数。 */}
+                      {hosted ? (
+                        m.role === 'player' && !campaign.hasExpired ? (
+                          <button type="button" onClick={() => void removeMember(campaign, m)} title="移除玩家" aria-label={`移除玩家 ${m.name}`}
+                            className="bauhaus-btn shrink-0 bg-[#FAF0F0] p-1 text-[#D62828] border-[#D62828]"><Trash2 className="h-3 w-3" /></button>
+                        ) : null
                       ) : (
                         <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
                       )}
@@ -358,20 +360,22 @@ export const ManageView: React.FC<Props> = ({
   // 已挂在团上、但不在当前编辑者库里的贴纸也要显示出来，避免误以为被清空。
   const pickerLibrary = editingCampaign ? [...new Set([...stickerLibrary, ...(editingCampaign.stickerKeys || [])])] : [];
   const stickerBlock = editingCampaign && (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-bold">本团贴纸</span>
-        <span className="text-[11px] font-bold text-[#666]">{editingCampaign.stickerKeys?.length || 0}/2</span>
+    <details className="group border-t border-dashed border-[#DDDDD5] pt-2">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+        <span className="text-xs font-bold">本团贴纸 <span className="ml-1 text-[10px] font-normal text-[#666]">点此展开选择</span></span>
+        <span className="flex items-center gap-1 text-[11px] font-bold text-[#666]">{editingCampaign.stickerKeys?.length || 0}/2<ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /></span>
+      </summary>
+      <div className="mt-2">
+        <StickerPicker
+          library={pickerLibrary}
+          value={editingCampaign.stickerKeys || []}
+          onChange={(keys) => { setStickerTouched(true); setEditingCampaign({ ...editingCampaign, stickerKeys: keys }); }}
+          onUserUpdate={onUserUpdate}
+          isMember={isMember}
+        />
+        <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
       </div>
-      <StickerPicker
-        library={pickerLibrary}
-        value={editingCampaign.stickerKeys || []}
-        onChange={(keys) => { setStickerTouched(true); setEditingCampaign({ ...editingCampaign, stickerKeys: keys }); }}
-        onUserUpdate={onUserUpdate}
-        isMember={isMember}
-      />
-      <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
-    </div>
+    </details>
   );
 
   return <div className="flex flex-col lg:flex-row gap-6 items-start">

@@ -201,7 +201,7 @@ export function CampaignHistoryPanel({ hosted, joined, gmHearts, playerHearts, c
         <h4 className="font-black">结团履历</h4>
         {/* 原「不含宣群 · 按结团年份归档」位置改为两枚点赞券数量 */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 border-2 border-[#004E98] bg-[#F0F5FB] px-2 py-0.5 shadow-[2px_2px_0px_#004E98]" title="玩家点赞券：每日签到获得，可给玩家同伴点赞">
+          <div className="flex items-center gap-1.5 border-2 border-[#004E98] bg-[#F0F5FA] px-2 py-0.5 shadow-[2px_2px_0px_#004E98]" title="玩家点赞券：每日签到获得，可给玩家同伴点赞">
             <Star className="h-3.5 w-3.5 fill-[#004E98] text-[#004E98]" />
             <span className="text-[11px] font-bold text-[#121212]">玩家点赞券</span>
             <span className="font-mono text-xs font-black text-[#004E98]">{playerHearts}</span>
