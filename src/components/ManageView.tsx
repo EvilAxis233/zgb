@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { X, BookOpen, Sparkles, ChevronDown, ChevronUp, Upload, ImagePlus, ThumbsUp } from 'lucide-react';
-import { GAME_PLATFORMS, type Campaign, type CampaignDetail, type UserProfile } from '../types';
+import { GAME_PLATFORMS, type Campaign, type CampaignDetail, type CampaignMember, type UserProfile } from '../types';
 import { api } from '../services/api';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
@@ -32,6 +32,8 @@ interface Props {
   onSelectCampaign: (campaign: Campaign) => void;
   onUpdateCampaign: (campaign: Campaign) => Promise<boolean>;
   onOpenProfile: () => void;
+  /** 发布人移出本团玩家（与发布内容详情同一个接口），成功后回调里刷新成员名单 */
+  onRemoveMember: (campaignId: string, qq: string) => void | Promise<unknown>;
   onFeedback: () => void;
   onReport: () => void;
 }
@@ -55,6 +57,7 @@ export const ManageView: React.FC<Props> = ({
   onSelectCampaign,
   onUpdateCampaign,
   onOpenProfile,
+  onRemoveMember,
   onFeedback,
   onReport,
 }) => {
@@ -89,6 +92,22 @@ export const ManageView: React.FC<Props> = ({
     } finally {
       setDetailLoading(null);
     }
+  };
+
+  // 团务里移出玩家：二次确认后走与发布内容详情相同的接口，再刷新本行成员名单缓存。
+  const removeMember = async (campaign: Campaign, member: CampaignMember) => {
+    const ok = await showConfirm({
+      title: '移除玩家',
+      message: `确定将玩家「${member.name}」移出《${campaign.title}》吗？`,
+      confirmText: '确定移除',
+      type: 'danger',
+    });
+    if (!ok) return;
+    await onRemoveMember(campaign.id, member.id);
+    try {
+      const { campaign: detail } = await api.campaign(campaign.id);
+      setCampaignDetails((prev) => ({ ...prev, [campaign.id]: detail }));
+    } catch { /* 下次展开时会重新拉取 */ }
   };
 
   const addTag = () => {
@@ -216,7 +235,13 @@ export const ManageView: React.FC<Props> = ({
                       {m.qq && <span className="ml-1 font-mono text-[#888]">（{m.qq}）</span>}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
+                      {/* 团务里不给玩家点赞入口（点赞只在结团履历里做）：发布人看自己的团时，这里换成移除玩家。 */}
+                      {hosted && m.role === 'player' && !campaign.hasExpired ? (
+                        <button type="button" onClick={() => void removeMember(campaign, m)}
+                          className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FAF0F0] px-1.5 py-0.5 text-[10px] font-bold text-[#D62828] border-[#D62828]">移除玩家</button>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
+                      )}
                     </span>
                   </li>
                 ))}

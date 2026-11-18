@@ -989,6 +989,7 @@ export function App() {
               onSelectCampaign={openCampaign}
               onUpdateCampaign={handleUpdateCampaign}
               onOpenProfile={() => setActiveTab('profile')}
+              onRemoveMember={handleRemoveMember}
               onFeedback={() => openSubmission('feedback')}
               onReport={() => openSubmission('report')}
             />

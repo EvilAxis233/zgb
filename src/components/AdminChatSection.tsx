@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { MessageSquareText, Send, Trash2, RefreshCw, Search, UsersRound, UserPlus } from 'lucide-react';
+import { MessageSquareText, Send, Trash2, RefreshCw, Search, UsersRound } from 'lucide-react';
 import { adminApi, type AdminUser, type ChatConversation, type ChatMessage } from '../services/api';
 import { number } from './AdminCommon';
 
@@ -92,7 +92,8 @@ export function AdminChatSection({ onNotice, onError }: { onNotice: (message: st
   const hasThread = !!conversations.find((c) => c.userQq === selected);
   const conversationQqs = new Set(conversations.map((c) => c.userQq));
 
-  return <section className="grid gap-4 lg:grid-cols-[minmax(0,260px)_minmax(0,240px)_minmax(0,1fr)]">
+  // 三列总宽不够时优先压缩右侧对话窗（320–520px），保证左侧列表按账号页的单行排版放得下。
+  return <section className="grid items-start gap-4 lg:grid-cols-[340px_200px_minmax(320px,1fr)]">
     {/* 第 1 列：全部注册账号 + 检索（与「账号」页左侧列表同一接口与样式） */}
     <div className="bauhaus-card bg-white p-3 min-h-[420px] flex flex-col">
       <div className="flex items-center justify-between border-b-2 border-[#121212] pb-2 mb-2">
@@ -107,14 +108,19 @@ export function AdminChatSection({ onNotice, onError }: { onNotice: (message: st
       <p className="mb-2 text-[10px] font-bold leading-snug text-[#777]">点账号即可主动发消息，对方无需先来信。</p>
       {accountsLoading ? <div className="text-xs text-[#666] p-3">加载中…</div>
         : !accounts.length ? <div className="text-xs text-[#666] p-3">没有找到账号，换个关键词试试。</div>
-          : <ul className="space-y-1 overflow-y-auto flex-1 max-h-[52vh]">{accounts.map((user) => (
+          : <ul className="space-y-1 overflow-y-auto flex-1 max-h-[70vh]">{accounts.map((user) => (
             <li key={user.qq}>
+              {/* 与「账号」页左侧同一套单行排版：昵称 + QQ + 标签靠左，带团 / 参团次数靠右 */}
               <button type="button" onClick={() => void openThread(user.qq, user.name)}
-                className={`w-full text-left border-2 px-2 py-1.5 flex items-center gap-1.5 ${selected === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white hover:border-[#004E98]'}`}>
-                <strong className="text-xs font-black truncate max-w-[6.5rem] shrink-0">{user.name}</strong>
-                <span className="min-w-0 flex-1 truncate text-[10px] font-mono text-[#666]">{user.qq}</span>
-                {conversationQqs.has(user.qq) && <span className="shrink-0 bg-[#004E98] text-white text-[9px] font-black px-1">会话</span>}
-                <UserPlus size={12} className="shrink-0 text-[#888]" aria-hidden="true" />
+                className={`w-full text-left border-2 px-2.5 py-1.5 ${selected === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white hover:border-[#004E98]'}`}>
+                <span className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <strong className="min-w-0 truncate text-xs font-black">{user.name}</strong>
+                    <span className="shrink-0 font-mono text-[11px] text-[#666]">{user.qq}</span>
+                    {conversationQqs.has(user.qq) && <span className="shrink-0 text-[10px] font-bold text-[#004E98] border border-[#004E98] px-1">会话</span>}
+                  </span>
+                  <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]"><span>带团 {user.hosted_count ?? 0}</span><span className="ml-2">参团 {user.joined_count ?? 0}</span></span>
+                </span>
               </button>
             </li>
           ))}</ul>}
@@ -141,13 +147,12 @@ export function AdminChatSection({ onNotice, onError }: { onNotice: (message: st
                   {c.unread > 0 && <span className="shrink-0 bg-[#D62828] text-white text-[10px] font-black px-1.5 py-0.5">{number(c.unread)} 未读</span>}
                 </div>
                 <span className="text-[11px] text-[#666] font-mono truncate">{c.userQq}</span>
-                <span className="text-[11px] text-[#888] truncate">{c.lastContent || '（空）'}</span>
               </button>
             </li>
           ))}</ul>}
     </div>
 
-    {/* 第 3 列：缩窄的对话窗（消息区限宽 600px） */}
+    {/* 第 3 列：缩窄的对话窗（列宽 320–520px，总宽不够时优先压这一列） */}
     <div className="bauhaus-card bg-white p-3 min-h-[420px] flex flex-col">
       {!selected ? <div className="flex-1 flex items-center justify-center text-sm text-[#666] text-center px-4">从左侧点选一个账号主动联系，或选择已有玩家会话查看与回复</div>
         : <>
