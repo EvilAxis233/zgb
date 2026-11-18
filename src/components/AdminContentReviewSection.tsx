@@ -137,7 +137,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
     try {
       await adminApi.addRoundtableTopic({
         channelId: v.channelId, title: v.name, tags: v.tags, resources: v.resources,
-        origin: v.origin, ruleVersion: v.ruleVersion,
+        origin: v.origin, ruleVersion: v.ruleVersion, contentAttr: v.contentAttr,
       });
       onNotice('主题已新建');
       setNewTopicOpen(false);
@@ -149,13 +149,14 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
   const editTopicInitial = (t: RoundtableTopic): TopicFormValue => ({
     name: t.title, channelId: t.channelId, newChannelName: '',
     tags: t.tags || [], resources: t.resources || [], origin: t.origin || '', ruleVersion: t.ruleVersion || '',
+    contentAttr: t.contentAttr || '',
   });
   const saveEditTopic = async (v: TopicFormValue) => {
     if (!editTopic) return;
     try {
       await adminApi.updateRoundtableTopic(editTopic.id, {
         title: v.name, channelId: v.channelId, tags: v.tags, resources: v.resources,
-        origin: v.origin, ruleVersion: v.ruleVersion,
+        origin: v.origin, ruleVersion: v.ruleVersion, contentAttr: v.contentAttr,
       });
       onNotice('主题已更新');
       setEditTopic(null);
@@ -223,6 +224,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
                   <p className="mt-1 text-xs text-[#666]">申请人：{a.applicant} · {a.time}{a.ruleVersion ? ` · 规则版本：${a.ruleVersion}` : ''}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {!!a.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[11px] font-black text-[#B45309]">{a.origin}</span>}
+                    {!!a.contentAttr && <span className="border border-[#176B57] bg-[#EAF5F1] px-1.5 py-0.5 text-[11px] font-black text-[#176B57]">{a.contentAttr}</span>}
                     {a.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}
                   </div>
                   {!!a.resources?.length && (
@@ -311,6 +313,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
               <p className="text-xs text-[#666]">申请人：{approveTarget.applicant} · {approveTarget.time}{approveTarget.ruleVersion ? ` · 规则版本：${approveTarget.ruleVersion}` : ''}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {!!approveTarget.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[11px] font-black text-[#B45309]">{approveTarget.origin}</span>}
+                {!!approveTarget.contentAttr && <span className="border border-[#176B57] bg-[#EAF5F1] px-1.5 py-0.5 text-[11px] font-black text-[#176B57]">{approveTarget.contentAttr}</span>}
                 {approveTarget.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}
               </div>
               {!!approveTarget.resources?.length && <p className="mt-2 text-[11px] text-[#004E98]">引用资源：{approveTarget.resources.map((r) => r.name).join('、')}</p>}
@@ -406,6 +409,7 @@ const TopicCard: React.FC<{
       <h4 className="min-w-0 flex-1 truncate text-sm font-black text-[#121212]" title={topic.title}>
         {!!topic.ruleVersion && <span className="mr-1 text-[#666]">[{topic.ruleVersion}]</span>}
         {!!topic.origin && <span className="mr-1 border border-[#F4A261] bg-[#FFF4E5] px-1 py-0.5 align-middle text-[10px] font-black text-[#B45309]">{topic.origin}</span>}
+        {!!topic.contentAttr && <span className="mr-1 border border-[#176B57] bg-[#EAF5F1] px-1 py-0.5 align-middle text-[10px] font-black text-[#176B57]">{topic.contentAttr}</span>}
         {topic.title}
       </h4>
       <div className="flex shrink-0 items-center gap-0.5">

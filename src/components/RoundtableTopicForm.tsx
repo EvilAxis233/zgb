@@ -5,7 +5,7 @@ import { api, type RoundtableResourceRef, type RoundtableOrigin } from '../servi
 /**
  * GM圆桌主题表单：前台「申请主题」与后台「新建主题」共用同一套字段，
  * 保证"申请界面等同于新建界面，同意=新建"。
- * 字段：主题名称 / 原模组所属规则版本 / 模组来源(必填,作为标签) / 规则分页（可选新建）/ tag / 引用站内爱心资源。
+ * 字段：主题名称 / 原模组所属规则版本 / 来源(必填,作为标签) / 内容属性(必填单选,作为 tag) / 规则分页（可选新建）/ tag / 引用站内爱心资源。
  */
 export interface TopicFormValue {
   name: string;
@@ -15,12 +15,16 @@ export interface TopicFormValue {
   resources: RoundtableResourceRef[];
   origin: RoundtableOrigin;
   ruleVersion: string;
+  contentAttr: string;
 }
 
 export const ORIGIN_OPTIONS: RoundtableOrigin[] = ['官方', '第三方授权', '民间创作'];
+/** 内容属性固定四选一 + 自填（自填值≤6 中文字符）。 */
+export const CONTENT_ATTR_OPTIONS = ['冒险', '世设', '扩展资料', '杂志'] as const;
+export const CONTENT_ATTR_CUSTOM = '自填';
 
 export const emptyTopicForm = (): TopicFormValue => ({
-  name: '', channelId: '', newChannelName: '', tags: [], resources: [], origin: '', ruleVersion: '',
+  name: '', channelId: '', newChannelName: '', tags: [], resources: [], origin: '', ruleVersion: '', contentAttr: '',
 });
 
 const cnLen = (s: string) => Array.from(s.trim()).reduce((n, ch) => {
@@ -41,6 +45,11 @@ type Props = {
 
 export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, submitLabel, flash, onSave, onCancel, initialValue }) => {
   const [value, setValue] = useState<TopicFormValue>(() => initialValue ? { ...emptyTopicForm(), ...initialValue } : emptyTopicForm());
+  // 内容属性：选项态（四选一 / 自填 / 未选），自填文本单独存，提交时合成 contentAttr。
+  const initAttr = initialValue?.contentAttr || '';
+  const isFixedAttr = (s: string): s is typeof CONTENT_ATTR_OPTIONS[number] => (CONTENT_ATTR_OPTIONS as readonly string[]).includes(s);
+  const [attrChoice, setAttrChoice] = useState<string>(isFixedAttr(initAttr) ? initAttr : (initAttr ? CONTENT_ATTR_CUSTOM : ''));
+  const [attrCustom, setAttrCustom] = useState(isFixedAttr(initAttr) ? '' : initAttr);
   const [tagDraft, setTagDraft] = useState('');
   const [resQuery, setResQuery] = useState('');
   const [resResults, setResResults] = useState<Array<{ id: string; name: string; url: string; type: string; category: string }>>([]);
@@ -103,12 +112,17 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
     if (!value.channelId) { flash('请选择主题放置的规则分页'); return; }
     if (value.channelId === '__new__' && !value.newChannelName.trim()) { flash('请填写新建规则分页名称'); return; }
     // tag 非必填：允许留空，编辑时可把已有 tag 全部删掉
-    if (!value.origin) { flash('请选择模组来源（官方 / 第三方授权 / 民间创作）'); return; }
+    if (!value.origin) { flash('请选择来源（官方 / 第三方授权 / 民间创作）'); return; }
+    const attr = attrChoice === CONTENT_ATTR_CUSTOM ? attrCustom.trim() : attrChoice;
+    if (!attr) { flash(attrChoice === CONTENT_ATTR_CUSTOM ? '请填写内容属性' : '请选择内容属性'); return; }
+    if (attrChoice === CONTENT_ATTR_CUSTOM && cnLen(attr) > 6) { flash('自填内容属性最多 6 个中文字符'); return; }
+    // 内容属性作为一个 tag 展示（去重，且不占用手动 tag 的 6 个名额 —— 由展示层合并，不写入 tags 数组）。
     onSave({
       ...value,
       name: value.name.trim(),
       newChannelName: value.newChannelName.trim(),
       ruleVersion: value.ruleVersion.trim(),
+      contentAttr: attr,
     });
   };
 
@@ -129,7 +143,7 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
       </div>
 
       <div>
-        <label className={`mb-1 block text-xs font-bold ${T.label}`}>模组来源 <span className="text-[#D62828]">*</span></label>
+        <label className={`mb-1 block text-xs font-bold ${T.label}`}>来源 <span className="text-[#D62828]">*</span></label>
         <div className="flex flex-wrap gap-2">
           {ORIGIN_OPTIONS.map((opt) => (
             <button key={opt} type="button" onClick={() => setValue((v) => ({ ...v, origin: opt }))}
@@ -138,6 +152,34 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
             </button>
           ))}
         </div>
+      </div>
+
+      <div>
+        <label className={`mb-1 block text-xs font-bold ${T.label}`}>内容属性 <span className="text-[#D62828]">*</span> <span className={`font-normal ${T.sub}`}>（单选，将作为 tag 展示）</span></label>
+        <div className="flex flex-wrap gap-2">
+          {[...CONTENT_ATTR_OPTIONS, CONTENT_ATTR_CUSTOM].map((opt) => (
+            <button key={opt} type="button" onClick={() => {
+              setAttrChoice(opt);
+              if (opt === CONTENT_ATTR_CUSTOM) setValue((v) => ({ ...v, contentAttr: attrCustom.trim() }));
+              else { setAttrCustom(''); setValue((v) => ({ ...v, contentAttr: opt })); }
+            }}
+              className={`border-2 px-3 py-1.5 text-xs font-bold transition-colors ${attrChoice === opt ? T.chip : (dark ? 'border-[#555] bg-[#242426] text-[#C9C9C9] hover:border-[#8BC34A]' : 'border-[#CCC] bg-white text-[#555] hover:border-[#176B57]')}`}>
+              {attrChoice === opt ? '✓ ' : ''}{opt}
+            </button>
+          ))}
+        </div>
+        {attrChoice === CONTENT_ATTR_CUSTOM && (
+          <div className="mt-2">
+            <input value={attrCustom} onChange={(e) => {
+              const t = e.target.value;
+              if (cnLen(t) > 6) return;
+              setAttrCustom(t);
+              setValue((v) => ({ ...v, contentAttr: t.trim() }));
+            }} placeholder="自填内容属性，最多 6 个中文字符"
+              className={inputCls} />
+            <p className={`mt-1 text-[11px] ${T.sub}`}>已填 {cnLen(attrCustom)}/6 字</p>
+          </div>
+        )}
       </div>
 
       <div>

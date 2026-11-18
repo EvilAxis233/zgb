@@ -153,7 +153,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const filtered = useMemo(() => topics.filter((t) => {
     if (channel !== 'all' && t.channelId !== channel) return false;
     const q = query.trim().toLowerCase();
-    if (q && !t.title.toLowerCase().includes(q) && !t.tags.some((tag) => tag.toLowerCase().includes(q))) return false;
+    if (q && !t.title.toLowerCase().includes(q) && !t.tags.some((tag) => tag.toLowerCase().includes(q)) && !(t.contentAttr || '').toLowerCase().includes(q)) return false;
     return true;
   }), [topics, channel, query]);
 
@@ -225,7 +225,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     try {
       await api.roundtableApply({
         name: v.name, tags: v.tags, resources: v.resources,
-        origin: v.origin, ruleVersion: v.ruleVersion,
+        origin: v.origin, ruleVersion: v.ruleVersion, contentAttr: v.contentAttr,
         channelId: v.channelId === '__new__' ? '' : v.channelId,
         createNew: v.channelId === '__new__',
         newChannelName: v.channelId === '__new__' ? v.newChannelName : '',
@@ -523,9 +523,10 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
           <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
           {!!t.ruleVersion && <div className="mt-1 text-[10px] text-[#8A8A8A]">规则版本：{t.ruleVersion}</div>}
           {!!t.resources?.length && <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[#7FC7FF]"><Link2 className="h-3 w-3" />引用 {t.resources.length} 个爱心资源</div>}
-          {(!!t.origin || t.tags.length > 0) && (
+          {(!!t.origin || !!t.contentAttr || t.tags.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {!!t.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-1.5 py-0.5 text-[10px] font-black text-[#F4A261]">{t.origin}</span>}
+              {!!t.contentAttr && <span className="border border-[#176B57] bg-[#176B57]/15 px-1.5 py-0.5 text-[10px] font-black text-[#7FC7A6]">{t.contentAttr}</span>}
               {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
             </div>
           )}
@@ -746,9 +747,10 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
             </div>
 
             <div className="px-4 py-3">
-              {(!!openTopic.origin || openTopic.tags.length > 0) && (
+              {(!!openTopic.origin || !!openTopic.contentAttr || openTopic.tags.length > 0) && (
                 <div className="flex flex-wrap gap-2">
                   {!!openTopic.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-2 py-0.5 text-[11px] font-black text-[#F4A261]">{openTopic.origin}</span>}
+                  {!!openTopic.contentAttr && <span className="border border-[#176B57] bg-[#176B57]/15 px-2 py-0.5 text-[11px] font-black text-[#7FC7A6]">{openTopic.contentAttr}</span>}
                   {openTopic.tags.map((tag) => <span key={tag} className="border border-[#555] px-2 py-0.5 text-[11px] font-bold text-[#BDBDBD]">{tag}</span>)}
                 </div>
               )}
