@@ -250,8 +250,9 @@ export const ManageView: React.FC<Props> = ({
               <p className="mt-0.5 text-[#888]">成员名单加载失败，点「收起」后再展开重试。</p>
             )}
           </div>}
-          {/* 团务操作按钮：不带图标，全部挤在同一行；窄屏横向滚动而不是换行。 */}
-          <div className="mt-2 flex flex-nowrap items-center justify-center gap-1 overflow-x-auto border-t border-dashed border-[#DDDDD5] pt-2">
+          {/* 团务操作按钮：不带图标，全部挤在同一行并左右居中；窄屏由外层横向滚动，内层 w-max 保证从第一个按钮开始可见。 */}
+          <div className="mt-2 overflow-x-auto border-t border-dashed border-[#DDDDD5] pt-2">
+          <div className="flex w-max min-w-full flex-nowrap items-center justify-center gap-1">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">查看</button>
             {hosted ? <>
               {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white px-2.5 py-1 text-[11px] font-bold">修改</button>}
@@ -267,6 +268,7 @@ export const ManageView: React.FC<Props> = ({
                 <button onClick={() => handleDelete(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold">弃团</button>
               </>}
             </> : campaign.kind !== 'promo' && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold">取消报名</button>}
+          </div>
           </div>
         </div>}
       </li>
