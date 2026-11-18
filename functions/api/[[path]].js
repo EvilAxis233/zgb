@@ -910,6 +910,13 @@ export async function onRequest(context) {
       if (path[1] === 'users' && path.length === 2 && method === 'GET') {
         const search = clean(url.searchParams.get('search'), 40);
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
+        // 账号列表排序：默认最新注册；点赞与带团按次数降序，次数相同再按注册时间。
+        const sortKey = clean(url.searchParams.get('sort'), 20);
+        const orderBy = {
+          gm: 'u.received_gm DESC, u.created_at DESC',
+          player: 'u.received_player DESC, u.created_at DESC',
+          host: 'hosted_count DESC, u.created_at DESC',
+        }[sortKey] || 'u.created_at DESC';
         const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
         const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";
         const [count, users, memberCount] = await db.batch([
@@ -923,7 +930,7 @@ export async function onRequest(context) {
             `(SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=u.qq AND c.deleted_at IS NULL AND c.kind IN ('online','offline')) joined_count,` +
             `b.expires_at blacklist_expires_at,b.banned_at blacklist_banned_at,` +
             `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
-            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY u.created_at DESC LIMIT 100 OFFSET ?`).bind(now(), pattern, pattern, offset),
+            `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY ${orderBy} LIMIT 100 OFFSET ?`).bind(now(), pattern, pattern, offset),
           db.prepare('SELECT COUNT(*) n FROM users WHERE role=\'owner\' OR membership_expires_at=? OR membership_expires_at>?').bind(PERMANENT_MEMBERSHIP, now())
         ]);
         return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n, memberTotal: memberCount.results[0].n });

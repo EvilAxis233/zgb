@@ -9,7 +9,8 @@ import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
-import { clampTag, tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { useClampedTagInput } from '../hooks/useClampedTagInput';
 
 interface Props {
   campaign: Campaign;
@@ -36,7 +37,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
   }));
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
-  const [customTagInput, setCustomTagInput] = useState('');
+  const { value: customTagInput, setValue: setCustomTagInput, inputProps: customTagProps } = useClampedTagInput();
   const [saving, setSaving] = useState(false);
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
   const [stickerTouched, setStickerTouched] = useState(false);
@@ -208,7 +209,8 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
           <div className="relative">
             <div className="flex justify-between text-xs font-bold mb-1"><span>自定义标签 ({TAG_LIMIT_HINT})</span><span className="text-[#666]">{draft.customTags?.length || 0}/6</span></div>
             <div className="relative">
-              <input value={customTagInput} onChange={(e) => setCustomTagInput(clampTag(e.target.value))} onKeyDown={(e) => {
+              <input {...customTagProps} onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return;
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const t = customTagInput.trim();

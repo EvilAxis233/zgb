@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Check, Search, Shield, ShieldBan, UserCog } from 'lucide-react';
-import { type AdminUser, type MembershipGrant } from '../services/api';
+import { type AdminUser, type AdminUserSort, type MembershipGrant } from '../services/api';
 import { useDialog } from './BauhausDialog';
 
 const USER_PAGE_SIZE = 100;
@@ -19,9 +19,11 @@ interface Props {
   grantOffset: number;
   searchInput: string;
   userOffset: number;
+  userSort: AdminUserSort;
   busy: boolean;
   canManageAdmins: boolean;
   setSearchInput: (value: string) => void;
+  setUserSort: (sort: AdminUserSort) => void;
   searchUsers: (event: FormEvent) => void;
   selectUser: (user: AdminUser) => void;
   setUserOffset: (offset: number) => void;
@@ -85,14 +87,30 @@ export function AdminUsersSection(props: Props) {
   return <div className="grid lg:grid-cols-[420px_1fr] gap-6">
     <section className="bauhaus-card p-5 bg-white">
       <div className="flex justify-between items-center border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">注册用户</h3><div className="flex items-center gap-1.5"><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">共 {props.userTotal} 个</span><span className="text-xs font-bold bg-[#C85C16] text-white px-2 py-1">会员 {props.memberTotal} 个</span></div></div>
-      <form onSubmit={props.searchUsers} className="flex gap-2 mb-4"><input aria-label="搜索 QQ 号或昵称" value={props.searchInput} onChange={(e) => props.setSearchInput(e.target.value)} placeholder="输入 QQ 号后点搜索" className="bauhaus-input min-w-0 flex-1 px-3 py-2 text-sm" /><button className="bauhaus-btn bg-[#121212] text-white px-3" aria-label="搜索"><Search size={17} /></button></form>
-      <div className="space-y-1 max-h-[70vh] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-2.5 py-1.5 flex items-center gap-2 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}>
-        <strong className="text-xs font-black truncate max-w-[6.5rem] shrink-0">{user.name}</strong>
-        <span className="font-mono text-[11px] text-[#666] shrink-0">{user.qq}</span>
-        {!!roleLabel(user) && <span className="text-[10px] font-bold text-[#004E98] border border-[#004E98] px-1 shrink-0">{roleLabel(user)}</span>}
-        {!!user.blacklisted && <span className="text-[10px] font-bold text-[#B51F1F] border border-[#B51F1F] px-1 shrink-0">黑名单</span>}
-        {isMember(user) && <span className="text-[10px] font-bold text-[#7A4B00] border border-[#C85C16] px-1 shrink-0">会员</span>}
-        <span className="ml-auto text-[11px] font-bold shrink-0">被举报 {user.report_count}</span>
+      <form onSubmit={props.searchUsers} className="flex gap-2 mb-3"><input aria-label="搜索 QQ 号或昵称" value={props.searchInput} onChange={(e) => props.setSearchInput(e.target.value)} placeholder="输入 QQ 号后点搜索" className="bauhaus-input min-w-0 flex-1 px-3 py-2 text-sm" /><button className="bauhaus-btn bg-[#121212] text-white px-3" aria-label="搜索"><Search size={17} /></button></form>
+      {/* 排序：默认最新注册；点赞与带团按次数降序 */}
+      <label className="mb-3 flex items-center gap-2 text-xs font-bold">
+        <span className="shrink-0">排序</span>
+        <select aria-label="账号排序方式" value={props.userSort} onChange={(event) => props.setUserSort(event.target.value as AdminUserSort)} className="bauhaus-input min-w-0 flex-1 px-2 py-1.5 text-xs font-bold">
+          <option value="latest">最新注册（默认）</option>
+          <option value="gm">GM 点赞次数</option>
+          <option value="player">玩家点赞次数</option>
+          <option value="host">带团次数</option>
+        </select>
+      </label>
+      <div className="space-y-1 max-h-[70vh] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-2.5 py-1.5 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}>
+        {/* 两行结构：昵称 + 被举报次数固定同排，QQ 与身份标签换到第二行，窄侧栏也不会把举报数挤掉 */}
+        <span className="flex items-center gap-2">
+          <strong className="min-w-0 flex-1 truncate text-xs font-black">{user.name}</strong>
+          <span title={`累计被举报 ${user.report_count} 次`} className={`shrink-0 border px-1 text-[11px] font-bold ${Number(user.report_count) > 0 ? 'border-[#B51F1F] bg-[#FAF0F0] text-[#B51F1F]' : 'border-[#CCC] bg-[#FAF9F5] text-[#777]'}`}>被举报 {user.report_count ?? 0}</span>
+        </span>
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          <span className="font-mono text-[11px] text-[#666]">{user.qq}</span>
+          {!!roleLabel(user) && <span className="text-[10px] font-bold text-[#004E98] border border-[#004E98] px-1">{roleLabel(user)}</span>}
+          {!!user.blacklisted && <span className="text-[10px] font-bold text-[#B51F1F] border border-[#B51F1F] px-1">黑名单</span>}
+          {isMember(user) && <span className="text-[10px] font-bold text-[#7A4B00] border border-[#C85C16] px-1">会员</span>}
+          <span className="ml-auto text-[10px] font-bold text-[#888]">带团 {user.hosted_count ?? 0}</span>
+        </span>
       </button>)}</div>
       <Pager offset={props.userOffset} total={props.userTotal} onChange={props.setUserOffset} />
     </section>

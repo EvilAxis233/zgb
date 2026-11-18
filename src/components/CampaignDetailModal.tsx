@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText } from 'lucide-react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -42,8 +42,9 @@ function Avatar({ member, stretch = false, large = false }: { member: CampaignMe
 }
 
 export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
-  const { showConfirm } = useDialog();
+  const { showConfirm, showAlert } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [profileMember, setProfileMember] = useState<CampaignMember | null>(null);
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
@@ -54,6 +55,36 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
       setCopiedQq(qq);
       window.setTimeout(() => setCopiedQq(null), 1600);
     }).catch(() => {});
+  };
+  // 邀请同伴：复制带 ?view=&campaign= 的详情深链，对方打开（无需登录）就落在这条团上。
+  const inviteLink = () => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('view', campaign.kind === 'offline' ? 'offline' : 'online');
+    url.searchParams.set('campaign', campaign.id);
+    return url.toString();
+  };
+  const copyInvite = async () => {
+    const link = inviteLink();
+    let ok = false;
+    try { await navigator.clipboard.writeText(link); ok = true; }
+    catch {
+      try {
+        const area = document.createElement('textarea');
+        area.value = link;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        ok = document.execCommand('copy');
+        area.remove();
+      } catch { ok = false; }
+    }
+    if (ok) {
+      setInviteCopied(true);
+      window.setTimeout(() => setInviteCopied(false), 1800);
+    } else {
+      await showAlert({ title: '复制失败', message: `浏览器不允许自动复制，请手动复制链接：${link}`, type: 'warning' });
+    }
   };
   const isMember = isGm || campaign.isSignedUp;
   const gm = campaign.members.find((member) => member.role === 'gm');
@@ -340,6 +371,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             {campaign.kind !== 'promo' && currentUser && !isGm && !campaign.isSignedUp && !campaign.hasEnded && !campaign.isClosed && !campaign.isFull && !campaign.hasExpired && <button type="button" onClick={() => onSignup(campaign.id)} className="bauhaus-btn bg-[#D62828] text-white px-5 py-1.5 text-xs font-bold inline-flex items-center gap-2"><UserPlus className="w-4 h-4" />报名</button>}
             {campaign.kind !== 'promo' && currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
             {campaign.kind !== 'promo' && (campaign.hasEnded || campaign.isClosed || campaign.isFull || campaign.hasExpired) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed || campaign.hasExpired ? '本团已封车' : '报名人数已满'}</span>}
+            {campaign.kind !== 'promo' && (
+              <button type="button" onClick={copyInvite} title="复制这条团的详情链接，发给同伴即可直接打开"
+                className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-bold inline-flex items-center gap-1.5">
+                <Share2 className="w-4 h-4" />{inviteCopied ? '链接已复制' : '邀请同伴'}
+              </button>
+            )}
             {campaign.kind === 'promo' && !currentUser && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold">登录查看联系方式</button>}
             {isAdminModerator && (
               <>

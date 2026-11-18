@@ -97,6 +97,15 @@ export function App() {
   // 浏览统计：记录上次上报时间，整页加载与切换主板块各记一次，30 秒内不重复。
   const viewTrackedAtRef = useRef(0);
 
+  // 团详情深链：?campaign=<团 id> 与弹窗一一对应，邀请同伴的链接就靠它落到同一条团。
+  const setCampaignParam = (id: string | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('campaign', id);
+    else url.searchParams.delete('campaign');
+    if (url.toString() !== window.location.href) window.history.replaceState({}, '', url.toString());
+  };
+  const closeCampaign = () => { setSelectedCampaign(null); setCampaignParam(null); };
+
   // 状态 → 地址栏：切换板块 / 大厅时同步 ?view=。用 replaceState 不污染历史记录，
   // 刷新、复制链接、重新打开都能回到当前这一页。
   const viewKey = viewKeyOf(activeTab, boardView);
@@ -291,6 +300,7 @@ export function App() {
     removedIdsRef.current.add(campaignId);
     setCampaigns((previous) => previous.filter((campaign) => campaign.id !== campaignId));
     setSelectedCampaign((previous) => (previous?.id === campaignId ? null : previous));
+    if (selectedCampaign?.id === campaignId) setCampaignParam(null);
     setAdminEditingCampaign((previous) => (previous?.id === campaignId ? null : previous));
     showToast(message, 'success');
     // 本地状态已精确移除，不再整页刷新：弱网下那次刷新失败会把登录态降级或读到旧快照，
@@ -315,6 +325,7 @@ export function App() {
     setCampaigns((previous) => previous.map((campaign) => campaign.id === campaignId ? { ...campaign, isClosed: true } : campaign));
     // 主界面详情弹窗若正打开这条宣群，归档后直接关掉，避免停留在已下架的内容上。
     setSelectedCampaign((previous) => previous?.id === campaignId ? null : previous);
+    if (selectedCampaign?.id === campaignId) setCampaignParam(null);
     showToast('宣发已结束，记录保留在团务管理的历史记录中', 'success');
     return true;
   };
@@ -324,8 +335,8 @@ export function App() {
     const ok = await handleUpdateCampaign(updated, true);
     if (ok) {
       setAdminEditingCampaign(null);
-      try { const data = await api.campaign(updated.id); setSelectedCampaign(data.campaign); }
-      catch { setSelectedCampaign(null); }
+      try { const data = await api.campaign(updated.id); setSelectedCampaign(data.campaign); setCampaignParam(data.campaign.id); }
+      catch { closeCampaign(); }
     }
     return ok;
   };
@@ -447,15 +458,37 @@ export function App() {
   // Send Praise
   const openCampaign = async (campaign: Pick<Campaign, 'id'>) => {
     setLoadingCampaignId(campaign.id);
-    try { const data = await api.campaign(campaign.id); setSelectedCampaign(data.campaign); }
-    catch (error) { showToast(error instanceof Error ? error.message : '详情加载失败', 'error'); }
+    try {
+      const data = await api.campaign(campaign.id);
+      setSelectedCampaign(data.campaign);
+      setCampaignParam(data.campaign.id);
+    }
+    catch (error) { setCampaignParam(null); showToast(error instanceof Error ? error.message : '详情加载失败', 'error'); }
     finally { setLoadingCampaignId(null); }
   };
+  // 打开带 ?campaign= 的链接（邀请同伴 / 分享详情）：数据到齐前直接按 id 拉详情。
+  useEffect(() => {
+    const campaignId = new URLSearchParams(window.location.search).get('campaign');
+    if (campaignId) void openCampaign({ id: campaignId });
+    // 只在首次挂载时还原一次，后续由点击与地址栏监听接管。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // 浏览器前进 / 后退：地址栏里的团 id 决定详情弹窗开还是关。
+  useEffect(() => {
+    const syncCampaign = () => {
+      const campaignId = new URLSearchParams(window.location.search).get('campaign');
+      if (campaignId) void openCampaign({ id: campaignId });
+      else setSelectedCampaign(null);
+    };
+    window.addEventListener('popstate', syncCampaign);
+    return () => window.removeEventListener('popstate', syncCampaign);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const mutateCampaign = async (work: () => Promise<unknown>, message: string, campaignId: string) => {
     const ok = await run(work, message);
     if (!ok) return;
     try { const data = await api.campaign(campaignId); setSelectedCampaign(data.campaign); }
-    catch { setSelectedCampaign(null); }
+    catch { closeCampaign(); }
   };
   const handleSendPraise = (campaignId: string, toUserId: string, type: 'gm' | 'player') => currentUser
     ? mutateCampaign(() => api.praise(campaignId, toUserId, type), '点赞成功', campaignId) : setIsLoginOpen(true);
@@ -943,7 +976,7 @@ export function App() {
       <CampaignDetailModal
         campaign={selectedCampaign}
         onSelectSlot={(id) => openCampaign({ id })}
-        onClose={() => setSelectedCampaign(null)}
+        onClose={closeCampaign}
         currentUser={currentUser}
         onLogin={() => setIsLoginOpen(true)}
         onSignup={handleSignup}

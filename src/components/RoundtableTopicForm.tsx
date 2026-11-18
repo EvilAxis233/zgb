@@ -171,7 +171,7 @@ export const RoundtableTopicForm: React.FC<Props> = ({ channels, dark = false, s
           ))}
         </div>
         <div className="flex gap-2">
-          <input value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+          <input value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
             placeholder="输入 tag 后回车添加" className={`flex-1 border-2 px-3 py-2 text-sm outline-none ${T.input}`} />
           <button type="button" onClick={addTag} className={`border-2 px-3 text-sm font-black ${T.secondary}`}>添加</button>
         </div>

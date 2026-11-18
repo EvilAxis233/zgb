@@ -165,6 +165,9 @@ export interface AdminUser {
   membership_expires_at: number | null;
 }
 
+/** 后台账号列表排序：最新注册（默认）/ GM 点赞 / 玩家点赞 / 带团次数。 */
+export type AdminUserSort = 'latest' | 'gm' | 'player' | 'host';
+
 export interface MembershipGrant {
   id: string;
   months: number;
@@ -315,7 +318,7 @@ export const adminApi = {
   rules: () => request<{ rules: string[] }>('admin/rules'),
   addRule: (name: string) => post('admin/rules', { name }),
   deleteRule: (name: string) => request('admin/rules', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
-  users: (search: string, offset: number) => request<{ users: AdminUser[]; total: number; memberTotal: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}`),
+  users: (search: string, offset: number, sort: AdminUserSort = 'latest') => request<{ users: AdminUser[]; total: number; memberTotal: number }>(`admin/users?search=${encodeURIComponent(search)}&offset=${offset}&sort=${sort}`),
   grantMembership: (qq: string, months: number) => post<{ ok: boolean; months: number; days: number; membershipExpiresAt: number }>(`admin/users/${encodeURIComponent(qq)}/membership`, { months }),
   grants: (qq: string, offset: number) => request<{ records: MembershipGrant[]; total: number }>(`admin/users/${encodeURIComponent(qq)}/grants?offset=${offset}`),
   setRole: (qq: string, role: 'admin' | '') => patch<{ ok: boolean; role: 'admin' | null }>(`admin/users/${encodeURIComponent(qq)}/role`, { role }),

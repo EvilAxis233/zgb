@@ -8,7 +8,8 @@ import { useDialog } from './BauhausDialog';
 import { ImageCropper } from './ImageCropper';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
-import { clampTag, tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { useClampedTagInput } from '../hooks/useClampedTagInput';
 import { formatDisplayTime, PERIOD_HINT } from '../utils/date';
 
 interface PublishModalProps {
@@ -94,7 +95,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [address, setAddress] = useState('');
   const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
   const [selectedCustomTags, setSelectedCustomTags] = useState<string[]>([]);
-  const [customTagInput, setCustomTagInput] = useState('');
+  const { value: customTagInput, setValue: setCustomTagInput, inputProps: customTagProps } = useClampedTagInput();
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
   const [contact, setContact] = useState(currentUser?.qq || '');
@@ -585,9 +586,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <div className="relative">
                       <input
                         type="text"
-                        value={customTagInput}
-                        onChange={(e) => setCustomTagInput(clampTag(e.target.value))}
+                        {...customTagProps}
                         onKeyDown={(e) => {
+                          if (e.nativeEvent.isComposing) return;
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             const tag = customTagInput.trim();

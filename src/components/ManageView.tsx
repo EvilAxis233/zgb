@@ -11,7 +11,8 @@ import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
-import { clampTag, tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
+import { useClampedTagInput } from '../hooks/useClampedTagInput';
 
 interface Props {
   hostedCampaigns: Campaign[];
@@ -60,7 +61,7 @@ export const ManageView: React.FC<Props> = ({
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
-  const [customTagInput, setCustomTagInput] = useState('');
+  const { value: customTagInput, setValue: setCustomTagInput, inputProps: customTagProps } = useClampedTagInput();
   const [addingBatchId, setAddingBatchId] = useState<string | null>(null);
   const [newTimeSchedule, setNewTimeSchedule] = useState('');
   const [addingSlot, setAddingSlot] = useState(false);
@@ -318,7 +319,7 @@ export const ManageView: React.FC<Props> = ({
           {coverBlock}
           {stickerBlock}
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
-          <label className="block text-xs font-bold">自定义标签（{TAG_LIMIT_HINT}）<input value={customTagInput} onChange={(e) => setCustomTagInput(clampTag(e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} className="bauhaus-input mt-1 w-full p-2" placeholder="6 中文 / 12 英文，输入后点击添加" /></label>
+          <label className="block text-xs font-bold">自定义标签（{TAG_LIMIT_HINT}）<input {...customTagProps} onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} className="bauhaus-input mt-1 w-full p-2" placeholder="6 中文 / 12 英文，输入后点击添加" /></label>
           <button type="button" onClick={addTag} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
           <div className="flex flex-wrap gap-1">{editingCampaign.customTags?.map((tag) => <button type="button" key={tag} onClick={() => setEditingCampaign({ ...editingCampaign, customTags: editingCampaign.customTags?.filter((item) => item !== tag) })} className="border px-2 py-1 text-xs">{tag} ×</button>)}</div>
           <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>
@@ -364,7 +365,8 @@ export const ManageView: React.FC<Props> = ({
           <div className="relative">
             <div className="flex justify-between text-xs font-bold mb-1"><span>自定义标签 ({TAG_LIMIT_HINT})</span><span className="text-[#666]">{editingCampaign.customTags?.length || 0}/6</span></div>
             <div className="relative">
-              <input value={customTagInput} onChange={(e) => setCustomTagInput(clampTag(e.target.value))} onKeyDown={(e) => {
+              <input {...customTagProps} onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return;
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const t = customTagInput.trim();
