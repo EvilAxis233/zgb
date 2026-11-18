@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { X, BookOpen, Sparkles, ChevronDown, ChevronUp, Upload, ImagePlus, ThumbsUp } from 'lucide-react';
+import { X, BookOpen, Sparkles, ChevronDown, ChevronUp, Upload, ImagePlus, ThumbsUp, Trash2 } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign, type CampaignDetail, type CampaignMember, type UserProfile } from '../types';
 import { api } from '../services/api';
 import { CalendarPicker } from './CalendarPicker';
@@ -237,8 +237,8 @@ export const ManageView: React.FC<Props> = ({
                     <span className="flex shrink-0 items-center gap-1.5">
                       {/* 团务里不给玩家点赞入口（点赞只在结团履历里做）：发布人看自己的团时，这里换成移除玩家。 */}
                       {hosted && m.role === 'player' && !campaign.hasExpired ? (
-                        <button type="button" onClick={() => void removeMember(campaign, m)}
-                          className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FAF0F0] px-1.5 py-0.5 text-[10px] font-bold text-[#D62828] border-[#D62828]">移除玩家</button>
+                        <button type="button" onClick={() => void removeMember(campaign, m)} title="移除玩家" aria-label={`移除玩家 ${m.name}`}
+                          className="bauhaus-btn shrink-0 bg-[#FAF0F0] p-1 text-[#D62828] border-[#D62828]"><Trash2 className="h-3 w-3" /></button>
                       ) : (
                         <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
                       )}
@@ -251,7 +251,7 @@ export const ManageView: React.FC<Props> = ({
             )}
           </div>}
           {/* 团务操作按钮：不带图标，全部挤在同一行；窄屏横向滚动而不是换行。 */}
-          <div className="mt-2 flex flex-nowrap items-center gap-1 overflow-x-auto border-t border-dashed border-[#DDDDD5] pt-2">
+          <div className="mt-2 flex flex-nowrap items-center justify-center gap-1 overflow-x-auto border-t border-dashed border-[#DDDDD5] pt-2">
             <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">查看</button>
             {hosted ? <>
               {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white px-2.5 py-1 text-[11px] font-bold">修改</button>}

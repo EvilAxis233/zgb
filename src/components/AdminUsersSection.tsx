@@ -4,6 +4,7 @@ import { type AdminUser, type AdminUserSort, type MembershipGrant } from '../ser
 import type { Campaign } from '../types';
 import { CampaignHistoryPanel } from './CampaignHistoryPanel';
 import { useDialog } from './BauhausDialog';
+import { SelectPager } from './AdminCommon';
 
 const USER_PAGE_SIZE = 100;
 const GRANT_PAGE_SIZE = 50;
@@ -36,18 +37,6 @@ interface Props {
   onBlacklistChange: (qq: string, duration: typeof durations[number][0] | null) => Promise<void>;
   onGrantMembership: (qq: string, months: number) => Promise<void>;
   onToggleAdmin: (qq: string, makeAdmin: boolean) => Promise<void>;
-}
-
-// 页码用下拉直接择页，不再显示「1-50/182」这种范围数字。
-function Pager({ offset, total, size = USER_PAGE_SIZE, onChange }: { offset: number; total: number; size?: number; onChange: (offset: number) => void }) {
-  const pages = Math.ceil(total / size);
-  if (pages <= 1) return null;
-  const current = Math.min(pages - 1, Math.floor(offset / size));
-  return <div className="flex justify-between items-center mt-4 text-xs font-bold"><button disabled={current === 0} onClick={() => onChange((current - 1) * size)} className="bauhaus-btn bg-white px-3 py-1 disabled:opacity-40">上一页</button><label className="flex items-center gap-1.5">第
-    <select aria-label="选择页码" value={current} onChange={(event) => onChange(Number(event.target.value) * size)} className="bauhaus-input px-2 py-1 text-xs font-bold">
-      {Array.from({ length: pages }, (_, index) => <option key={index} value={index}>{index + 1}</option>)}
-    </select>
-    页 / 共 {pages} 页</label><button disabled={current >= pages - 1} onClick={() => onChange((current + 1) * size)} className="bauhaus-btn bg-white px-3 py-1 disabled:opacity-40">下一页</button></div>;
 }
 
 const roleLabel = (user: AdminUser) => user.role === 'owner' ? '站长' : user.role === 'admin' ? '管理员' : '';
@@ -122,7 +111,7 @@ export function AdminUsersSection(props: Props) {
           <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]"><span>带团 {user.hosted_count ?? 0}</span><span className="ml-2">参团 {user.joined_count ?? 0}</span></span>
         </span>
       </button>)}</div>
-      <Pager offset={props.userOffset} total={props.userTotal} onChange={props.setUserOffset} />
+      <SelectPager offset={props.userOffset} total={props.userTotal} size={USER_PAGE_SIZE} onChange={props.setUserOffset} />
     </section>
 
     <section className="bauhaus-card p-5 bg-white">
@@ -163,7 +152,7 @@ export function AdminUsersSection(props: Props) {
             </button>
             {grantsOpen && <>
               <div className="space-y-1.5 max-h-52 overflow-y-auto">{props.grants.map((record) => <div key={record.id} className="border border-[#121212] bg-white p-2 text-xs flex justify-between gap-2"><span><strong>{record.months} 个月</strong>（{record.days} 天） · 操作人 <span className="font-mono">{record.granted_by}</span></span><span className="text-[#666] shrink-0">{new Date(record.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Hong_Kong', hour12: false })}</span></div>)}{!props.grants.length && <p className="text-xs text-[#666]">暂无发放记录</p>}</div>
-              <Pager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />
+              <SelectPager offset={props.grantOffset} total={props.grantTotal} size={GRANT_PAGE_SIZE} onChange={props.setGrantOffset} />
             </>}
           </div>
         </section>
