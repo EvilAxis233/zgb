@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BookOpen, Check, ChevronDown, ChevronRight, FileText, FolderPlus, LayoutList, Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { adminApi, type RoundtableApply, type RoundtableSnapshot, type RoundtableTopic } from '../services/api';
 import { AdminResourcesSection } from './AdminResourcesSection';
@@ -67,7 +68,17 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
   useEffect(() => { void load(); }, [load]);
 
   const channels = data.channels, topics = data.topics, applies = data.applies || [];
-  const flash = (m: string) => onNotice(m);
+
+  // 主题表单校验提示：固定浮在视口顶部（z-[90] 高于弹窗遮罩 z-50），
+  // 与前台申请主题一致，避免走顶层全局 toast 时被弹窗遮挡、看不到校验原因。
+  const [formNotice, setFormNotice] = useState('');
+  const noticeTimer = useRef<number | null>(null);
+  const flash = useCallback((m: string) => {
+    setFormNotice(m);
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setFormNotice(''), 3200);
+  }, []);
+  useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current); }, []);
 
   // 同意申请弹窗：展示申请的全部字段，选择规则分页后「同意=新建」。
   const [approveTarget, setApproveTarget] = useState<RoundtableApply | null>(null);
@@ -183,6 +194,12 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
 
   return (
     <div>
+      {formNotice && createPortal(
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-center px-3" role="alert" aria-live="assertive">
+          <div className="pointer-events-auto max-w-md cursor-pointer border-2 border-[#121212] bg-[#F4A261] px-4 py-2.5 text-center text-sm font-black leading-relaxed text-[#121212] shadow-[4px_4px_0px_#121212]" onClick={() => setFormNotice('')}>{formNotice}</div>
+        </div>,
+        document.body,
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-2 border-b-2 border-[#121212] pb-2">
         {subTabs.map((s) => { const Icon = s.icon; return (
           <button key={s.id} type="button" onClick={() => setSub(s.id)}
@@ -283,7 +300,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
 
       {/* 同意申请弹窗：展示申请字段 + 选择规则分页，同意=新建 */}
       {approveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setApproveTarget(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bauhaus-card w-full max-w-md bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-black text-[#121212]">同意申请 · 同意即新建</h3>
@@ -319,7 +336,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
 
       {/* 后台新建主题弹窗：与前台申请共用同一表单 */}
       {newTopicOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setNewTopicOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bauhaus-card w-full max-w-lg bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-black text-[#121212]">新建主题</h3>
@@ -332,7 +349,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
 
       {/* 编辑主题弹窗：与「申请主题 / 新建主题」同一表单，仅预填当前值 */}
       {editTopic && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditTopic(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bauhaus-card w-full max-w-lg bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-black text-[#121212]">编辑主题</h3>

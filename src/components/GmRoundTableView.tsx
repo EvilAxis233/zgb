@@ -762,7 +762,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
 
       {/* 申请主题弹窗：与后台新建共用同一表单 */}
       {applyOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4" onClick={() => setApplyOpen(false)}>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
           <div className="mx-auto flex min-h-full items-center justify-center">
             <div className="my-2 w-full max-w-lg border-2 border-[#3A3A3A] bg-[#2B2B2D] p-5 text-[#E8E8E8] shadow-[6px_6px_0px_#121212]" onClick={(e) => e.stopPropagation()}>
               <div className="mb-4 flex items-center justify-between">
