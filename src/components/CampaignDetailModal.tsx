@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, ThumbsUp, UserPlus, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
+import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -18,6 +18,7 @@ interface Props {
   onSignup: (id: string) => void;
   onCancelSignup: (id: string) => void;
   onRemoveMember: (campaignId: string, qq: string) => void;
+  onPraise: (campaignId: string, qq: string, type: 'gm' | 'player') => void;
   onEditCampaign?: (campaign: CampaignDetail) => void;
   onDeleteCampaign?: (campaignId: string) => void;
   onEndPromo?: (campaignId: string) => void;
@@ -40,7 +41,7 @@ function Avatar({ member, stretch = false, large = false }: { member: CampaignMe
   );
 }
 
-export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
+export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
   const { showConfirm, showAlert } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -85,6 +86,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
       await showAlert({ title: '复制失败', message: `浏览器不允许自动复制，请手动复制链接：${link}`, type: 'warning' });
     }
   };
+  const isMember = isGm || campaign.isSignedUp;
   const gm = campaign.members.find((member) => member.role === 'gm');
   const players = campaign.members.filter((member) => member.role === 'player');
 
@@ -147,13 +149,27 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     if (ok) onCancelSignup(campaign.id);
   };
 
-  // 发布内容里的团详情不再提供点赞：点赞只保留在「结团履历」，避免报名阶段刷赞。
-  const removePlayerButton = (member: CampaignMember) => {
-    if (!isGm || member.role !== 'player' || campaign.hasEnded) return null;
+  const praiseButton = (member: CampaignMember) => {
+    // GM 与玩家都不能给自己点赞（QQ 与 id 双保险，后端也会再拒一次）。
+    if (!currentUser || !campaign.hasEnded || !isMember || member.id === currentUser.id || member.qq === currentUser.qq) return null;
+    const type = member.role === 'gm' ? 'gm' : 'player';
+    const heartName = type === 'gm' ? 'GM' : '玩家';
+    // 已赞：再点一次就是取消，券已扣完也要能点（取消会返还）。
+    if (member.praisedByMe) {
+      return (
+        <button type="button" onClick={() => onPraise(campaign.id, member.id, type)}
+          className="bauhaus-btn border-[#121212] bg-[#F2C94C] px-3 py-1.5 text-xs font-black text-[#121212] inline-flex items-center gap-1.5"
+          title={`已点赞，再点一次取消并返还 1 枚${heartName}点赞券`}>
+          <ThumbsUp className="h-3.5 w-3.5 fill-current" />已赞 · 取消
+        </button>
+      );
+    }
+    const hasHeart = type === 'gm' ? currentUser.inventory.gmHearts > 0 : currentUser.inventory.playerHearts > 0;
     return (
-      <button type="button" onClick={() => handleRemoveMember(member)}
-        className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold">
-        移除玩家
+      <button type="button" onClick={() => onPraise(campaign.id, member.id, type)} disabled={!hasHeart}
+        className={`bauhaus-btn px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1.5 ${hasHeart ? (type === 'gm' ? 'bg-[#D62828] text-white' : 'bg-[#004E98] text-white') : 'bg-[#E5E5E0] text-[#777] border-[#888]'}`}
+        title={hasHeart ? `消耗 1 枚${heartName}点赞` : '点赞道具不足'}>
+        {type === 'gm' ? <Flame className="w-3.5 h-3.5 fill-current" /> : <Star className="w-3.5 h-3.5 fill-current" />}点赞
       </button>
     );
   };
@@ -172,7 +188,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
       </span>
     );
     // 发布者 / GM 详情区：两组左右对齐。
-    // 左组：等比例放大的正方形头像 + 昵称 / 铭牌 / 获赞数，靠左垂直居中。
+    // 左组：等比例放大的正方形头像 + 昵称 / 铭牌 / 获赞数 / 点赞按钮，靠左垂直居中。
     // 右组：喜好、雷区紧靠「个人档案」按钮并整体右对齐。
     // 每组最多 3 个标签一行，超过 3 个（档案上限 6 个）就按 3 个一组折行，避免挤成一条压住按钮。
     if (member.role === 'gm') {
@@ -207,6 +223,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
                   {member.nameplate && <NameplateBadge nameplate={member.nameplate} />}
                   {receivedPraiseBadge}
                 </div>
+                {praiseButton(member)}
               </div>
             </div>
             <div className="flex shrink-0 items-center justify-end gap-2">
@@ -232,7 +249,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     return (
     <div key={member.id} className={playerGrid ? `min-w-0 p-4 border-b border-[#D8D5CC] last:border-b-0 ${hasNextRow ? 'md:border-b' : 'md:border-b-0'} ${hasColumnDivider ? 'md:border-r-2 md:border-r-[#121212]' : ''}` : 'border-b border-[#D8D5CC] last:border-b-0'}>
       <div className={`flex items-start gap-3 ${playerGrid ? '' : 'px-4 py-3 justify-center'}`}>
-        {/* 两列对齐：左列头像(跨 ID+铭牌两行) → 获赞数在头像正下方；右列 昵称 → 铭牌 → QQ 数字。GM 的「移除玩家」放在 QQ 下方，不占昵称宽度。贴纸只在发团卡片（简易主界面）展示，团详情不展示。 */}
+        {/* 两列对齐：左列头像(跨 ID+铭牌两行) → 获赞点赞在头像正下方；右列 ID → 铭牌 → QQ 数字。第三行的点赞与 QQ 数字齐平。贴纸只在发团卡片（简易主界面）展示，团详情不展示。 */}
         <div className={`grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 ${playerGrid ? 'flex-1' : 'max-w-[calc(100%-3.5rem)]'}`}>
           <div className="row-span-2 flex justify-center self-center"><Avatar member={member} /></div>
           <div className="flex min-w-0 items-center gap-1.5">
@@ -264,8 +281,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               </button>
             )}
           </div>
-          {/* 移除玩家放在昵称正下方，避免占掉名字那一行的宽度（三人一行时昵称只有 ~150px）。 */}
-          {removePlayerButton(member) && <div className="col-start-2 flex min-w-0">{removePlayerButton(member)}</div>}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {praiseButton(member)}
+          {isGm && member.role === 'player' && !campaign.hasEnded && (
+            <button type="button" onClick={() => handleRemoveMember(member)} className="bauhaus-btn p-2 bg-[#FAF0F0] text-[#D62828] border-[#D62828]" title="移出本团"><UserRoundX className="w-4 h-4" /></button>
+          )}
         </div>
       </div>
     </div>

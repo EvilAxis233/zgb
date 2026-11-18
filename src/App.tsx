@@ -511,6 +511,19 @@ export function App() {
     try { const data = await api.campaign(campaignId); setSelectedCampaign(data.campaign); }
     catch { closeCampaign(); }
   };
+  // 结团点赞为切换：后端返回 liked=false 表示已取消并退回点赞券，提示语随之变化。
+  const handleSendPraise = async (campaignId: string, toUserId: string, type: 'gm' | 'player') => {
+    if (!currentUser) { setIsLoginOpen(true); return; }
+    setPendingActions((count) => count + 1);
+    try {
+      const result = await api.praise(campaignId, toUserId, type);
+      try { await refresh(); } catch { /* 全量同步失败不影响本次点赞结果 */ }
+      try { const data = await api.campaign(campaignId); setSelectedCampaign(data.campaign); }
+      catch { closeCampaign(); }
+      showToast(result.liked === false ? '已取消点赞，点赞券已返还' : '点赞成功', 'success');
+    } catch (error) { showToast(error instanceof Error ? error.message : '操作失败', 'error'); }
+    finally { setPendingActions((count) => count - 1); }
+  };
   const handleSignup = (campaignId: string) => currentUser ? mutateCampaign(() => api.signup(campaignId), '报名成功', campaignId) : setIsLoginOpen(true);
   const handleCancelSignup = (campaignId: string) => mutateCampaign(() => api.cancelSignup(campaignId), '已取消报名', campaignId);
   const handleRemoveMember = (campaignId: string, qq: string) => mutateCampaign(() => api.removeMember(campaignId, qq), '玩家已移出本团', campaignId);
@@ -1005,6 +1018,7 @@ export function App() {
         onSignup={handleSignup}
         onCancelSignup={handleCancelSignup}
         onRemoveMember={handleRemoveMember}
+        onPraise={handleSendPraise}
         onEditCampaign={currentUser?.isAdmin ? handleAdminEditCampaign : undefined}
         onDeleteCampaign={currentUser?.isAdmin ? handleAdminDeleteCampaign : undefined}
         onEndPromo={currentUser?.isAdmin ? handleEndPromo : undefined}
