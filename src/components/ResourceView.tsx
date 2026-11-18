@@ -4,14 +4,15 @@ import type { RuleResource, RuleResourceInput, ResourceCategory, UserProfile } f
 import { api } from '../services/api';
 import { useDialog } from './BauhausDialog';
 
-// 三个分页：规则书 / 模组或世设 / 工具书。每条分享只归属一个分页，上传时用下拉选择。
+// 分页：规则书 / 模组或世设 / 专项教学 / 实用工具 / 趣味书籍。每条分享只归属一个分页，上传时用下拉选择。
 const CATEGORY_TABS: { key: ResourceCategory; label: string }[] = [
   { key: 'rulebook', label: '规则书' },
   { key: 'module', label: '模组或世设' },
+  { key: 'teach', label: '专项教学' },
   { key: 'tool', label: '实用工具' },
   { key: 'fun', label: '趣味书籍' },
 ];
-const CATEGORY_LABEL: Record<ResourceCategory, string> = { rulebook: '规则书', module: '模组或世设', tool: '实用工具', fun: '趣味书籍' };
+const CATEGORY_LABEL: Record<ResourceCategory, string> = { rulebook: '规则书', module: '模组或世设', teach: '专项教学', tool: '实用工具', fun: '趣味书籍' };
 const DEFAULT_CATEGORY: ResourceCategory = 'rulebook';
 const categoryOf = (item: RuleResource): ResourceCategory => item.category && CATEGORY_LABEL[item.category] ? item.category : DEFAULT_CATEGORY;
 

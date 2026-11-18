@@ -6,7 +6,7 @@ import { Pager, number } from './AdminCommon';
 import { safeHref } from './ResourceView';
 
 type ReviewFilter = 'pending' | 'approved' | 'rejected' | 'all';
-const CATEGORY_LABEL: Record<string, string> = { rulebook: '规则书', module: '模组或世设', tool: '实用工具', fun: '趣味书籍' };
+const CATEGORY_LABEL: Record<string, string> = { rulebook: '规则书', module: '模组或世设', teach: '专项教学', tool: '实用工具', fun: '趣味书籍' };
 const TYPE_LABEL: Record<string, string> = { pan: '网盘下载', wiki: '在线查询', other: '其他' };
 const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', official: '官方', original: '原创', reprint: '转载', self: '自译', machine: '机翻', collected: '网络搜集' };
 const STATUS_LABEL: Record<string, string> = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
