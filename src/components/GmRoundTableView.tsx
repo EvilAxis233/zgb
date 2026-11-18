@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft, Bold, BookOpen, ChevronDown, ChevronRight, Clock3, Eye, Flame, Heading2, ImagePlus, Italic,
@@ -50,9 +50,13 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   const [openTopic, setOpenTopic] = useState<RoundtableTopic | null>(null);
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
-  const [ruleFilter, setRuleFilter] = useState('全部规则');
   const [channelBump, setChannelBump] = useState<Record<string, number>>({});
   const [likedTopics, setLikedTopics] = useState<Record<string, boolean>>({});
+  // 规则页签：单行展示，超出折叠到「更多」下拉
+  const [visibleTabCount, setVisibleTabCount] = useState(99);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const tabsAreaRef = useRef<HTMLDivElement>(null);
+  const tabsMeasureRef = useRef<HTMLDivElement>(null);
 
   // 我的圆桌：收藏、我参与过讨论的主题（我的回复）、未读数
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
@@ -146,15 +150,12 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
   }, [currentUserQq]);
   useEffect(() => { void loadMine(); }, [loadMine]);
 
-  const rules = useMemo(() => ['全部规则', ...Array.from(new Set(topics.map((t) => t.rule).filter(Boolean)))], [topics]);
-
   const filtered = useMemo(() => topics.filter((t) => {
     if (channel !== 'all' && t.channelId !== channel) return false;
-    if (ruleFilter !== '全部规则' && t.rule !== ruleFilter) return false;
     const q = query.trim().toLowerCase();
     if (q && !t.title.toLowerCase().includes(q) && !t.tags.some((tag) => tag.toLowerCase().includes(q))) return false;
     return true;
-  }), [topics, channel, ruleFilter, query]);
+  }), [topics, channel, query]);
 
   // 规则页签：综合永远固定第一，其余按该分类主题热度降序；有新回复的分类置顶。
   const orderedChannels = useMemo(() => {
@@ -166,6 +167,31 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     });
     return [{ id: 'all', label: '综合' }, ...rest];
   }, [channels, topics, channelBump]);
+
+  // 测量规则页签实际宽度，决定一行能放下几个；多余的收进「更多」。
+  useLayoutEffect(() => {
+    const area = tabsAreaRef.current;
+    const measure = tabsMeasureRef.current;
+    if (!area || !measure) return;
+    const recalc = () => {
+      const avail = area.clientWidth;
+      const chips = Array.from(measure.children) as HTMLElement[];
+      const widths = chips.map((c) => c.getBoundingClientRect().width);
+      if (!widths.length) { setVisibleTabCount(0); return; }
+      const moreW = 42; // 「更多」按钮预留宽度
+      const total = widths.reduce((s, w) => s + w, 0);
+      if (total <= avail) { setVisibleTabCount(widths.length); return; }
+      let used = 0, count = 0;
+      for (let i = 0; i < widths.length; i += 1) {
+        if (used + widths[i] + moreW <= avail) { used += widths[i]; count += 1; } else break;
+      }
+      setVisibleTabCount(Math.max(1, count));
+    };
+    recalc();
+    const ro = new ResizeObserver(recalc);
+    ro.observe(area);
+    return () => ro.disconnect();
+  }, [orderedChannels]);
 
   // 置顶的规则讨论贴固定在各规则分页最前；「综合」里不收纳置顶贴。
   // 同样不参与热度/时间排序，也不进热度首排。
@@ -543,24 +569,54 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
           <div className="px-4 py-16 text-center text-sm text-[#9A9A9A]">正在加载圆桌…</div>
         ) : !openTopic ? (
           <>
-            {/* 规则检索（输入 + 下拉）+ 分类分页（综合固定第一） */}
+            {/* 规则检索（输入 + 下拉）+ 分类分页（综合固定第一，单行超出折叠） */}
             <div className="border-b border-[#3A3A3A] px-3 py-3 sm:px-4">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1.5 border border-[#555] bg-[#242426] px-2 py-1.5 focus-within:border-[#8BC34A]">
                   <Search className="h-3.5 w-3.5 shrink-0 text-[#9A9A9A]" />
                   <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="规则检索"
                     className="w-24 bg-transparent text-xs text-white outline-none placeholder:text-[#777] sm:w-32" />
-                  <select value={ruleFilter} onChange={(e) => setRuleFilter(e.target.value)}
+                  <select value={channel} onChange={(e) => applyChannel(e.target.value)}
                     className="border-l border-[#555] bg-transparent pl-1.5 text-xs text-[#C9C9C9] outline-none">
-                    {rules.map((r) => <option key={r} value={r} className="bg-[#242426]">{r}</option>)}
+                    {orderedChannels.map((c) => <option key={c.id} value={c.id} className="bg-[#242426]">{c.label}</option>)}
                   </select>
                 </div>
-                {orderedChannels.map((c) => (
-                  <button key={c.id} type="button" onClick={() => applyChannel(c.id)}
-                    className={`border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id && !mineView ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
-                    {c.label}
-                  </button>
-                ))}
+                {/* 规则页签容器：单行、隐藏溢出，「更多」下拉收纳剩余 */}
+                <div ref={tabsAreaRef} className="relative flex min-w-0 flex-1 items-center gap-0.5">
+                  {orderedChannels.slice(0, visibleTabCount).map((c) => (
+                    <button key={c.id} type="button" onClick={() => applyChannel(c.id)}
+                      className={`shrink-0 whitespace-nowrap border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${channel === c.id && !mineView ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
+                      {c.label}
+                    </button>
+                  ))}
+                  {visibleTabCount < orderedChannels.length && (
+                    <div className="relative shrink-0">
+                      <button type="button" onClick={() => setMoreOpen((v) => !v)}
+                        className={`flex items-center gap-0.5 whitespace-nowrap border-b-2 px-2 py-1.5 text-sm font-black transition-colors ${moreOpen ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
+                        更多<ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                      {moreOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setMoreOpen(false)} />
+                          <div className="absolute left-0 top-full z-40 mt-1 min-w-[8rem] border border-[#555] bg-[#242426] py-1 shadow-xl">
+                            {orderedChannels.slice(visibleTabCount).map((c) => (
+                              <button key={c.id} type="button" onClick={() => { applyChannel(c.id); setMoreOpen(false); }}
+                                className={`block w-full whitespace-nowrap px-3 py-1.5 text-left text-sm font-bold transition-colors hover:bg-[#343437] ${channel === c.id && !mineView ? 'text-[#8BC34A]' : 'text-[#C9C9C9] hover:text-white'}`}>
+                                {c.label}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {/* 隐藏测量层：与页签同款样式，用于量出每个标签实际宽度 */}
+                  <div ref={tabsMeasureRef} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 flex gap-0.5 whitespace-nowrap">
+                    {orderedChannels.map((c) => (
+                      <span key={c.id} className="shrink-0 border-b-2 px-2.5 py-1.5 text-sm font-black">{c.label}</span>
+                    ))}
+                  </div>
+                </div>
                 <span className="mx-0.5 h-4 w-px shrink-0 bg-[#3A3A3A]" />
                 <button type="button" onClick={() => openMine('reply')}
                   className={`flex items-center gap-1 border-b-2 px-2.5 py-1.5 text-sm font-black transition-colors ${mineView === 'reply' ? 'border-[#8BC34A] text-white' : 'border-transparent text-[#9A9A9A] hover:text-white'}`}>
