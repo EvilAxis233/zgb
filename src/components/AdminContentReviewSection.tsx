@@ -4,6 +4,7 @@ import { BookOpen, Check, ChevronDown, ChevronRight, FileText, FolderPlus, Layou
 import { adminApi, type RoundtableApply, type RoundtableSnapshot, type RoundtableTopic } from '../services/api';
 import { AdminResourcesSection } from './AdminResourcesSection';
 import { RoundtableTopicForm, type TopicFormValue } from './RoundtableTopicForm';
+import { splitContentAttrs } from '../utils/contentAttr';
 
 /**
  * 后台「内容审核」：资源审核（真实功能）+ 圆桌审核（真实持久化数据）。
@@ -224,7 +225,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
                   <p className="mt-1 text-xs text-[#666]">申请人：{a.applicant} · {a.time}{a.ruleVersion ? ` · 规则版本：${a.ruleVersion}` : ''}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {!!a.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[11px] font-black text-[#B45309]">{a.origin}</span>}
-                    {!!a.contentAttr && <span className="border border-[#176B57] bg-[#EAF5F1] px-1.5 py-0.5 text-[11px] font-black text-[#176B57]">{a.contentAttr}</span>}
+                    {!!a.contentAttr && splitContentAttrs(a.contentAttr).map((attr) => <span key={attr} className="border border-[#176B57] bg-[#EAF5F1] px-1.5 py-0.5 text-[11px] font-black text-[#176B57]">{attr}</span>)}
                     {a.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}
                   </div>
                   {!!a.resources?.length && (
@@ -313,7 +314,7 @@ const RoundtableReview: React.FC<{ onNotice: (m: string) => void; onError: (e: u
               <p className="text-xs text-[#666]">申请人：{approveTarget.applicant} · {approveTarget.time}{approveTarget.ruleVersion ? ` · 规则版本：${approveTarget.ruleVersion}` : ''}</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {!!approveTarget.origin && <span className="border border-[#F4A261] bg-[#FFF4E5] px-1.5 py-0.5 text-[11px] font-black text-[#B45309]">{approveTarget.origin}</span>}
-                {!!approveTarget.contentAttr && <span className="border border-[#176B57] bg-[#EAF5F1] px-1.5 py-0.5 text-[11px] font-black text-[#176B57]">{approveTarget.contentAttr}</span>}
+                {!!approveTarget.contentAttr && splitContentAttrs(approveTarget.contentAttr).map((attr) => <span key={attr} className="border border-[#176B57] bg-[#EAF5F1] px-1.5 py-0.5 text-[11px] font-black text-[#176B57]">{attr}</span>)}
                 {approveTarget.tags.map((t) => <span key={t} className="border border-[#999] px-1.5 py-0.5 text-[11px] font-bold text-[#555]">{t}</span>)}
               </div>
               {!!approveTarget.resources?.length && <p className="mt-2 text-[11px] text-[#004E98]">引用资源：{approveTarget.resources.map((r) => r.name).join('、')}</p>}

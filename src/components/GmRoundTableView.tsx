@@ -8,6 +8,7 @@ import { api, adminApi, type RoundtableReply, type RoundtableTopic, type Roundta
 import { NameplateBadge } from './NameplateBadge';
 import { MarkdownView } from './MarkdownView';
 import { RoundtableTopicForm, type TopicFormValue } from './RoundtableTopicForm';
+import { splitContentAttrs } from '../utils/contentAttr';
 
 /** 基础 markdown 工具栏：在 textarea 光标处插入对应语法。 */
 const MdToolbar: React.FC<{ onInsert: (before: string, after?: string) => void }> = ({ onInsert }) => (
@@ -540,7 +541,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
           {(!!t.origin || !!t.contentAttr || t.tags.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {!!t.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-1.5 py-0.5 text-[10px] font-black text-[#F4A261]">{t.origin}</span>}
-              {!!t.contentAttr && <span className="border border-[#176B57] bg-[#176B57]/15 px-1.5 py-0.5 text-[10px] font-black text-[#7FC7A6]">{t.contentAttr}</span>}
+              {!!t.contentAttr && splitContentAttrs(t.contentAttr).map((attr) => <span key={attr} className="border border-[#176B57] bg-[#176B57]/15 px-1.5 py-0.5 text-[10px] font-black text-[#7FC7A6]">{attr}</span>)}
               {t.tags.map((tag) => <span key={tag} className="border border-[#555] px-1.5 py-0.5 text-[10px] font-bold text-[#BDBDBD]">{tag}</span>)}
             </div>
           )}
@@ -764,7 +765,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
               {(!!openTopic.origin || !!openTopic.contentAttr || openTopic.tags.length > 0) && (
                 <div className="flex flex-wrap gap-2">
                   {!!openTopic.origin && <span className="border border-[#F4A261] bg-[#F4A261]/15 px-2 py-0.5 text-[11px] font-black text-[#F4A261]">{openTopic.origin}</span>}
-                  {!!openTopic.contentAttr && <span className="border border-[#176B57] bg-[#176B57]/15 px-2 py-0.5 text-[11px] font-black text-[#7FC7A6]">{openTopic.contentAttr}</span>}
+                  {!!openTopic.contentAttr && splitContentAttrs(openTopic.contentAttr).map((attr) => <span key={attr} className="border border-[#176B57] bg-[#176B57]/15 px-2 py-0.5 text-[11px] font-black text-[#7FC7A6]">{attr}</span>)}
                   {openTopic.tags.map((tag) => <span key={tag} className="border border-[#555] px-2 py-0.5 text-[11px] font-bold text-[#BDBDBD]">{tag}</span>)}
                 </div>
               )}

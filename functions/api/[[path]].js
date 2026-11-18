@@ -140,13 +140,19 @@ const rtReplyDto = (r) => ({
 const rtValidateTags = (v) => Array.isArray(v) ? [...new Set(v.map((t) => clean(t, 24)).filter(Boolean))].slice(0, 6) : [];
 // 主题必选来源标签（旧数据「第三方 / 国内原创」由迁移 0044 归一为新文案）
 const RT_ORIGINS = ['官方', '第三方授权', '民间创作'];
-// 主题必选内容属性：固定四项 + 自填（自填最多 6 个中文字符 / 12 英文字符）。
-const RT_CONTENT_ATTRS = ['冒险', '世设', '扩展资料', '杂志'];
+// 主题必选内容属性：可多选（固定五项 + 自填），统一存成「、」连接的字符串；自填最多 6 个中文字符 / 12 英文字符。
+const RT_CONTENT_ATTRS = ['冒险', '世设', '扩展资料', '杂志', '工具书'];
+const RT_CONTENT_ATTR_SEP = '、';
 const normalizeContentAttr = (v) => {
-  const s = clean(v, 24).trim();
-  if (RT_CONTENT_ATTRS.includes(s)) return s;
-  if (s === '自填') return ''; // 「自填」只是选项开关，真正值走自定义输入
-  return tagWidth(s) <= 12 ? s : ''; // 自填内容：≤6 中文字符或 12 英文字符
+  const raw = Array.isArray(v) ? v : String(v ?? '').split(/[、,，]/);
+  const out = [];
+  for (const item of raw) {
+    const s = clean(item, 24).trim();
+    if (!s || s === '自填') continue; // 「自填」只是选项开关，真正值走自定义输入
+    if (!RT_CONTENT_ATTRS.includes(s) && tagWidth(s) > 12) continue;
+    if (!out.includes(s)) out.push(s);
+  }
+  return out.slice(0, 8).join(RT_CONTENT_ATTR_SEP);
 };
 // 每个规则页自动补建一个置顶「规则讨论」主题：新建规则页即时创建，已有规则页缺失时读取时补建。
 async function ensurePinnedTopics(db) {
