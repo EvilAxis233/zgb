@@ -26,7 +26,7 @@ const MdToolbar: React.FC<{ onInsert: (before: string, after?: string) => void }
  * GM 圆桌（真实持久化版）：
  * - 规则页 / 主题 / 回复全部来自后端 D1，刷新不丢、访客可见；后台「内容审核 · 圆桌审核」统一管理。
  * - 主题详情只显示主题（无正文文字段）；回复可点赞、嵌套回复、举报与图片（≤2M，默认折叠）。
- * - 首排热度最高三个主题不再显示「热门」标签；综合分页固定排第一。
+ * - 首排热度最高四个主题（对齐 4 列）不再显示「热门」标签，且同样出现在下方「全部主题」里；综合分页固定排第一。
  * - 申请主题与后台新建共用 RoundtableTopicForm；回复显示真实头像/铭牌，可编辑并显示编辑时间。
  */
 
@@ -179,12 +179,12 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
     return b.lastReplyTs - a.lastReplyTs;
   }), [filtered, sort]);
 
+  // 热度最高 4 个（对齐 4 列），只在首排额外展示；下方「全部主题」仍完整包含它们，不再剔除。
   const featured = useMemo(
-    () => filtered.filter((t) => !t.isPinned).slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 3),
+    () => filtered.filter((t) => !t.isPinned).slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 4),
     [filtered],
   );
-  const featuredIds = new Set(featured.map((t) => t.id));
-  const rest = [...pinnedTopics, ...sorted.filter((t) => !featuredIds.has(t.id))];
+  const rest = [...pinnedTopics, ...sorted];
 
   const sortedReplies = useMemo(() => {
     if (!openTopic) return [];
