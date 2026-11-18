@@ -206,7 +206,7 @@ function campaignsDto(rows, joined = new Set(), viewer = null, batchMasters = ne
   for (const c of rows) if (c.batch_id) groups.set(c.batch_id, [...(groups.get(c.batch_id) || []), c]);
   return rows.map((c) => ({ ...campDto(c, joined.has(c.id), (c.kind === 'promo' && !!viewer) || viewer === c.gm_qq || joined.has(c.id)), ...(c.batch_id ? { slots: groups.get(c.batch_id).map((slot) => slotDto(slot, joined)).sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)) } : {}), ...(viewer === c.gm_qq && batchMasters.has(c.batch_id) ? { batchMaster: batchMasterDto(batchMasters.get(c.batch_id)) } : {}) }));
 }
-const memberDto = (u, role) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
+const memberDto = (u, role, praisedByMe = false) => ({ id: u.qq, qq: u.qq, name: u.name, avatar: assetUrl(u.avatar_key), role, receivedPraises: role === 'gm' ? u.received_gm : u.received_player, praisedByMe, nameplate: parseJsonSafe(u.nameplate), stickers: parseTags(u.stickers).map((key) => assetUrl(key)).filter(Boolean), isMember: isMember(u), bio: u.bio, preferences: parseTags(u.preferences), taboos: parseTags(u.taboos) });
 // 爱心资源：只存规则名 + 自填链接，昵称展示时 JOIN users 取当前值，不下发上传者 QQ。
 const RESOURCE_TYPES = new Set(['pan', 'wiki', 'other']);
 const RESOURCE_CATEGORIES = new Set(['rulebook', 'module', 'tool', 'fun']); // 规则书 / 模组或世设 / 实用工具 / 趣味书籍
@@ -1469,7 +1469,13 @@ export async function onRequest(context) {
         const records = await db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=? AND campaign_id IN (SELECT id FROM campaigns WHERE batch_id=?)').bind(user.qq, c.batch_id).all();
         records.results.forEach((record) => joined.add(record.campaign_id));
       }
-      return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm'), ...players.results.map((p) => memberDto(p, 'player'))] } });
+      // 结团点赞是「再点取消」：详情里要把当前用户已赞的对象带回去，按钮才能显示已赞状态。
+      const praised = new Set();
+      if (user) {
+        const mine = await db.prepare('SELECT to_qq FROM praises WHERE campaign_id=? AND from_qq=?').bind(c.id, user.qq).all();
+        mine.results.forEach((record) => praised.add(record.to_qq));
+      }
+      return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm', praised.has(gm.qq)), ...players.results.map((p) => memberDto(p, 'player', praised.has(p.qq)))] } });
     }
     // 爱心资源：浏览对所有访客开放，按规则名字模糊检索 + 按分页筛选，不下发上传者 QQ。
     // 不带 cat 时返回全部分页（兼容旧调用）；cat 非法时按全部分页处理。
@@ -1829,12 +1835,26 @@ export async function onRequest(context) {
       const targetValid = type === 'gm' ? c.gm_qq === target && c.gm_qq !== user.qq : await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(campaignId, target).first();
       if (!senderMember || !targetValid) return fail('只能给本团成员点赞', 403);
       const column = type === 'gm' ? 'gm_hearts' : 'player_hearts', received = type === 'gm' ? 'received_gm' : 'received_player';
-      const result = await db.batch([
-        db.prepare(`UPDATE users SET ${column}=${column}-1 WHERE qq=? AND ${column}>0 AND EXISTS(SELECT 1 FROM users WHERE qq=?)`).bind(user.qq, target),
-        db.prepare(`UPDATE users SET ${received}=${received}+1 WHERE qq=? AND changes()=1`).bind(target),
-        db.prepare('INSERT INTO praises(id,from_qq,to_qq,type,created_at,campaign_id) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(id(), user.qq, target, type, new Date().toISOString(), campaignId)
-      ]);
-      return result[0].meta.changes ? json({ ok: true }) : fail('点赞道具不足或用户不存在');
+      // 结团点赞为「切换」语义：同一个团里给同一成员只能留一条点赞，再点一次即取消。
+      const existing = await db.prepare('SELECT id FROM praises WHERE campaign_id=? AND from_qq=? AND to_qq=?').bind(campaignId, user.qq, target).first();
+      if (existing) {
+        await db.batch([
+          db.prepare(`UPDATE users SET ${column}=${column}+1 WHERE qq=?`).bind(user.qq),
+          db.prepare(`UPDATE users SET ${received}=MAX(0,${received}-1) WHERE qq=?`).bind(target),
+          db.prepare('DELETE FROM praises WHERE id=?').bind(existing.id)
+        ]);
+        return json({ ok: true, liked: false });
+      }
+      // 唯一索引兜底并发：重复插入会整批回滚，不会白扣券。
+      let result;
+      try {
+        result = await db.batch([
+          db.prepare(`UPDATE users SET ${column}=${column}-1 WHERE qq=? AND ${column}>0 AND EXISTS(SELECT 1 FROM users WHERE qq=?)`).bind(user.qq, target),
+          db.prepare(`UPDATE users SET ${received}=${received}+1 WHERE qq=? AND changes()=1`).bind(target),
+          db.prepare('INSERT INTO praises(id,from_qq,to_qq,type,created_at,campaign_id) SELECT ?,?,?,?,?,? WHERE changes()=1').bind(id(), user.qq, target, type, new Date().toISOString(), campaignId)
+        ]);
+      } catch { return fail('你已经点赞过了，请刷新页面后再试'); }
+      return result[0].meta.changes ? json({ ok: true, liked: true }) : fail('点赞道具不足或用户不存在');
     }
     if (path[0] === 'upload' && method === 'POST') {
       if (!env.COVERS) return fail('图片存储未配置', 503);

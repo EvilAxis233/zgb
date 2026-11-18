@@ -134,6 +134,7 @@ export interface CampaignMember {
   avatar?: string;
   role: 'gm' | 'player';
   receivedPraises: number;
+  praisedByMe?: boolean; // 当前用户在本团是否已给该成员点赞（再点一次即取消）
   nameplate?: UserNameplate | null;
   stickers?: string[];
   isMember?: boolean;
