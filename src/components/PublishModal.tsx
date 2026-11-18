@@ -794,11 +794,16 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 <div className="mt-2"><StickerPicker library={currentUser?.stickerLibraryKeys || []} value={stickerKeys} onChange={setStickerKeys} onUserUpdate={onUserUpdate} isMember={isMember} /></div>
               </details>
 
-              {/* Cover Image: Drag & Drop / Click upload big rectangle */}
-              <div className="border-2 border-[#121212] p-3 bg-[#FAF9F5]">
+              {/* Cover Image: 与其它字段同款的「上传封面」标题 + 拖拽/点击上传大框 */}
+              <div>
+                <label className="mb-1 block font-bold text-[#121212]">
+                  上传封面
+                  <span className="ml-1 text-[11px] font-normal text-[#666]">可选，不传就用默认图</span>
+                </label>
+                <div className="border-2 border-[#121212] p-3 bg-[#FAF9F5]">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="font-bold text-xs text-[#121212]">
-                    留空使用默认图片
+                    {imageUrl ? '封面预览' : '未选择封面'}
                   </span>
                   <div className="flex items-center gap-3">
                     {imageUrl && coverSource && !coverAnimated && (
@@ -878,6 +883,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     ))}
                   </div>
                 </div>
+              </div>
               </div>
             </div>
 
