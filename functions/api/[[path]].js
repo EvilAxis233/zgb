@@ -1337,11 +1337,23 @@ export async function onRequest(context) {
       let rows = [];
       try { rows = (await db.prepare('SELECT topic_id, kind, last_seen_at FROM roundtable_follows WHERE user_qq=?').bind(qq).all()).results || []; } catch { rows = []; }
       const favorites = rows.filter((r) => r.kind === 'fav').map((r) => r.topic_id);
-      const follows = rows.filter((r) => r.kind === 'reply').map((r) => r.topic_id);
       const seen = new Map(rows.map((r) => [`${r.kind}:${r.topic_id}`, rtTs(r.last_seen_at)]));
-      // 我发过的回复 -> 用于判断「有人回复了我」
-      const myReplies = (await db.prepare('SELECT id, topic_id FROM roundtable_replies WHERE user_qq=?').bind(qq).all()).results || [];
+      // 我发过的回复 -> 用于判断「有人回复了我」，也是「我的回复」列表的权威来源。
+      // 以 roundtable_replies 为准（历史/迁移数据可能没写 follows），并对缺失的 follows 做自愈回填。
+      const myReplies = (await db.prepare('SELECT id, topic_id, created_at FROM roundtable_replies WHERE user_qq=?').bind(qq).all()).results || [];
+      const myReplyTopicIds = [...new Set(myReplies.filter((r) => r.topic_id).map((r) => r.topic_id))];
       const myReplyTopic = new Map(myReplies.map((r) => [r.id, r.topic_id]));
+      // 自愈：把我回复过但 follows 里没有的主题补一条 reply 记录（已读时间取我第一条回复时间）。
+      const followedReply = new Set(rows.filter((r) => r.kind === 'reply').map((r) => r.topic_id));
+      for (const tid of myReplyTopicIds) {
+        if (followedReply.has(tid)) continue;
+        const first = myReplies.filter((r) => r.topic_id === tid).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0];
+        try {
+          await db.prepare("INSERT OR IGNORE INTO roundtable_follows(user_qq,topic_id,kind,last_seen_at,created_at) VALUES(?,?,'reply',?,?)")
+            .bind(qq, tid, first?.created_at || nowHK(), first?.created_at || nowHK()).run();
+        } catch { /* 表结构异常时不影响返回，下方仍以 myReplyTopicIds 为准 */ }
+      }
+      const follows = myReplyTopicIds;
       // 别人的回复（含旧数据 user_qq 为空的行）
       const others = (await db.prepare("SELECT parent_id, topic_id, created_at FROM roundtable_replies WHERE user_qq<>?").bind(qq).all()).results || [];
       const unreadFav = {}, unreadReply = {};
