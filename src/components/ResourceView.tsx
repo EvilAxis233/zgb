@@ -35,21 +35,23 @@ const LANGUAGE_KEYS = new Set(LANGUAGE_OPTIONS.map((option) => option.key));
 // 备注限 30 个中文字符（60 个英文字符）：按中文 1、ASCII 0.5 加权。
 const NOTE_WEIGHT_LIMIT = 30;
 const noteWeight = (value: string) => Array.from(value).reduce((n, ch) => n + (/[\u0000-\u007F]/.test(ch) ? 0.5 : 1), 0);
-// 来源顺序与后端 RESOURCE_FLAG_ORDER 保持一致：官方在最前，网络搜集在最后。
+// 来源顺序与后端 RESOURCE_FLAG_ORDER 保持一致：官方最前，其次原创，网络搜集在最后。
 const SOURCE_OPTIONS = [
   { key: 'official', label: '官方' },
+  { key: 'original', label: '原创' },
   { key: 'reprint', label: '转载' },
   { key: 'self', label: '自译' },
   { key: 'machine', label: '机翻' },
   { key: 'collected', label: '网络搜集' },
 ];
-const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', official: '官方', reprint: '转载', self: '自译', machine: '机翻', collected: '网络搜集' };
+const FLAG_LABEL: Record<string, string> = { zh: '中文', en: '英文', ja: '日文', other_lang: '其它语言', official: '官方', original: '原创', reprint: '转载', self: '自译', machine: '机翻', collected: '网络搜集' };
 const FLAG_STYLE: Record<string, string> = {
   zh: 'bg-[#004E98] text-white',
   en: 'bg-[#3A3A3A] text-white',
   ja: 'bg-[#B51F1F] text-white',
   other_lang: 'bg-[#5B5646] text-white',
   official: 'bg-[#D62828] text-white',
+  original: 'bg-[#1B7A3D] text-white',
   reprint: 'bg-[#E6F0FA] text-[#004E98]',
   self: 'bg-[#E7F4E9] text-[#1B7A3D]',
   machine: 'bg-[#F3E9FA] text-[#7A2E9E]',
@@ -341,7 +343,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
           type="button"
           onClick={() => currentUser ? setEditor('new') : onOpenLogin()}
           className="bauhaus-btn gap-1.5 bg-[#004E98] px-4 py-2 text-sm font-black text-white hover:bg-[#003C76]"
-        ><Plus className="h-4 w-4" />分享规则</button>
+        ><Plus className="h-4 w-4" />分享</button>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2 border-b-2 border-[#121212] pb-3" role="tablist" aria-label="爱心资源分页">

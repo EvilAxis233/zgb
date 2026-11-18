@@ -583,7 +583,11 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
       <div className="overflow-hidden border-2 border-[#3A3A3A] bg-[#2B2B2D] text-[#E8E8E8] shadow-[6px_6px_0px_#121212]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[#3A3A3A] bg-[#242426] px-4 py-3">
           <BookOpen className="h-5 w-5 shrink-0 text-[#8BC34A]" />
-          <h2 className="text-lg font-black tracking-wide sm:text-xl">GM圆桌</h2>
+          <h2 className="text-lg font-black tracking-wide sm:text-xl">
+            {openTopic ? (
+              <button type="button" onClick={backToList} title="回到 GM 圆桌主页" className="cursor-pointer text-left text-lg font-black tracking-wide transition-colors hover:text-[#8BC34A] sm:text-xl">GM圆桌</button>
+            ) : 'GM圆桌'}
+          </h2>
           <span className="border-l-2 border-[#8BC34A] pl-3 text-xs font-black leading-relaxed text-[#F4A261] sm:text-sm">仅限于GM的严肃会谈，玩家请谨慎踏入！诸诸研讨规则与模组相关内容，分享带团经验和灵感，回复请遵守公序良俗。</span>
         </div>
 
@@ -750,7 +754,10 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
           <>
             {/* 主题详情：只有主题标题，无正文文字段 */}
             <div className="border-b border-[#3A3A3A] px-4 py-3">
-              <button type="button" onClick={backToList} className="mb-3 flex items-center gap-1 text-xs font-bold text-[#9A9A9A] hover:text-white"><ArrowLeft className="h-3.5 w-3.5" />返回列表</button>
+              {/* 返回列表：放大成带边框的按钮，避免在详情里找不到退出入口 */}
+              <button type="button" onClick={backToList} className="mb-3 inline-flex cursor-pointer items-center gap-1.5 border-2 border-[#555] bg-[#242426] px-3.5 py-1.5 text-sm font-black text-[#E8E8E8] transition-colors hover:border-[#8BC34A] hover:bg-[#2F3324] hover:text-white">
+                <ArrowLeft className="h-4 w-4" />返回列表
+              </button>
               <div className="flex flex-wrap items-center gap-2">
                 {openTopic.isPinned && <span className="bg-[#D62828] px-2 py-0.5 text-[11px] font-black text-white">置顶</span>}
                 <span className="bg-[#8BC34A] px-2 py-0.5 text-[11px] font-black text-[#1B2B0B]">{openTopic.rule || '综合'}</span>
