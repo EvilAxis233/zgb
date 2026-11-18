@@ -398,7 +398,7 @@ const ChannelCard: React.FC<{ id: string; label: string; onSave: (name: string) 
   );
 };
 
-/** 单个主题卡片：[版本名] 前缀 + 来源标签贴在名称左边，编辑/删除标记同排，结构紧凑（4 列分布） */
+/** 单个主题卡片：只显示 [版本名] 前缀 + 主题名，tag 不在列表中展示；编辑/删除标记同排（4 列分布） */
 const TopicCard: React.FC<{
   topic: RoundtableTopic;
   onEdit: () => void;
@@ -408,8 +408,6 @@ const TopicCard: React.FC<{
     <div className="bauhaus-card flex min-w-0 items-center gap-1.5 bg-white px-2.5 py-2">
       <h4 className="min-w-0 flex-1 truncate text-sm font-black text-[#121212]" title={topic.title}>
         {!!topic.ruleVersion && <span className="mr-1 text-[#666]">[{topic.ruleVersion}]</span>}
-        {!!topic.origin && <span className="mr-1 border border-[#F4A261] bg-[#FFF4E5] px-1 py-0.5 align-middle text-[10px] font-black text-[#B45309]">{topic.origin}</span>}
-        {!!topic.contentAttr && <span className="mr-1 border border-[#176B57] bg-[#EAF5F1] px-1 py-0.5 align-middle text-[10px] font-black text-[#176B57]">{topic.contentAttr}</span>}
         {topic.title}
       </h4>
       <div className="flex shrink-0 items-center gap-0.5">
