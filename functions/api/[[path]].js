@@ -1469,6 +1469,23 @@ export async function onRequest(context) {
         .bind(content, JSON.stringify(images), nowHK(), path[4]).run();
       return json({ ok: true });
     }
+    // 删除自己的回复（作者本人或管理员）：楼中楼子回复一并删除，避免留下孤立楼层。
+    if (path[0] === 'roundtable' && path[1] === 'topic' && path[2] && path[3] === 'reply' && path[4] && path.length === 5 && method === 'DELETE') {
+      if (!user) return fail('请先登录', 401);
+      const r = await db.prepare('SELECT * FROM roundtable_replies WHERE id=? AND topic_id=?').bind(path[4], path[2]).first();
+      if (!r) return fail('回复不存在', 404);
+      if (String(r.user_qq) !== String(user.qq) && !isSiteAdmin(user)) return fail('只能删除自己的回复', 403);
+      // 收集自身及所有层级子孙回复 id（parent_id 可能多级嵌套）。
+      const all = (await db.prepare('SELECT id,parent_id FROM roundtable_replies WHERE topic_id=?').bind(path[2]).all()).results;
+      const byParent = new Map();
+      for (const row of all) { const key = String(row.parent_id || ''); if (!byParent.has(key)) byParent.set(key, []); byParent.get(key).push(String(row.id)); }
+      const ids = [];
+      const walk = (id) => { ids.push(id); for (const child of byParent.get(id) || []) walk(child); };
+      walk(String(path[4]));
+      const stmts = ids.map((rid) => db.prepare('DELETE FROM roundtable_replies WHERE id=?').bind(rid));
+      await db.batch(stmts);
+      return json({ ok: true, deleted: ids.length });
+    }
     // 主题点赞（本地计数切换不做去重，纯互动计数）。
     if (path[0] === 'roundtable' && path[1] === 'topic' && path[2] && path[3] === 'like' && path.length === 4 && method === 'POST') {
       const delta = (await body(request)).delta === -1 ? -1 : 1;

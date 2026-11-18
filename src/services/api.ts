@@ -62,6 +62,7 @@ export const api = {
   roundtableApply: (value: RoundtableApplyInput) => post<{ ok: boolean }>('roundtable/apply', value),
   roundtableReply: (topicId: string, value: { content: string; images?: string[]; parentId?: string }) => post<{ ok: boolean }>(`roundtable/topic/${encodeURIComponent(topicId)}/reply`, value),
   roundtableEditReply: (topicId: string, replyId: string, value: { content: string; images?: string[] }) => patch<{ ok: boolean }>(`roundtable/topic/${encodeURIComponent(topicId)}/reply/${encodeURIComponent(replyId)}`, value),
+  roundtableDeleteReply: (topicId: string, replyId: string) => request<{ ok: boolean; deleted: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/reply/${encodeURIComponent(replyId)}`, { method: 'DELETE' }),
   roundtableLike: (topicId: string, delta: 1 | -1) => post<{ ok: boolean; likes: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/like`, { delta }),
   roundtableMine: () => request<RoundtableMine>('roundtable/mine'),
   roundtableFav: (topicId: string, on: boolean) => post<{ ok: boolean; favCount: number }>(`roundtable/topic/${encodeURIComponent(topicId)}/fav`, { on }),
