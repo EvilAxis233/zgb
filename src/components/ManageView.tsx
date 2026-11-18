@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, ChevronUp, Plus, Upload, ImagePlus, ThumbsUp } from 'lucide-react';
+import { X, BookOpen, Sparkles, ChevronDown, ChevronUp, Upload, ImagePlus, ThumbsUp } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign, type CampaignDetail, type UserProfile } from '../types';
 import { api } from '../services/api';
 import { CalendarPicker } from './CalendarPicker';
@@ -225,22 +225,23 @@ export const ManageView: React.FC<Props> = ({
               <p className="mt-0.5 text-[#888]">成员名单加载失败，点「收起」后再展开重试。</p>
             )}
           </div>}
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2">
-            <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Eye className="w-3 h-3" />查看</button>
+          {/* 团务操作按钮：不带图标，全部挤在同一行；窄屏横向滚动而不是换行。 */}
+          <div className="mt-2 flex flex-nowrap items-center gap-1 overflow-x-auto border-t border-dashed border-[#DDDDD5] pt-2">
+            <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">查看</button>
             {hosted ? <>
-              {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Edit2 className="w-3 h-3" />修改</button>}
+              {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white px-2.5 py-1 text-[11px] font-bold">修改</button>}
               {campaign.kind === 'promo' ? (
                 campaign.isClosed ? (
-                  <button disabled={deletingPromoIds.includes(campaign.id)} onClick={() => handleDeletePromoRecord(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><Trash2 className="w-3 h-3" />{deletingPromoIds.includes(campaign.id) ? '正在删除…' : '删除记录'}</button>
+                  <button disabled={deletingPromoIds.includes(campaign.id)} onClick={() => handleDeletePromoRecord(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold disabled:opacity-60 disabled:cursor-wait">{deletingPromoIds.includes(campaign.id) ? '正在删除…' : '删除记录'}</button>
                 ) : (
-                  <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FFF9E9] text-[#B5651D] border-[#B5651D] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><X className="w-3 h-3" />{endingPromoIds.includes(campaign.id) ? '正在结束…' : '结束宣发'}</button>
+                  <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FFF9E9] text-[#B5651D] border-[#B5651D] px-2.5 py-1 text-[11px] font-bold disabled:opacity-60 disabled:cursor-wait">{endingPromoIds.includes(campaign.id) ? '正在结束…' : '结束宣发'}</button>
                 )
               ) : <>
-                {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-2.5 py-1 text-[11px] font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
-                {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">结团</button>}
-                <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Trash2 className="w-3 h-3" />弃团</button>
+                {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white px-2.5 py-1 text-[11px] font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
+                {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">结团</button>}
+                <button onClick={() => handleDelete(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold">弃团</button>
               </>}
-            </> : campaign.kind !== 'promo' && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><LogOut className="w-3 h-3" />取消报名</button>}
+            </> : campaign.kind !== 'promo' && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold">取消报名</button>}
           </div>
         </div>}
       </li>
@@ -269,9 +270,9 @@ export const ManageView: React.FC<Props> = ({
       </summary>
       <div className="border-t border-dashed border-[#DDDDD5] p-2 space-y-2 bg-[#FAF9F5]">
         {master.imageUrl && <img src={master.imageUrl} alt="主团封面" className="w-full max-h-40 object-cover border border-[#121212]" />}
-        <div className="flex flex-wrap gap-1.5">
-          <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Plus className="w-3 h-3" />添加时间点</button>
-          <button type="button" onClick={() => { setEditingCampaign({ ...items[0], description: master.description, presetTags: master.presetTags || [], customTags: master.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Edit2 className="w-3 h-3" />修改</button>
+        <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+          <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn shrink-0 whitespace-nowrap bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">添加时间点</button>
+          <button type="button" onClick={() => { setEditingCampaign({ ...items[0], description: master.description, presetTags: master.presetTags || [], customTags: master.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn shrink-0 whitespace-nowrap bg-white px-2.5 py-1 text-[11px] font-bold">修改</button>
         </div>
         <ul className="space-y-1">{items.sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)).map((item) => campaignRow(item, true))}</ul>
       </div>
