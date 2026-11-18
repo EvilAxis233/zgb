@@ -966,8 +966,9 @@ export function App() {
         {activeTab === 'manage' && currentUser && (
           <div className="w-full">
             <ManageView
-              hostedCampaigns={myCampaigns}
-              joinedCampaigns={myJoinedCampaigns}
+              // 团务界面只留未结团：招募中 / 封车（锁车或到期）/ 弃团都保留；已结团的信息已在结团履历里展示。
+              hostedCampaigns={myCampaigns.filter((campaign) => !campaign.hasEnded)}
+              joinedCampaigns={myJoinedCampaigns.filter((campaign) => !campaign.hasEnded)}
               rules={rules}
               popularCustomTags={popularCustomTags}
               stickerLibrary={currentUser?.stickerLibraryKeys || []}

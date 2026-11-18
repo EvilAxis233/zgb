@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, Plus, Upload, ImagePlus } from 'lucide-react';
-import { GAME_PLATFORMS, type Campaign, type UserProfile } from '../types';
+import { Edit2, Eye, LogOut, Trash2, X, BookOpen, Sparkles, ChevronDown, ChevronUp, Plus, Upload, ImagePlus, ThumbsUp } from 'lucide-react';
+import { GAME_PLATFORMS, type Campaign, type CampaignDetail, type UserProfile } from '../types';
+import { api } from '../services/api';
 import { CalendarPicker } from './CalendarPicker';
 import { formatDisplayTime } from '../utils/date';
 import { MARKDOWN_SUPPORT_HINT } from './PublishModal';
@@ -69,7 +70,26 @@ export const ManageView: React.FC<Props> = ({
   const [stickerTouched, setStickerTouched] = useState(false);
   const [endingPromoIds, setEndingPromoIds] = useState<string[]>([]);
   const [deletingPromoIds, setDeletingPromoIds] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // 展开行时按需拉取成员名单，和「结团履历」用同一个详情接口。
+  const [campaignDetails, setCampaignDetails] = useState<Record<string, CampaignDetail>>({});
+  const [detailLoading, setDetailLoading] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleRow = async (campaign: Campaign) => {
+    if (expandedId === campaign.id) { setExpandedId(null); return; }
+    setExpandedId(campaign.id);
+    if (campaignDetails[campaign.id] || campaign.kind === 'promo') return;
+    setDetailLoading(campaign.id);
+    try {
+      const { campaign: detail } = await api.campaign(campaign.id);
+      setCampaignDetails((prev) => ({ ...prev, [campaign.id]: detail }));
+    } catch {
+      // 成员名单区会显示「加载失败」的内联提示，这里不再透传后端错误。
+    } finally {
+      setDetailLoading(null);
+    }
+  };
 
   const addTag = () => {
     if (!editingCampaign) return;
@@ -151,50 +171,81 @@ export const ManageView: React.FC<Props> = ({
     } finally { setAddingSlot(false); }
   };
 
-  const campaignCard = (campaign: Campaign, hosted: boolean) => (
-        <article key={campaign.id} className="border-2 border-[#121212] bg-white p-4 shadow-[3px_3px_0px_#121212]">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong className="text-sm truncate">{campaign.title}</strong>
-                <span className="text-[10px] font-black px-1.5 py-0.5 border border-[#121212] bg-[#F4A261]">
-                  {stateLabel(campaign)}
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 border border-[#121212] bg-[#F0F5FA] text-[#004E98]">
-                  {campaign.kind === 'offline' ? locationLabel(campaign) : campaign.sessionType || '语音'}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-[#666]">{campaign.rule} · {campaign.kind === 'promo' ? '截止：' : ''}{formatDisplayTime(campaign.timeSchedule)}</p>
-              {campaign.kind !== 'offline' && !!campaign.platforms?.length && <p className="mt-1 text-xs text-[#004E98] font-bold">{campaign.kind === 'promo' ? '平台' : '游戏平台'}：{campaign.platforms.join('、')}</p>}
-              <div className="mt-1 flex flex-wrap gap-1">
-                {campaign.customTags?.map((tag) => (
-                  <span key={tag} className="text-[10px] font-bold px-1.5 py-0.2 bg-[#FFF9F9] border border-[#E5B5B5] text-[#D62828]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              {campaign.kind !== 'promo' && <p className="mt-1 text-xs font-bold">玩家 {campaign.currentPlayers}/{campaign.maxPlayers}</p>}
-            </div>
+  // 单条团记录：与「结团履历」同一套折叠排版（标题+类型+状态一行，展开看详情与操作），只是团务里不显示年份筛选。
+  const campaignRow = (campaign: Campaign, hosted: boolean) => {
+    const open = expandedId === campaign.id;
+    const typeLabel = campaign.kind === 'offline' ? '面团' : campaign.kind === 'promo' ? '宣群' : '网团';
+    const place = campaign.kind === 'offline'
+      ? (locationLabel(campaign) || '—')
+      : (campaign.platforms?.length ? campaign.platforms.join('、') : '—');
+    return (
+      <li key={campaign.id} className="border border-[#DDDDD5] bg-[#FAF9F5]">
+        <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
+          <button type="button" onClick={() => void toggleRow(campaign)} aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center gap-1 text-left font-bold hover:text-[#D62828]">
+            {open ? <ChevronUp size={12} className="shrink-0" /> : <ChevronDown size={12} className="shrink-0" />}
+            <span className="min-w-0 truncate"><strong>{campaign.title}</strong> <span className="text-[#888]">· {typeLabel}</span></span>
+          </button>
+          <span className="shrink-0 border border-[#121212] bg-[#F4A261] px-1.5 py-0.5 text-[10px] font-black">{stateLabel(campaign)}</span>
+          <span className="shrink-0 font-mono text-[10px] text-[#888]">{(campaign.timeSchedule || '').slice(0, 10)}</span>
+        </div>
+        {open && <div className="border-t border-dashed border-[#DDDDD5] px-2 pb-2 pt-1.5 text-[11px] leading-snug text-[#444]">
+          {/* 展开后的信息分布完全对齐「结团履历」：规则·类型 / GM / 时间·人数·平台 / 团简介 / 成员名单，最后才是团务操作按钮。 */}
+          <p className="truncate font-bold text-[#666]"><span className="text-[#121212]">{campaign.rule}</span> · {typeLabel}</p>
+          <p className="font-bold text-[#666]">GM {campaign.gmName}{campaign.gmQq && `（${campaign.gmQq}）`}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-bold">
+            <span>{formatDisplayTime(campaign.timeSchedule)}</span>
+            {campaign.kind !== 'promo' && <span>{campaign.currentPlayers}/{campaign.maxPlayers} 人</span>}
+            <span>{campaign.kind === 'offline' ? '地址' : '平台'} {place}</span>
           </div>
-          <div className="mt-3 pt-3 border-t border-[#D8D5CC] flex flex-wrap gap-2">
-            <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Eye className="w-3.5 h-3.5" />查看</button>
+          <div className="mt-1 border-t border-dashed border-[#DDDDD5] pt-1.5">
+            <p className="font-black text-[#121212]">团简介</p>
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-[#555]">{campaign.description || '未填写团简介'}</p>
+          </div>
+          {campaign.kind !== 'promo' && <div className="mt-1 border-t border-dashed border-[#DDDDD5] pt-1.5">
+            <p className="font-black text-[#121212]">成员名单</p>
+            {detailLoading === campaign.id ? (
+              <p className="mt-0.5 text-[#888]">正在读取成员名单…</p>
+            ) : campaignDetails[campaign.id] ? (
+              <ul className="mt-1 space-y-1">
+                {campaignDetails[campaign.id].members.map((m) => (
+                  <li key={m.id} className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      <span className={m.role === 'gm' ? 'font-black text-[#D62828]' : 'font-bold text-[#004E98]'}>{m.role === 'gm' ? 'GM' : '玩家'}</span>
+                      {' '}{m.name}
+                      {m.qq && <span className="ml-1 font-mono text-[#888]">（{m.qq}）</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="inline-flex items-center gap-0.5 font-black text-[#666]" title={`获赞 ${m.receivedPraises}`}><ThumbsUp className="h-3 w-3 fill-current" />{m.receivedPraises}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-0.5 text-[#888]">成员名单加载失败，点「收起」后再展开重试。</p>
+            )}
+          </div>}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-[#DDDDD5] pt-2">
+            <button onClick={() => onSelectCampaign(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Eye className="w-3 h-3" />查看</button>
             {hosted ? <>
-              {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>}
+              {!campaign.batchId && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => { setEditingCampaign({ ...campaign, sessionType: campaign.sessionType || (campaign.kind === 'promo' ? '群扩招' : '语音'), platforms: campaign.platforms || [], presetTags: campaign.presetTags || [], customTags: campaign.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Edit2 className="w-3 h-3" />修改</button>}
               {campaign.kind === 'promo' ? (
                 campaign.isClosed ? (
-                  <button disabled={deletingPromoIds.includes(campaign.id)} onClick={() => handleDeletePromoRecord(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><Trash2 className="w-3.5 h-3.5" />{deletingPromoIds.includes(campaign.id) ? '正在删除…' : '删除记录'}</button>
+                  <button disabled={deletingPromoIds.includes(campaign.id)} onClick={() => handleDeletePromoRecord(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><Trash2 className="w-3 h-3" />{deletingPromoIds.includes(campaign.id) ? '正在删除…' : '删除记录'}</button>
                 ) : (
-                  <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FFF9E9] text-[#B5651D] border-[#B5651D] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><X className="w-3.5 h-3.5" />{endingPromoIds.includes(campaign.id) ? '正在结束…' : '结束宣发'}</button>
+                  <button disabled={endingPromoIds.includes(campaign.id)} onClick={() => handleEndPromo(campaign)} className="bauhaus-btn bg-[#FFF9E9] text-[#B5651D] border-[#B5651D] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-wait"><X className="w-3 h-3" />{endingPromoIds.includes(campaign.id) ? '正在结束…' : '结束宣发'}</button>
                 )
               ) : <>
-                {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
-                {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold">结团</button>}
-                <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />弃团</button>
+                {!campaign.hasEnded && !campaign.hasExpired && <button onClick={() => handleClosure(campaign)} className="bauhaus-btn bg-white px-2.5 py-1 text-[11px] font-bold">{campaign.isClosed ? '重新开放' : '锁车'}</button>}
+                {!campaign.hasEnded && <button onClick={() => handleFinish(campaign)} className="bauhaus-btn bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold">结团</button>}
+                <button onClick={() => handleDelete(campaign)} className="bauhaus-btn bg-[#FAF0F0] text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Trash2 className="w-3 h-3" />弃团</button>
               </>}
-            </> : campaign.kind !== 'promo' && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />取消报名</button>}
+            </> : campaign.kind !== 'promo' && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button onClick={() => handleCancel(campaign)} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><LogOut className="w-3 h-3" />取消报名</button>}
           </div>
-        </article>
-  );
+        </div>}
+      </li>
+    );
+  };
 
   const hostedGroups = new Map<string, Campaign[]>();
   hostedCampaigns.forEach((campaign) => {
@@ -209,25 +260,25 @@ export const ManageView: React.FC<Props> = ({
   const hostedList = visibleHostedGroups.length ? <div className="space-y-3">{visibleHostedGroups.map(([key, items], index) => <React.Fragment key={key}>
     {(index === 0 || groupKey(visibleHostedGroups[index - 1][1][0]) !== groupKey(items[0])) && <h3 className="text-xs font-black border-b border-[#121212] pb-1 pt-2">{groupTitle(items[0])}</h3>}
     {(() => {
-    if (!items[0].batchId) return campaignCard(items[0], true);
+    if (!items[0].batchId) return <ul className="space-y-1">{campaignRow(items[0], true)}</ul>;
     const master = items[0].batchMaster || items.find((item) => item.id === key) || items[0];
-    return <details key={key} className="border-2 border-[#121212] bg-white shadow-[3px_3px_0px_#121212] group">
-      <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none font-black">
-        <span className="min-w-0 block truncate">{master.title}</span>
-        <ChevronDown className="w-5 h-5 shrink-0 transition-transform group-open:rotate-180" />
+    return <details key={key} className="border border-[#DDDDD5] bg-white group">
+      <summary className="flex items-center justify-between gap-3 px-2 py-1.5 cursor-pointer list-none font-black text-xs">
+        <span className="min-w-0 block truncate">{master.title} <span className="text-[#888]">· {items.length} 个时间点</span></span>
+        <ChevronDown className="w-4 h-4 shrink-0 transition-transform group-open:rotate-180" />
       </summary>
-      <div className="border-t-2 border-[#121212] p-4 space-y-3 bg-[#FAF9F5]">
+      <div className="border-t border-dashed border-[#DDDDD5] p-2 space-y-2 bg-[#FAF9F5]">
         {master.imageUrl && <img src={master.imageUrl} alt="主团封面" className="w-full max-h-40 object-cover border border-[#121212]" />}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn bg-[#004E98] text-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />添加时间点</button>
-          <button type="button" onClick={() => { setEditingCampaign({ ...items[0], description: master.description, presetTags: master.presetTags || [], customTags: master.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1"><Edit2 className="w-3.5 h-3.5" />修改</button>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => { setAddingBatchId(key); setNewTimeSchedule(''); }} className="bauhaus-btn bg-[#004E98] text-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Plus className="w-3 h-3" />添加时间点</button>
+          <button type="button" onClick={() => { setEditingCampaign({ ...items[0], description: master.description, presetTags: master.presetTags || [], customTags: master.customTags || [] }); setCustomTagInput(''); setStickerTouched(false); }} className="bauhaus-btn bg-white px-2.5 py-1 text-[11px] font-bold inline-flex items-center gap-1"><Edit2 className="w-3 h-3" />修改</button>
         </div>
-        <div className="space-y-3">{items.sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)).map((item) => campaignCard(item, true))}</div>
+        <ul className="space-y-1">{items.sort((a, b) => a.timeSchedule.localeCompare(b.timeSchedule)).map((item) => campaignRow(item, true))}</ul>
       </div>
     </details>;
     })()}
   </React.Fragment>)}</div> : <div className="py-10 text-center text-xs text-[#888]">暂无记录</div>;
-  const joinedList = joinedCampaigns.length ? <div className="space-y-3">{joinedCampaigns.map((campaign) => campaignCard(campaign, false))}</div> : <div className="py-10 text-center text-xs text-[#888]">暂无记录</div>;
+  const joinedList = joinedCampaigns.length ? <ul className="space-y-1">{joinedCampaigns.map((campaign) => campaignRow(campaign, false))}</ul> : <div className="py-10 text-center text-xs text-[#888]">暂无记录</div>;
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
