@@ -165,8 +165,8 @@ export interface AdminUser {
   membership_expires_at: number | null;
 }
 
-/** 后台账号列表排序：最新注册（默认）/ GM 点赞 / 玩家点赞 / 带团次数。 */
-export type AdminUserSort = 'latest' | 'gm' | 'player' | 'host';
+/** 后台账号列表排序：最新注册（默认）/ GM 点赞 / 玩家点赞 / 带团次数 / 参团次数。 */
+export type AdminUserSort = 'latest' | 'gm' | 'player' | 'host' | 'joined';
 
 export interface MembershipGrant {
   id: string;

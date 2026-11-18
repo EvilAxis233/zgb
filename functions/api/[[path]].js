@@ -918,12 +918,13 @@ export async function onRequest(context) {
       if (path[1] === 'users' && path.length === 2 && method === 'GET') {
         const search = clean(url.searchParams.get('search'), 40);
         const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get('offset')) || 0)));
-        // 账号列表排序：默认最新注册；点赞与带团按次数降序，次数相同再按注册时间。
+        // 账号列表排序：默认最新注册；点赞、带团与参团按次数降序，次数相同再按注册时间。
         const sortKey = clean(url.searchParams.get('sort'), 20);
         const orderBy = {
           gm: 'u.received_gm DESC, u.created_at DESC',
           player: 'u.received_player DESC, u.created_at DESC',
           host: 'hosted_count DESC, u.created_at DESC',
+          joined: 'joined_count DESC, u.created_at DESC',
         }[sortKey] || 'u.created_at DESC';
         const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
         const where = "WHERE u.qq LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\'";

@@ -175,7 +175,7 @@ export function AdminPage() {
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null), [dashboardLoading, setDashboardLoading] = useState(false);
   const [rules, setRules] = useState<string[]>([]), [newRule, setNewRule] = useState(''), [afdianUrl, setAfdianUrl] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]), [userTotal, setUserTotal] = useState(0), [memberTotal, setMemberTotal] = useState(0), [searchInput, setSearchInput] = useState(''), [search, setSearch] = useState(''), [userOffset, setUserOffset] = useState(0);
-  // 账号列表排序：默认最新注册；GM 点赞 / 玩家点赞 / 带团次数按降序。
+  // 账号列表排序：默认最新注册；GM 点赞 / 玩家点赞 / 带团 / 参团次数按降序。
   const [userSort, setUserSort] = useState<AdminUserSort>('latest');
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [grants, setGrants] = useState<MembershipGrant[]>([]), [grantTotal, setGrantTotal] = useState(0), [grantOffset, setGrantOffset] = useState(0);

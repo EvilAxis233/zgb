@@ -91,7 +91,7 @@ export function AdminUsersSection(props: Props) {
     <section className="bauhaus-card p-5 bg-white">
       <div className="flex justify-between items-center border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black">注册用户</h3><div className="flex items-center gap-1.5"><span className="text-xs font-bold bg-[#004E98] text-white px-2 py-1">共 {props.userTotal} 个</span><span className="text-xs font-bold bg-[#C85C16] text-white px-2 py-1">会员 {props.memberTotal} 个</span></div></div>
       <form onSubmit={props.searchUsers} className="flex gap-2 mb-3"><input aria-label="搜索 QQ 号或昵称" value={props.searchInput} onChange={(e) => props.setSearchInput(e.target.value)} placeholder="输入 QQ 号后点搜索" className="bauhaus-input min-w-0 flex-1 px-3 py-2 text-sm" /><button className="bauhaus-btn bg-[#121212] text-white px-3" aria-label="搜索"><Search size={17} /></button></form>
-      {/* 排序：默认最新注册；点赞与带团按次数降序 */}
+      {/* 排序：默认最新注册；点赞、带团与参团按次数降序 */}
       <label className="mb-3 flex items-center gap-2 text-xs font-bold">
         <span className="shrink-0">排序</span>
         <select aria-label="账号排序方式" value={props.userSort} onChange={(event) => props.setUserSort(event.target.value as AdminUserSort)} className="bauhaus-input min-w-0 flex-1 px-2 py-1.5 text-xs font-bold">
@@ -99,10 +99,11 @@ export function AdminUsersSection(props: Props) {
           <option value="gm">GM 点赞次数</option>
           <option value="player">玩家点赞次数</option>
           <option value="host">带团次数</option>
+          <option value="joined">参团次数</option>
         </select>
       </label>
       <div className="space-y-1 max-h-[70vh] overflow-y-auto">{props.users.map((user) => <button key={user.qq} onClick={() => props.selectUser(user)} className={`w-full text-left border-2 px-2.5 py-1.5 ${selected?.qq === user.qq ? 'border-[#D62828] bg-[#FAF0F0]' : 'border-[#121212] bg-white'}`}>
-        {/* 单行：昵称 + QQ + 身份标签靠左（与以前一样紧挨昵称），只有带团次数靠右 */}
+        {/* 单行：昵称 + QQ + 身份标签靠左（紧挨昵称），带团 / 参团次数靠右 */}
         <span className="flex items-center gap-1.5 whitespace-nowrap">
           <span className="flex min-w-0 items-center gap-1.5">
             <strong className="min-w-0 truncate text-xs font-black">{user.name}</strong>
@@ -111,7 +112,7 @@ export function AdminUsersSection(props: Props) {
             {!!user.blacklisted && <span className="shrink-0 text-[10px] font-bold text-[#B51F1F] border border-[#B51F1F] px-1">黑名单</span>}
             {isMember(user) && <span className="shrink-0 text-[10px] font-bold text-[#7A4B00] border border-[#C85C16] px-1">会员</span>}
           </span>
-          <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]">带团 {user.hosted_count ?? 0}</span>
+          <span className="ml-auto shrink-0 text-[10px] font-bold text-[#888]"><span>带团 {user.hosted_count ?? 0}</span><span className="ml-2">参团 {user.joined_count ?? 0}</span></span>
         </span>
       </button>)}</div>
       <Pager offset={props.userOffset} total={props.userTotal} onChange={props.setUserOffset} />
@@ -120,12 +121,14 @@ export function AdminUsersSection(props: Props) {
     <section className="bauhaus-card p-5 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#121212] pb-3 mb-4"><h3 className="font-black flex items-center gap-2"><UserCog size={18} className="text-[#D62828]" />{selected ? <>{selected.name} <span className="font-mono text-sm font-bold text-[#666]">{selected.qq}</span></> : '请选择左侧账号'}</h3>{selected && <div className="flex items-center gap-2">
         <ShieldBan size={17} className="text-[#B51F1F]" />
+        {/* 被举报次数贴在封禁天数下拉的左边，封禁决策时可直接看到 */}
+        <span className="shrink-0 whitespace-nowrap border border-[#B51F1F] bg-[#FAF0F0] px-1.5 py-1 text-[11px] font-bold text-[#B51F1F]">被举报 {selected.report_count ?? 0} 次</span>
         {!selected.blacklisted && <select aria-label="黑名单期限" value={duration} onChange={(event) => setDuration(event.target.value as typeof duration)} className="bauhaus-input px-2 py-1 text-xs font-bold">{durations.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
         <button disabled={props.busy} onClick={changeBlacklist} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.blacklisted ? 'bg-white' : 'bg-[#B51F1F] text-white'}`}>{selected.blacklisted ? '移出黑名单' : '加入黑名单'}</button>
         {props.canManageAdmins && selected.role !== 'owner' && <button disabled={props.busy} onClick={toggleAdmin} className={`bauhaus-btn px-3 py-1.5 text-xs font-bold ${selected.role === 'admin' ? 'bg-white' : 'bg-[#004E98] text-white'}`}>{selected.role === 'admin' ? '取消管理员' : '任命为管理员'}</button>}
       </div>}</div>
       {!selected ? <div className="h-64 flex items-center justify-center text-sm text-[#666]">选择左侧账号查看数据</div> : <>
-        {/* 四项数据统一成一行：点赞用红/蓝，带团/参团用中性色，被举报只在左侧列表显示 */}
+        {/* 四项数据统一成一行：点赞用红/蓝，带团/参团用中性色，被举报次数在右上封禁区显示 */}
         <div className="grid grid-cols-4 gap-2 mb-1.5">
           <div className="border-2 border-[#D62828] bg-[#FAF0F0] px-1.5 py-2 text-center shadow-[2px_2px_0px_#D62828]"><span className="block text-[11px] font-bold text-[#666]">GM 点赞</span><strong className="block text-lg font-black text-[#D62828]">{selected.received_gm}</strong></div>
           <div className="border-2 border-[#004E98] bg-[#F0F5FA] px-1.5 py-2 text-center shadow-[2px_2px_0px_#004E98]"><span className="block text-[11px] font-bold text-[#666]">玩家点赞</span><strong className="block text-lg font-black text-[#004E98]">{selected.received_player}</strong></div>
