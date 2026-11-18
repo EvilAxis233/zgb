@@ -944,8 +944,8 @@ export function App() {
           <div className="w-full">
             <ProfileView
               currentUser={currentUser}
-              myCampaigns={myCampaigns.filter((campaign) => campaign.hasEnded)}
-              myJoinedCampaigns={myJoinedCampaigns.filter((campaign) => campaign.hasEnded)}
+              myCampaigns={myCampaigns.filter((campaign) => campaign.hasEnded && !campaign.isAbandoned)}
+              myJoinedCampaigns={myJoinedCampaigns.filter((campaign) => campaign.hasEnded && !campaign.isAbandoned)}
               onUpdateProfile={handleUpdateProfile}
               onSelectCampaign={openCampaign}
               onUploadAvatar={handleUploadAvatar}

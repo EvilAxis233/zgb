@@ -102,7 +102,7 @@ const periodCloseAt = (c) => {
 const campaignExpired = (c) => { const cutoff = periodCloseAt(c); return Boolean(cutoff) && cutoff <= nowHK(); };
 const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
-  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.sticker_override || c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(c.sticker_override || c.gm_stickers), gmIsMember: c.gm_role === 'owner' || Number(c.gm_membership_expires_at ?? 0) > now(), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10), finishedAt: c.finished_at ? c.finished_at.slice(0, 10) : null };
+  return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, isAbandoned: !!c.is_abandoned, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.sticker_override || c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(c.sticker_override || c.gm_stickers), gmIsMember: c.gm_role === 'owner' || Number(c.gm_membership_expires_at ?? 0) > now(), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10), finishedAt: c.finished_at ? c.finished_at.slice(0, 10) : null };
 };
 // 编辑团时补充贴纸：可来自个人贴纸库，也可以是发车/编辑时现场上传裁剪的图。
 // 与封面图同口径：key 格式合法且文件真实存在于 R2 即可；null 表示恢复默认佩戴。
@@ -933,9 +933,9 @@ export async function onRequest(context) {
             `(SELECT COUNT(*) FROM praises p WHERE p.from_qq=u.qq) sent_count,` +
             `(SELECT COUNT(*) FROM praises p WHERE p.to_qq=u.qq) received_count,` +
             `(SELECT COUNT(*) FROM submissions s WHERE s.type='report' AND s.reported_qq=u.qq) report_count,` +
-            // 带团/参团只算网团与面团：宣群不算开团，也没有报名记录。
-            `(SELECT COUNT(*) FROM campaigns c WHERE c.gm_qq=u.qq AND c.deleted_at IS NULL AND c.kind IN ('online','offline')) hosted_count,` +
-            `(SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=u.qq AND c.deleted_at IS NULL AND c.kind IN ('online','offline')) joined_count,` +
+            // 带团/参团只算网团与面团：宣群不算开团；弃团（0 人报名封车）也不算开团记录。
+            `(SELECT COUNT(*) FROM campaigns c WHERE c.gm_qq=u.qq AND c.deleted_at IS NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline')) hosted_count,` +
+            `(SELECT COUNT(*) FROM campaign_memberships m JOIN campaigns c ON c.id=m.campaign_id WHERE m.user_qq=u.qq AND c.deleted_at IS NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline')) joined_count,` +
             `b.expires_at blacklist_expires_at,b.banned_at blacklist_banned_at,` +
             `CASE WHEN b.qq IS NOT NULL AND b.lifted_at IS NULL AND (b.expires_at IS NULL OR b.expires_at>?) THEN 1 ELSE 0 END blacklisted ` +
             `FROM users u LEFT JOIN user_blacklist b ON b.qq=u.qq ${where} ORDER BY ${orderBy} LIMIT 100 OFFSET ?`).bind(now(), pattern, pattern, offset),
@@ -943,13 +943,13 @@ export async function onRequest(context) {
         ]);
         return json({ users: users.results.map((account) => { const role = roleOf(account); const permanent = role === 'owner' || account.membership_expires_at === PERMANENT_MEMBERSHIP; return { ...account, role, isAdmin: !!role, isOwner: role === 'owner', membershipPermanent: permanent, membership_expires_at: permanent ? PERMANENT_MEMBERSHIP : account.membership_expires_at }; }), total: count.results[0].n, memberTotal: memberCount.results[0].n });
       }
-      // 账号详情里的带团 / 参团结团履历（与个人档案同源：只取已结团的网团与面团）。
+      // 账号详情里的带团 / 参团结团履历（与个人档案同源：只取已结团、非弃团的网团与面团）。
       if (path[1] === 'user-campaigns' && path.length === 2 && method === 'GET') {
         const qq = clean(url.searchParams.get('qq'), 20);
         if (!qqValid(qq)) return fail('QQ 号无效');
         const [hosted, joined] = await db.batch([
-          db.prepare(`${campaignSelect} AND c.gm_qq=? AND c.finished_at IS NOT NULL AND c.kind IN ('online','offline') ORDER BY c.finished_at DESC`).bind(qq),
-          db.prepare(`${campaignSelect} AND c.finished_at IS NOT NULL AND c.kind IN ('online','offline') AND c.id IN (SELECT campaign_id FROM campaign_memberships WHERE user_qq=?) ORDER BY c.finished_at DESC`).bind(qq)
+          db.prepare(`${campaignSelect} AND c.gm_qq=? AND c.finished_at IS NOT NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline') ORDER BY c.finished_at DESC`).bind(qq),
+          db.prepare(`${campaignSelect} AND c.finished_at IS NOT NULL AND c.is_abandoned=0 AND c.kind IN ('online','offline') AND c.id IN (SELECT campaign_id FROM campaign_memberships WHERE user_qq=?) ORDER BY c.finished_at DESC`).bind(qq)
         ]);
         return json({ hosted: hosted.results.map((c) => campDto(c, false, false)), joined: joined.results.map((c) => campDto(c, false, false)) });
       }
@@ -1496,7 +1496,11 @@ export async function onRequest(context) {
       const membership = user ? await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(c.id, user.qq).first() : null;
       const siblings = c.batch_id ? await db.prepare(`${campaignSelect} AND c.batch_id=? ORDER BY c.scheduled_date,c.time_period`).bind(c.batch_id).all() : null;
       const isPublic = !c.finished_at && ((!c.closed_at && (c.kind === 'promo' || Number(c.member_count) < c.max_players)) || !!siblings?.results.some((slot) => !slot.finished_at && !slot.closed_at && (slot.kind === 'promo' || Number(slot.member_count) < slot.max_players)));
-      if (!isPublic && (!user || (c.gm_qq !== user.qq && !membership))) return fail('团不存在', 404);
+      // 已结团是公开的结团履历：登录用户可查看历史成员名单（联系方式仍由 canSeeContact 单独控制）；
+      // 站务在后台可查看任意团。招募中/已封车但未结团的团仍按原规则仅 GM 与成员可见。
+      const isOwnerOrMember = !!user && (c.gm_qq === user.qq || !!membership);
+      const canView = isPublic || isOwnerOrMember || (!!user && (isSiteAdmin(user) || !!c.finished_at));
+      if (!canView) return fail('团不存在', 404);
       const players = await db.prepare('SELECT u.* FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id=? ORDER BY m.joined_at,u.qq').bind(c.id).all();
       const gm = await db.prepare('SELECT * FROM users WHERE qq=?').bind(c.gm_qq).first();
       const canSeeContact = !!user && (c.kind === 'promo' || c.gm_qq === user.qq || !!membership);

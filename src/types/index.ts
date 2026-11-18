@@ -87,6 +87,7 @@ export interface Campaign {
   isFull: boolean;
   isClosed?: boolean;
   hasEnded: boolean;
+  isAbandoned?: boolean; // 弃团（0 人报名封车）：不计入履历与带团次数
   hasExpired: boolean;
   isSignedUp: boolean;
   createdAt: string;

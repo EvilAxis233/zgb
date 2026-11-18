@@ -34,8 +34,9 @@ export function CampaignHistoryPanel({ hosted, joined, gmHearts, playerHearts, c
     try {
       const { campaign } = await api.campaign(id);
       setCampaignDetails((prev) => ({ ...prev, [id]: campaign }));
-    } catch (error) {
-      setPraiseNotice(error instanceof Error ? error.message : '成员名单加载失败');
+    } catch {
+      // 成员名单区域已有「加载失败，收起后重试」的内联提示；不再把后端 raw 错误
+      // （如「团不存在」）透传到面板底部，避免出现莫名其妙的字样。
     } finally {
       setDetailLoading(null);
     }
