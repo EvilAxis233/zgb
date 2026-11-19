@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { BookOpen, Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
+import { BookOpen, Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2, Image as ImageIcon, Link2 } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -9,7 +9,6 @@ import { ImageHoverPreview } from './ImageHoverPreview';
 import { formatDisplayTime } from '../utils/date';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
-import { api } from '../services/api';
 
 /** Blob 转 data URL：把截图内嵌进剪贴板 text/html，让 QQ 等客户端识别成「图片 + 文字」的图文混排。 */
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -134,11 +133,16 @@ function Avatar({ member, stretch = false, large = false }: { member: CampaignMe
 export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
   const { showConfirm, showAlert } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
-  const [inviteCopied, setInviteCopied] = useState(false);
-  const [inviteWithImage, setInviteWithImage] = useState(false);
   const [profileMember, setProfileMember] = useState<CampaignMember | null>(null);
+  // 邀请同伴弹窗：截图缩略图 + 可自填文案 + 两个独立复制按钮（图/文案链接分开复制，QQ 粘贴更稳）。
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteGenerating, setInviteGenerating] = useState(false);
+  const [inviteImage, setInviteImage] = useState<Blob | null>(null);
+  const [invitePreview, setInvitePreview] = useState('');
+  const [inviteText, setInviteText] = useState('猪君快来和我一起跑团罢！');
+  const [copiedImage, setCopiedImage] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
-  // 防连点：不在按钮上显示「生成截图中」，否则截图里会带上这个临时文案。
   const invitingRef = useRef(false);
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
@@ -157,56 +161,55 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     url.searchParams.set('campaign', campaign.id);
     return url.toString();
   };
-  const copyInvite = async () => {
+  // 打开邀请弹窗：先把详情弹窗渲染成截图（此时邀请弹窗还没出现，不会入镜），再展示缩略图与文案。
+  const openInvite = async () => {
     if (invitingRef.current) return;
     invitingRef.current = true;
-    const link = inviteLink();
-    const inviteText = `猪君快来和我一起跑团罢！\n${link}`;
-    // 截图失败也不要挡住分享：退回纯文本复制。
+    setInviteGenerating(true);
     let image: Blob | null = null;
     try { if (modalRef.current) image = await captureInviteImage(modalRef.current); } catch { image = null; }
+    setInviteImage(image);
+    try { setInvitePreview(image ? await blobToDataUrl(image) : ''); } catch { setInvitePreview(''); }
+    setInviteGenerating(false);
+    setInviteOpen(true);
+    invitingRef.current = false;
+  };
+  // 按钮一：只复制详情图（image/png），QQ 里单独粘贴就是一张图。
+  const copyInviteImage = async () => {
+    if (!inviteImage) {
+      await showAlert({ title: '暂无截图', message: '详情图生成失败，请关闭弹窗后重试。', type: 'warning' });
+      return;
+    }
     let ok = false;
     try {
-      if (image && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-        // 同时写三种格式：
-        // - image/png：纯弹窗截图，给只读图片的客户端
-        // - text/html：截图用公网直链 + 文案 + 可点链接，QQ 等客户端粘贴图文走这一份
-        //   （QQ 不渲染 text/html 里的 base64 图，必须先经后端换成公网 URL；失败才退回 data URL）
-        // - text/plain：纯文本兜底，地址栏 / 不支持 HTML 的地方仍可粘贴
-        const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        const imgSrc = await blobToDataUrl(image);
-        let htmlImgSrc = imgSrc;
-        try {
-          const uploaded = await api.uploadShareImage(imgSrc);
-          if (uploaded?.url) htmlImgSrc = uploaded.url;
-        } catch { /* 上传失败保留 data URL，其它客户端仍可用 */ }
-        // QQ 富文本粘贴对 <img> 挑剔：无明确宽高会当 0 尺寸丢弃，第三方小站域名会拦。
-        // 图片已存本站对象存储（同域稳定放行），这里再按真实比例写明像素尺寸确保渲染。
-        let dispW = modalRef.current?.offsetWidth || 768, dispH = 0;
-        try {
-          const probe = new Image();
-          probe.src = imgSrc;
-          await probe.decode();
-          if (probe.naturalWidth) {
-            dispW = Math.min(768, probe.naturalWidth);
-            dispH = Math.round(probe.naturalHeight * dispW / probe.naturalWidth);
-          }
-        } catch { /* 读不到尺寸就只用宽度 */ }
-        const sizeAttr = dispH ? `width="${dispW}" height="${dispH}"` : `width="${dispW}"`;
-        const html = `<div>猪君快来和我一起跑团罢！</div><div><img src="${htmlImgSrc}" ${sizeAttr} style="max-width:100%"></div><div><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></div>`;
-        await navigator.clipboard.write([new ClipboardItem({
-          'image/png': image,
-          'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([inviteText], { type: 'text/plain' }),
-        })]);
-      } else {
-        await navigator.clipboard.writeText(inviteText);
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': inviteImage })]);
+        ok = true;
       }
-      ok = true;
-    } catch {
+    } catch { ok = false; }
+    if (ok) {
+      setCopiedImage(true);
+      window.setTimeout(() => setCopiedImage(false), 2200);
+    } else {
+      // 浏览器不支持写图片时，退回下载图片，用户可手动发送。
+      const a = document.createElement('a');
+      a.href = invitePreview;
+      a.download = `团详情-${campaign.title}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      await showAlert({ title: '图片已下载', message: '浏览器不支持直接复制图片，已改为下载图片，请手动发送到 QQ。', type: 'warning' });
+    }
+  };
+  // 按钮二：复制「可自填文案 + 分享链接」纯文本，QQ 里单独粘贴就是文字。
+  const copyInviteText = async () => {
+    const link = inviteLink();
+    const text = `${inviteText.trim()}\n${link}`;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch {
       try {
         const area = document.createElement('textarea');
-        area.value = inviteText;
+        area.value = text;
         area.style.position = 'fixed';
         area.style.opacity = '0';
         document.body.appendChild(area);
@@ -215,13 +218,11 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         area.remove();
       } catch { ok = false; }
     }
-    invitingRef.current = false;
     if (ok) {
-      setInviteWithImage(!!image);
-      setInviteCopied(true);
-      window.setTimeout(() => setInviteCopied(false), 2600);
+      setCopiedText(true);
+      window.setTimeout(() => setCopiedText(false), 2200);
     } else {
-      await showAlert({ title: '复制失败', message: `浏览器不允许自动复制，请手动复制链接：${link}`, type: 'warning' });
+      await showAlert({ title: '复制失败', message: `浏览器不允许自动复制，请手动复制：${text}`, type: 'warning' });
     }
   };
   const isMember = isGm || campaign.isSignedUp;
@@ -530,9 +531,9 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             {campaign.kind !== 'promo' && currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
             {campaign.kind !== 'promo' && (campaign.hasEnded || campaign.isClosed || campaign.isFull || campaign.hasExpired) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed || campaign.hasExpired ? '本团已封车' : '报名人数已满'}</span>}
             {campaign.kind !== 'promo' && (
-              <button type="button" onClick={copyInvite} title="复制详情弹窗截图，以及文案与分享链接，发给同伴即可直接打开"
+              <button type="button" onClick={openInvite} title="打开邀请面板，可分别复制详情图与文案链接"
                 className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-bold inline-flex items-center gap-1.5">
-                <Share2 className="w-4 h-4" />{inviteCopied ? (inviteWithImage ? '截图与链接已复制' : '链接已复制') : '邀请同伴'}
+                <Share2 className="w-4 h-4" />邀请同伴
               </button>
             )}
             {campaign.kind === 'promo' && !currentUser && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold">登录查看联系方式</button>}
@@ -610,6 +611,67 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             </div>
             <footer className="flex shrink-0 justify-end border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-2.5">
               <button type="button" onClick={() => setProfileMember(null)} className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-black">关闭</button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {/* 邀请同伴面板：截图缩略图 + 可自填文案 + 两个独立复制按钮（图与文案链接分开，QQ 粘贴更稳）。 */}
+      {inviteOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setInviteOpen(false); }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="邀请同伴"
+            className="flex max-h-[92vh] w-full max-w-lg flex-col border-4 border-[#121212] bg-white shadow-[8px_8px_0px_#121212]"
+          >
+            <header className="flex shrink-0 items-center justify-between bg-[#121212] px-4 py-2.5 text-white">
+              <span className="flex items-center gap-2 text-sm font-black tracking-wider">
+                <span className="h-3 w-3 bg-[#D62828]" />邀请同伴
+              </span>
+              <button type="button" onClick={() => setInviteOpen(false)} aria-label="关闭邀请面板" className="cursor-pointer text-white/80 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="overflow-y-auto p-4">
+              <div>
+                <h4 className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#121212]">
+                  <span className="h-2.5 w-2.5 bg-[#004E98]" />详情图预览
+                </h4>
+                <div className="mt-2 flex min-h-[120px] items-center justify-center border-2 border-[#121212] bg-[#FAF9F5] p-2">
+                  {inviteGenerating
+                    ? <span className="py-8 text-xs font-bold text-[#777]">正在生成详情图…</span>
+                    : invitePreview
+                      ? <img src={invitePreview} alt="团详情截图预览" className="max-h-56 w-auto max-w-full border border-[#121212] object-contain" />
+                      : <span className="py-8 text-xs font-bold text-[#777]">截图生成失败，可关闭后重试</span>}
+                </div>
+              </div>
+              <div className="mt-4">
+                <h4 className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#121212]">
+                  <span className="h-2.5 w-2.5 bg-[#D62828]" />分享文案（可自行修改）
+                </h4>
+                <textarea
+                  value={inviteText}
+                  onChange={(event) => setInviteText(event.target.value)}
+                  rows={2}
+                  className="bauhaus-input mt-2 w-full resize-none px-3 py-2 text-sm font-bold"
+                  aria-label="分享文案"
+                />
+                <p className="mt-1 flex items-start gap-1 break-all text-[11px] font-bold text-[#666]">
+                  <Link2 className="mt-0.5 h-3 w-3 shrink-0" />{inviteLink()}
+                </p>
+              </div>
+            </div>
+            <footer className="flex shrink-0 flex-wrap justify-end gap-3 border-t-2 border-[#121212] bg-[#F6F5F0] px-4 py-3">
+              <button type="button" onClick={copyInviteImage} className="bauhaus-btn bg-[#004E98] px-4 py-2 text-xs font-bold text-white inline-flex items-center gap-1.5">
+                <ImageIcon className="h-4 w-4" />{copiedImage ? '详情图已复制' : '复制详情图'}
+              </button>
+              <button type="button" onClick={copyInviteText} className="bauhaus-btn bg-[#D62828] px-4 py-2 text-xs font-bold text-white inline-flex items-center gap-1.5">
+                <Copy className="h-4 w-4" />{copiedText ? '文案与链接已复制' : '复制文案和分享链接'}
+              </button>
             </footer>
           </section>
         </div>
