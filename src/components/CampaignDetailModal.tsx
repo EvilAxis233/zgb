@@ -9,6 +9,7 @@ import { ImageHoverPreview } from './ImageHoverPreview';
 import { formatDisplayTime } from '../utils/date';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
+import { api } from '../services/api';
 
 /** Blob 转 data URL：把截图内嵌进剪贴板 text/html，让 QQ 等客户端识别成「图片 + 文字」的图文混排。 */
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -169,11 +170,17 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
       if (image && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
         // 同时写三种格式：
         // - image/png：纯弹窗截图，给只读图片的客户端
-        // - text/html：截图以 data URL 内嵌 + 文案 + 可点链接，QQ 等客户端粘贴图文走这一份
+        // - text/html：截图用公网直链 + 文案 + 可点链接，QQ 等客户端粘贴图文走这一份
+        //   （QQ 不渲染 text/html 里的 base64 图，必须先经后端换成公网 URL；失败才退回 data URL）
         // - text/plain：纯文本兜底，地址栏 / 不支持 HTML 的地方仍可粘贴
         const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        const imgDataUrl = await blobToDataUrl(image);
-        const html = `<div>猪君快来和我一起跑团罢！</div><div><img src="${imgDataUrl}" style="max-width:100%"></div><div><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></div>`;
+        const imgSrc = await blobToDataUrl(image);
+        let htmlImgSrc = imgSrc;
+        try {
+          const uploaded = await api.uploadShareImage(imgSrc);
+          if (uploaded?.url) htmlImgSrc = uploaded.url;
+        } catch { /* 上传失败保留 data URL，其它客户端仍可用 */ }
+        const html = `<div>猪君快来和我一起跑团罢！</div><div><img src="${htmlImgSrc}" style="max-width:100%"></div><div><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></div>`;
         await navigator.clipboard.write([new ClipboardItem({
           'image/png': image,
           'text/html': new Blob([html], { type: 'text/html' }),

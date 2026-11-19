@@ -28,6 +28,8 @@ export const api = {
   trackView: (path: string) => post<{ ok: boolean; skipped?: boolean }>('analytics/view', { path }),
   /** 赞助会员弹窗：爱发电链接与交流群号（公开，未登录也可读）。 */
   siteSettings: () => request<{ afdianUrl: string; groupQq: string }>('site/settings'),
+  /** 邀请同伴：把弹窗截图换成公网直链，供剪贴板 text/html 里的 <img> 使用。 */
+  uploadShareImage: (dataUrl: string) => post<{ url: string }>('share-image', { dataUrl }),
   /** 用爱发电发来的会员 Key 激活，成功后返回新的会员到期时间。 */
   redeemMembershipKey: (code: string) => post<{ ok: boolean; months: number; days: number; membershipExpiresAt: number }>('membership/redeem', { code }),
   campaigns: () => request<{ campaigns: Campaign[]; users: UserProfile[]; rules: string[]; popularCustomTags: string[] }>('campaigns'),
