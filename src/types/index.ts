@@ -76,6 +76,7 @@ export interface Campaign {
   gmStickers?: string[];
   gmIsMember?: boolean; // GM 是否为会员（会员头像显示动态鎏金环）
   stickerKeys?: string[]; // 发布时本团临时选用的贴纸 key（不改默认佩戴）
+  resourceRefs?: Array<{ id: string; name: string; url: string }>; // 发布时引用的站内爱心资源
   contact?: string;
   summary?: string;
   description: string;

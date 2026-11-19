@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
+import { BookOpen, Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
 import { MarkdownView } from './MarkdownView';
@@ -360,7 +360,15 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
               </div>
             </div>
           <section className="col-span-full border-2 border-[#121212] p-5 bg-[#FAF9F5]">
-            <h2 className="text-sm font-black tracking-widest border-b-2 border-[#121212] pb-2 mb-4 flex items-center gap-2"><span className="w-2.5 h-2.5 bg-[#004E98]" />简介</h2>
+            <div className="mb-4 flex items-center justify-between gap-3 border-b-2 border-[#121212] pb-2">
+              <h2 className="text-sm font-black tracking-widest flex items-center gap-2"><span className="w-2.5 h-2.5 bg-[#004E98]" />简介</h2>
+              {!!campaign.resourceRefs?.length && <div className="flex min-w-0 items-center gap-1 overflow-x-auto" aria-label="引用的爱心资源">
+                {campaign.resourceRefs.map((r) => <a key={r.id} href={r.url} target="_blank" rel="noreferrer" title={`爱心资源：${r.name}`}
+                  className="inline-flex shrink-0 items-center gap-1 border-2 border-[#176B57] bg-[#EAF5F1] px-2 py-0.5 text-[11px] font-bold text-[#176B57] hover:underline">
+                  <BookOpen size={11} />{r.name}
+                </a>)}
+              </div>}
+            </div>
             <MarkdownView content={campaign.description} />
           </section>
           <section className="col-span-full border-2 border-[#121212] bg-white shadow-[4px_4px_0px_#121212]">

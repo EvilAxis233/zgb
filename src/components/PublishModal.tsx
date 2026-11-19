@@ -6,6 +6,7 @@ import { CalendarPicker } from './CalendarPicker';
 import { X, Upload, Trash2, Clock, BookOpen, ChevronDown } from 'lucide-react';
 import { useDialog } from './BauhausDialog';
 import { ImageCropper } from './ImageCropper';
+import { ResourceReferencePicker, type ResourceRef } from './ResourceReferencePicker';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
 import { tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
@@ -53,6 +54,7 @@ type PublishDraft = {
   location: string;
   address: string;
   customTags: string[];
+  resourceRefs: ResourceRef[];
   contact: string;
   description: string;
   timeSchedule: string;
@@ -99,6 +101,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
   const [contact, setContact] = useState(currentUser?.qq || '');
+  const [resourceRefs, setResourceRefs] = useState<ResourceRef[]>([]);
   const [description, setDescription] = useState('');
   const [timeSchedule, setTimeSchedule] = useState('');
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
@@ -146,6 +149,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       setTitle('');
       setRule('');
       setSelectedCustomTags([]);
+      setResourceRefs([]);
       setContact(currentUser?.qq || '');
       setDescription('');
       setMaxPlayers(4);
@@ -167,7 +171,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   // 输入防抖 500ms 自动暂存；空表单不写入，避免打开又关闭时覆盖上次草稿。
   const draftSnapshot = JSON.stringify({
     kind, title, rule, sessionType, platforms, location, address,
-    customTags: selectedCustomTags, contact, description, timeSchedule, timeSlots,
+    customTags: selectedCustomTags, resourceRefs, contact, description, timeSchedule, timeSlots,
     maxPlayers, bannerColor, stickerKeys,
   });
   useEffect(() => {
@@ -176,7 +180,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     const hasContent = Boolean(
       snapshot.title.trim() || snapshot.rule.trim() || snapshot.description.trim() ||
       snapshot.location.trim() || snapshot.address.trim() || snapshot.timeSlots.length ||
-      snapshot.customTags.length || snapshot.platforms.length ||
+      snapshot.customTags.length || snapshot.platforms.length || snapshot.resourceRefs.length ||
       (snapshot.contact.trim() && snapshot.contact.trim() !== currentUser.qq) ||
       snapshot.maxPlayers !== 4 || snapshot.bannerColor !== BAUHAUS_COLORS[0].hex
     );
@@ -198,6 +202,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     setLocation(draft.location || '');
     setAddress(draft.address || '');
     setSelectedCustomTags(Array.isArray(draft.customTags) ? draft.customTags : []);
+    setResourceRefs(Array.isArray(draft.resourceRefs) ? draft.resourceRefs : []);
     setContact(draft.contact || currentUser?.qq || '');
     setDescription(draft.description || '');
     setTimeSlots(slots);
@@ -318,6 +323,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       platforms,
       presetTags: [],
       customTags: selectedCustomTags,
+      resourceRefs,
       gmId: currentUser.id,
       gmName: currentUser.name,
       gmPraises: currentUser.receivedGmPraises,
@@ -764,6 +770,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* 引用站内爱心资源：与 GM 圆桌主题同一套检索交互，位置在联系方式上方 */}
+                <ResourceReferencePicker value={resourceRefs} onChange={setResourceRefs} flash={(message) => void showAlert({ title: '提示', message, type: 'warning' })} />
 
                 {/* Contact Information */}
                 <div>
