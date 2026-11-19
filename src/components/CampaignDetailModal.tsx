@@ -100,6 +100,8 @@ async function captureInviteImage(node: HTMLElement): Promise<Blob | null> {
 
 interface Props {
   campaign: CampaignDetail | null;
+  // 秒开时详情接口尚未返回：成员名单为空只是暂时的，用加载态替代「尚无玩家」等误导文案。
+  detailLoading?: boolean;
   currentUser: UserProfile | null;
   onClose: () => void;
   onSelectSlot: (id: string) => void;
@@ -130,7 +132,7 @@ function Avatar({ member, stretch = false, large = false }: { member: CampaignMe
   );
 }
 
-export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
+export const CampaignDetailModal: React.FC<Props> = ({ campaign, detailLoading = false, currentUser, onClose, onSelectSlot, onLogin, onSignup, onCancelSignup, onRemoveMember, onPraise, onEditCampaign, onDeleteCampaign, onEndPromo }) => {
   const { showConfirm, showAlert } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
   const [profileMember, setProfileMember] = useState<CampaignMember | null>(null);
@@ -511,15 +513,21 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             <MarkdownView content={campaign.description} />
           </section>
           <section className="col-span-full border-2 border-[#121212] bg-white shadow-[4px_4px_0px_#121212]">
-            <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">{campaign.kind === 'promo' ? '发布者' : '成员名单'}</h2>{campaign.kind !== 'promo' && <span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span>}</div>
-            {gm && memberRow(gm)}
-            {campaign.kind !== 'promo' && (players.length ? (
-              <div className="grid grid-cols-1 md:grid-cols-3">
-                {players.map((member, index) => memberRow(member, index, players.length, true))}
-              </div>
+            <div className="px-4 py-3 border-b-2 border-[#121212] flex items-center justify-between"><h2 className="text-sm font-black tracking-widest">{campaign.kind === 'promo' ? '发布者' : '成员名单'}</h2>{campaign.kind !== 'promo' && !detailLoading && <span className="text-xs font-bold text-[#666]">GM 1 人 · 玩家 {players.length} 人</span>}</div>
+            {detailLoading ? (
+              <div className="px-4 py-6 text-center text-xs font-bold text-[#777]">正在加载成员名单…</div>
             ) : (
-              <div className="px-4 py-6 text-center text-xs text-[#777]">尚无玩家报名</div>
-            ))}
+              <>
+                {gm && memberRow(gm)}
+                {campaign.kind !== 'promo' && (players.length ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3">
+                    {players.map((member, index) => memberRow(member, index, players.length, true))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-6 text-center text-xs text-[#777]">尚无玩家报名</div>
+                ))}
+              </>
+            )}
           </section>
           </div>
         </div>

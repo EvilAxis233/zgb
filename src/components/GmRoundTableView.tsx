@@ -541,8 +541,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
           {t.isPinned && <span className="mb-1.5 inline-block w-fit bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black leading-none text-white">置顶</span>}
           {newCount > 0 && <span className="mb-1.5 inline-block w-fit bg-[#D62828] px-1.5 py-0.5 text-[10px] font-black leading-none text-white">新 {newCount}</span>}
           <h3 className="line-clamp-2 text-sm font-black leading-snug text-white">{t.title}</h3>
-          <div className="mt-1.5 text-[11px] text-[#8A8A8A]">发布时间：{t.time}</div>
-          {!!t.ruleVersion && <div className="mt-1 text-[10px] text-[#8A8A8A]">规则版本：{t.ruleVersion}</div>}
+          {!!t.ruleVersion && <div className="mt-1.5 text-[10px] text-[#8A8A8A]">规则版本：{t.ruleVersion}</div>}
           {!!t.resources?.length && <div className="mt-1.5 flex items-center gap-1 text-[10px] text-[#7FC7FF]"><Link2 className="h-3 w-3" />引用 {t.resources.length} 个爱心资源</div>}
           {(!!t.origin || !!t.contentAttr || t.tags.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -771,7 +770,7 @@ export const GmRoundTableView: React.FC<Props> = ({ currentUserQq, isAdmin = fal
                   <ThumbsUp className="h-3.5 w-3.5" />{openTopic.likes}
                 </button>
               </div>
-              <div className="mt-2 text-xs text-[#8A8A8A]">发布时间：{openTopic.time} · {openTopic.views} 浏览{openTopic.ruleVersion ? ` · 规则版本：${openTopic.ruleVersion}` : ''}</div>
+              <div className="mt-2 text-xs text-[#8A8A8A]">{openTopic.views} 浏览{openTopic.ruleVersion ? ` · 规则版本：${openTopic.ruleVersion}` : ''}</div>
             </div>
 
             <div className="px-4 py-3">

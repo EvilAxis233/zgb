@@ -549,7 +549,8 @@ function validateNewSlot(raw, unrestricted = false) {
   if (actualDate !== date || date < dateHK() || (!unrestricted && date > latestDate)) throw new Error('请填写有效的开团日期和时段');
   return { time, date, period: matched[2] };
 }
-const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,u.nameplate gm_nameplate,u.stickers gm_stickers,u.role gm_role,u.membership_expires_at gm_membership_expires_at,(SELECT COUNT(*) FROM campaign_memberships m WHERE m.campaign_id=c.id) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq WHERE c.deleted_at IS NULL`;
+// member_count 由「每行一次相关子查询」改为「一次聚合后 LEFT JOIN」：等价且多行列表少 N 次索引查找。
+const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.received_gm gm_received_praises,u.nameplate gm_nameplate,u.stickers gm_stickers,u.role gm_role,u.membership_expires_at gm_membership_expires_at,COALESCE(mc.cnt,0) member_count FROM campaigns c JOIN users u ON u.qq=c.gm_qq LEFT JOIN (SELECT campaign_id,COUNT(*) cnt FROM campaign_memberships GROUP BY campaign_id) mc ON mc.campaign_id=c.id WHERE c.deleted_at IS NULL`;
 // 每个 Worker 实例内记录上次自动关团时间，实现 60 秒节流。
 let lastSweepAt = 0;
 
@@ -1546,38 +1547,43 @@ export async function onRequest(context) {
       return json({ afdianUrl: row?.setting_value || '', groupQq: '917744498' });
     }
     if (path[0] === 'campaigns' && path.length === 1 && method === 'GET') {
-      const rows = await db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all();
-      const hosts = await db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all();
-      const rules = await db.prepare('SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT 10').all();
-      const popularCustomTags = await db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all();
+      // 4 个只读查询并行发出（与 bootstrap 一致），未登录首屏不再逐个 await。
+      const [rows, hosts, rules, popularCustomTags] = await Promise.all([
+        db.prepare(`${campaignSelect} ORDER BY c.created_at DESC`).all(),
+        db.prepare('SELECT DISTINCT u.* FROM users u JOIN campaigns c ON c.gm_qq=u.qq WHERE c.deleted_at IS NULL').all(),
+        db.prepare('SELECT name FROM rules ORDER BY last_used_at DESC, rowid DESC LIMIT 10').all(),
+        db.prepare('SELECT name FROM custom_tags ORDER BY use_count DESC, last_used_at DESC LIMIT 10').all(),
+      ]);
       const campaigns = campaignsDto(rows.results);
       return json({ campaigns: campaigns.filter((c) => !c.hasEnded && !c.isClosed && !c.isFull && !c.hasExpired), users: hosts.results.map(publicUserDto), rules: rules.results.map((row) => row.name), popularCustomTags: popularCustomTags.results.map((row) => row.name) });
     }
     if (path[0] === 'campaigns' && path[1] && path.length === 2 && method === 'GET') {
       const c = await db.prepare(`${campaignSelect} AND c.id=?`).bind(path[1]).first();
       if (!c) return fail('团不存在', 404);
-      const membership = user ? await db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(c.id, user.qq).first() : null;
-      const siblings = c.batch_id ? await db.prepare(`${campaignSelect} AND c.batch_id=? ORDER BY c.scheduled_date,c.time_period`).bind(c.batch_id).all() : null;
+      // 详情所需的 6 个只读查询彼此无依赖，一次性并行发出（原来逐个 await 串行，累计 1~2 秒）。
+      // 无权限时这些查询只是白跑、结果不返回，不改变原有的可见性判定。
+      const [membership, siblingsRes, playersRes, gm, joinedRes, praisedRes] = await Promise.all([
+        user ? db.prepare('SELECT 1 FROM campaign_memberships WHERE campaign_id=? AND user_qq=?').bind(c.id, user.qq).first() : Promise.resolve(null),
+        c.batch_id ? db.prepare(`${campaignSelect} AND c.batch_id=? ORDER BY c.scheduled_date,c.time_period`).bind(c.batch_id).all() : Promise.resolve(null),
+        db.prepare('SELECT u.* FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id=? ORDER BY m.joined_at,u.qq').bind(c.id).all(),
+        db.prepare('SELECT * FROM users WHERE qq=?').bind(c.gm_qq).first(),
+        (user && c.batch_id) ? db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=? AND campaign_id IN (SELECT id FROM campaigns WHERE batch_id=?)').bind(user.qq, c.batch_id).all() : Promise.resolve(null),
+        user ? db.prepare('SELECT to_qq FROM praises WHERE campaign_id=? AND from_qq=?').bind(c.id, user.qq).all() : Promise.resolve(null),
+      ]);
+      const siblings = siblingsRes;
       const isPublic = !c.finished_at && ((!c.closed_at && (c.kind === 'promo' || Number(c.member_count) < c.max_players)) || !!siblings?.results.some((slot) => !slot.finished_at && !slot.closed_at && (slot.kind === 'promo' || Number(slot.member_count) < slot.max_players)));
       // 已结团是公开的结团履历：登录用户可查看历史成员名单（联系方式仍由 canSeeContact 单独控制）；
       // 站务在后台可查看任意团。招募中/已封车但未结团的团仍按原规则仅 GM 与成员可见。
       const isOwnerOrMember = !!user && (c.gm_qq === user.qq || !!membership);
       const canView = isPublic || isOwnerOrMember || (!!user && (isSiteAdmin(user) || !!c.finished_at));
       if (!canView) return fail('团不存在', 404);
-      const players = await db.prepare('SELECT u.* FROM campaign_memberships m JOIN users u ON u.qq=m.user_qq WHERE m.campaign_id=? ORDER BY m.joined_at,u.qq').bind(c.id).all();
-      const gm = await db.prepare('SELECT * FROM users WHERE qq=?').bind(c.gm_qq).first();
+      const players = playersRes;
       const canSeeContact = !!user && (c.kind === 'promo' || c.gm_qq === user.qq || !!membership);
       const joined = new Set();
-      if (user && siblings?.results.length) {
-        const records = await db.prepare('SELECT campaign_id FROM campaign_memberships WHERE user_qq=? AND campaign_id IN (SELECT id FROM campaigns WHERE batch_id=?)').bind(user.qq, c.batch_id).all();
-        records.results.forEach((record) => joined.add(record.campaign_id));
-      }
+      joinedRes?.results.forEach((record) => joined.add(record.campaign_id));
       // 结团点赞是「再点取消」：详情里要把当前用户已赞的对象带回去，按钮才能显示已赞状态。
       const praised = new Set();
-      if (user) {
-        const mine = await db.prepare('SELECT to_qq FROM praises WHERE campaign_id=? AND from_qq=?').bind(c.id, user.qq).all();
-        mine.results.forEach((record) => praised.add(record.to_qq));
-      }
+      praisedRes?.results.forEach((record) => praised.add(record.to_qq));
       return json({ campaign: { ...campDto(c, !!membership, canSeeContact), ...(siblings ? { slots: siblings.results.map((slot) => slotDto(slot, joined)) } : {}), members: [memberDto(gm, 'gm', praised.has(gm.qq)), ...players.results.map((p) => memberDto(p, 'player', praised.has(p.qq)))] } });
     }
     // 爱心资源：浏览对所有访客开放，按规则名字模糊检索 + 按分页筛选，不下发上传者 QQ。

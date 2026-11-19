@@ -81,6 +81,9 @@ export function App() {
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignDetail | null>(null);
+  // 详情秒开：先用列表缓存渲染弹窗主体，成员名单等详情到齐再补齐；此标记用于成员区显示加载态。
+  const [detailLoading, setDetailLoading] = useState(false);
+  const openCampaignIdRef = useRef<string | null>(null);
   const [adminEditingCampaign, setAdminEditingCampaign] = useState<Campaign | null>(null);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -125,7 +128,7 @@ export function App() {
     else url.searchParams.delete('campaign');
     if (url.toString() !== window.location.href) window.history.replaceState({}, '', url.toString());
   };
-  const closeCampaign = () => { setSelectedCampaign(null); setCampaignParam(null); };
+  const closeCampaign = () => { openCampaignIdRef.current = null; setDetailLoading(false); setSelectedCampaign(null); setCampaignParam(null); };
 
   // 状态 → 地址栏：切换板块 / 大厅时同步 ?view=。用 replaceState 不污染历史记录，
   // 刷新、复制链接、重新打开都能回到当前这一页。
@@ -478,14 +481,32 @@ export function App() {
 
   // Send Praise
   const openCampaign = async (campaign: Pick<Campaign, 'id'>) => {
+    // 标记本次请求为最新：快速连续点开不同团时，只让最后一次请求覆盖弹窗。
+    openCampaignIdRef.current = campaign.id;
     setLoadingCampaignId(campaign.id);
+    // 秒开：列表已加载过该团时，先用缓存数据立即渲染弹窗主体（成员名单暂空，稍后由详情补齐），
+    // 避免等待详情接口的网络往返；地址栏同步写入，深链刷新仍能落到该团。
+    const cached = campaigns.find((c) => c.id === campaign.id);
+    if (cached) {
+      setSelectedCampaign({ ...cached, members: [] });
+      setCampaignParam(campaign.id);
+      setDetailLoading(true);
+    }
     try {
       const data = await api.campaign(campaign.id);
+      if (openCampaignIdRef.current !== campaign.id) return; // 已有更新的打开请求，丢弃本次结果
       setSelectedCampaign(data.campaign);
       setCampaignParam(data.campaign.id);
     }
-    catch (error) { setCampaignParam(null); showToast(error instanceof Error ? error.message : '详情加载失败', 'error'); }
-    finally { setLoadingCampaignId(null); }
+    catch (error) {
+      if (openCampaignIdRef.current !== campaign.id) return;
+      // 秒开失败时保留缓存弹窗只是没有成员，不关闭，避免闪退。
+      if (!cached) setCampaignParam(null);
+      showToast(error instanceof Error ? error.message : '详情加载失败', 'error');
+    }
+    finally {
+      if (openCampaignIdRef.current === campaign.id) { setDetailLoading(false); setLoadingCampaignId(null); }
+    }
   };
   // 打开带 ?campaign= 的链接（邀请同伴 / 分享详情）：数据到齐前直接按 id 拉详情。
   useEffect(() => {
@@ -1012,6 +1033,7 @@ export function App() {
       {/* Campaign Detail Modal */}
       <CampaignDetailModal
         campaign={selectedCampaign}
+        detailLoading={detailLoading}
         onSelectSlot={(id) => openCampaign({ id })}
         onClose={closeCampaign}
         currentUser={currentUser}
@@ -1058,7 +1080,7 @@ export function App() {
 
       {/* Toast Notifications */}
       <aside aria-label="系统通知" className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-[calc(100vw-2.5rem)] sm:max-w-sm pointer-events-none">
-        {(pendingActions > 0 || loadingCampaignId) && (
+        {(pendingActions > 0 || (loadingCampaignId && !selectedCampaign)) && (
           <div role="status" className="p-3.5 border-2 border-[#121212] border-l-8 border-l-[#004E98] bg-white shadow-[4px_4px_0px_#121212] text-xs font-bold flex items-center gap-2.5">
             <LoaderCircle className="w-4 h-4 text-[#004E98] animate-spin shrink-0" />
             <span>{loadingCampaignId ? '正在加载团详情…' : '正在处理中…'}</span>
