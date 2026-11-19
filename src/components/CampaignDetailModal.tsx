@@ -11,10 +11,16 @@ import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
 
 /**
- * 把详情弹窗渲染成一张 PNG，底部拼一条分享链接，供「邀请同伴」写进剪贴板。
+ * 把详情弹窗渲染成一张 PNG，供「邀请同伴」写进剪贴板（分享文案与链接作为纯文本单独写，不画进图里）。
  * 截图前临时展开滚动区，避免只截到当前可见的上半截；无论成功与否都恢复原样式。
  */
-async function captureInviteImage(node: HTMLElement, link: string): Promise<Blob | null> {
+async function captureInviteImage(node: HTMLElement): Promise<Blob | null> {
+  // 截图时会把弹窗克隆到独立容器，夜间规则的祖先 <html data-theme="dark"> 不在其中，
+  // 故按当前主题显式取色，避免夜间出现白底浅字。
+  const rootCss = getComputedStyle(document.documentElement);
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const v = (name: string, fallback: string) => rootCss.getPropertyValue(name).trim() || fallback;
+  const captureBg = isDark ? v('--zgb-surface', '#1E232C') : '#FFFFFF';
   // 直接在原节点上临时展开：锁死当前宽度并禁止 flex 收缩，否则展开高度后容器会把弹窗挤窄、页脚裁掉一半。
   const scroller = node.querySelector<HTMLElement>('[data-invite-capture]');
   const saved = {
@@ -56,27 +62,14 @@ async function captureInviteImage(node: HTMLElement, link: string): Promise<Blob
     const dataUrl = await toPng(node, {
       width: node.offsetWidth,
       height: Math.ceil(Math.max(contentBottom, node.scrollHeight, node.offsetHeight)) + 24,
-      pixelRatio: 2, backgroundColor: '#FFFFFF', skipFonts: true, cacheBust: true,
+      pixelRatio: 2, backgroundColor: captureBg, skipFonts: true, cacheBust: true,
+      // 克隆体没有 <html data-theme="dark"> 祖先，根节点自身的 bg-white 会盖住画布底色；
+      // 用 style 把背景/文字色内联到克隆根节点，确保夜间不出现白底浅字。
+      style: { backgroundColor: captureBg, color: isDark ? v('--zgb-text', '#F1EEE6') : '#121212' },
     });
-    const img = new Image();
-    img.src = dataUrl;
-    await img.decode();
-    // 2 倍像素下底部链接条：120px 高，链接过长时截断显示（完整链接仍在 text/plain 里）。
-    const bar = 120, pad = 40;
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight + bar;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    ctx.fillStyle = '#F6F5F0'; ctx.fillRect(0, img.naturalHeight, canvas.width, bar);
-    ctx.strokeStyle = '#121212'; ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(0, img.naturalHeight + 3); ctx.lineTo(canvas.width, img.naturalHeight + 3); ctx.stroke();
-    ctx.fillStyle = '#121212'; ctx.font = 'bold 34px sans-serif'; ctx.fillText('猪君快来和我一起跑团罢！', pad, img.naturalHeight + 44);
-    ctx.fillStyle = '#004E98'; ctx.font = '30px sans-serif';
-    ctx.fillText(link.length > 110 ? `${link.slice(0, 107)}...` : link, pad, img.naturalHeight + 90);
-    return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    // dataUrl 直接转 Blob：纯弹窗截图，分享文案与链接放在剪贴板 text/plain 里。
+    const res = await fetch(dataUrl);
+    return await res.blob();
   } finally {
     node.style.maxHeight = saved.maxHeight;
     node.style.height = saved.height;
@@ -157,25 +150,26 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     if (invitingRef.current) return;
     invitingRef.current = true;
     const link = inviteLink();
-    // 截图失败也不要挡住分享：退回纯链接复制。
+    const inviteText = `猪君快来和我一起跑团罢！\n${link}`;
+    // 截图失败也不要挡住分享：退回纯文本复制。
     let image: Blob | null = null;
-    try { if (modalRef.current) image = await captureInviteImage(modalRef.current, link); } catch { image = null; }
+    try { if (modalRef.current) image = await captureInviteImage(modalRef.current); } catch { image = null; }
     let ok = false;
     try {
       if (image && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-        // 同一份内容里同时放图片和文本：聊天窗口贴图、浏览器地址栏粘链接都能用。
+        // 图片是纯弹窗截图，文案与链接作为纯文本单独一格：贴图归贴图，文字可复制可点。
         await navigator.clipboard.write([new ClipboardItem({
           'image/png': image,
-          'text/plain': new Blob([link], { type: 'text/plain' }),
+          'text/plain': new Blob([inviteText], { type: 'text/plain' }),
         })]);
       } else {
-        await navigator.clipboard.writeText(link);
+        await navigator.clipboard.writeText(inviteText);
       }
       ok = true;
     } catch {
       try {
         const area = document.createElement('textarea');
-        area.value = link;
+        area.value = inviteText;
         area.style.position = 'fixed';
         area.style.opacity = '0';
         document.body.appendChild(area);
@@ -499,7 +493,7 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             {campaign.kind !== 'promo' && currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
             {campaign.kind !== 'promo' && (campaign.hasEnded || campaign.isClosed || campaign.isFull || campaign.hasExpired) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed || campaign.hasExpired ? '本团已封车' : '报名人数已满'}</span>}
             {campaign.kind !== 'promo' && (
-              <button type="button" onClick={copyInvite} title="复制详情弹窗截图与分享链接，发给同伴即可直接打开"
+              <button type="button" onClick={copyInvite} title="复制详情弹窗截图，以及文案与分享链接，发给同伴即可直接打开"
                 className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-bold inline-flex items-center gap-1.5">
                 <Share2 className="w-4 h-4" />{inviteCopied ? (inviteWithImage ? '截图与链接已复制' : '链接已复制') : '邀请同伴'}
               </button>
