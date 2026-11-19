@@ -10,8 +10,18 @@ import { formatDisplayTime } from '../utils/date';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
 
+/** Blob 转 data URL：把截图内嵌进剪贴板 text/html，让 QQ 等客户端识别成「图片 + 文字」的图文混排。 */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
- * 把详情弹窗渲染成一张 PNG，供「邀请同伴」写进剪贴板（分享文案与链接作为纯文本单独写，不画进图里）。
+ * 把详情弹窗渲染成一张 PNG，供「邀请同伴」写进剪贴板（分享文案与链接作为纯文本/html 单独写，不画进图里）。
  * 截图前临时展开滚动区，避免只截到当前可见的上半截；无论成功与否都恢复原样式。
  */
 async function captureInviteImage(node: HTMLElement): Promise<Blob | null> {
@@ -157,9 +167,16 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     let ok = false;
     try {
       if (image && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-        // 图片是纯弹窗截图，文案与链接作为纯文本单独一格：贴图归贴图，文字可复制可点。
+        // 同时写三种格式：
+        // - image/png：纯弹窗截图，给只读图片的客户端
+        // - text/html：截图以 data URL 内嵌 + 文案 + 可点链接，QQ 等客户端粘贴图文走这一份
+        // - text/plain：纯文本兜底，地址栏 / 不支持 HTML 的地方仍可粘贴
+        const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const imgDataUrl = await blobToDataUrl(image);
+        const html = `<div>猪君快来和我一起跑团罢！</div><div><img src="${imgDataUrl}" style="max-width:100%"></div><div><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></div>`;
         await navigator.clipboard.write([new ClipboardItem({
           'image/png': image,
+          'text/html': new Blob([html], { type: 'text/html' }),
           'text/plain': new Blob([inviteText], { type: 'text/plain' }),
         })]);
       } else {
