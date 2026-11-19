@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { toPng } from 'html-to-image';
 import { BookOpen, Clock, Flame, Star, ThumbsUp, UserPlus, UserRoundX, Users, X, Edit2, Trash2, Copy, FileText, Share2 } from 'lucide-react';
 import type { CampaignDetail, CampaignMember, UserProfile } from '../types';
 import { BauhausPlaceholder } from './BauhausPlaceholder';
@@ -8,6 +9,91 @@ import { ImageHoverPreview } from './ImageHoverPreview';
 import { formatDisplayTime } from '../utils/date';
 import { useDialog } from './BauhausDialog';
 import { locationLabel } from '../utils/location';
+
+/**
+ * 把详情弹窗渲染成一张 PNG，底部拼一条分享链接，供「邀请同伴」写进剪贴板。
+ * 截图前临时展开滚动区，避免只截到当前可见的上半截；无论成功与否都恢复原样式。
+ */
+async function captureInviteImage(node: HTMLElement, link: string): Promise<Blob | null> {
+  // 直接在原节点上临时展开：锁死当前宽度并禁止 flex 收缩，否则展开高度后容器会把弹窗挤窄、页脚裁掉一半。
+  const scroller = node.querySelector<HTMLElement>('[data-invite-capture]');
+  const saved = {
+    maxHeight: node.style.maxHeight,
+    height: node.style.height,
+    width: node.style.width,
+    flexShrink: node.style.flexShrink,
+    alignSelf: node.style.alignSelf,
+    parentAlign: node.parentElement?.style.alignItems || '',
+    scrollerMaxHeight: scroller?.style.maxHeight || '',
+    scrollerHeight: scroller?.style.height || '',
+    scrollerOverflow: scroller?.style.overflow || '',
+    footerDisplay: node.querySelector('footer')?.style.display || '',
+    closeBtnDisplay: node.querySelector<HTMLElement>('header button[aria-label="关闭详情"]')?.style.display || '',
+    margin: node.style.margin,
+  };
+  node.style.margin = '0';
+  node.style.width = `${node.offsetWidth}px`;
+  node.style.flexShrink = '0';
+  node.style.alignSelf = 'flex-start';
+  node.style.maxHeight = 'none';
+  if (node.parentElement) node.parentElement.style.alignItems = 'flex-start';
+  if (scroller) {
+    scroller.style.maxHeight = 'none';
+    scroller.style.height = 'auto';
+    scroller.style.overflow = 'visible';
+  }
+  node.style.height = 'auto';
+  // 底部按钮行不进分享图：截图前临时隐藏 footer，截完恢复。
+  const footer = node.querySelector<HTMLElement>('footer');
+  if (footer) footer.style.display = 'none';
+  // 顶部关闭按钮也不进分享图：临时隐藏，截完恢复。
+  const closeBtn = node.querySelector<HTMLElement>('header button[aria-label="关闭详情"]');
+  if (closeBtn) closeBtn.style.display = 'none';
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  try {
+    // 按内容区实际底边截，避免 flex 容器把高度卡住、底部内容被裁掉。
+    const contentBottom = scroller ? scroller.getBoundingClientRect().bottom - node.getBoundingClientRect().top : 0;
+    const dataUrl = await toPng(node, {
+      width: node.offsetWidth,
+      height: Math.ceil(Math.max(contentBottom, node.scrollHeight, node.offsetHeight)) + 24,
+      pixelRatio: 2, backgroundColor: '#FFFFFF', skipFonts: true, cacheBust: true,
+    });
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    // 2 倍像素下底部链接条：120px 高，链接过长时截断显示（完整链接仍在 text/plain 里）。
+    const bar = 120, pad = 40;
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight + bar;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    ctx.fillStyle = '#F6F5F0'; ctx.fillRect(0, img.naturalHeight, canvas.width, bar);
+    ctx.strokeStyle = '#121212'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(0, img.naturalHeight + 3); ctx.lineTo(canvas.width, img.naturalHeight + 3); ctx.stroke();
+    ctx.fillStyle = '#121212'; ctx.font = 'bold 34px sans-serif'; ctx.fillText('猪君快来和我一起跑团罢！', pad, img.naturalHeight + 44);
+    ctx.fillStyle = '#004E98'; ctx.font = '30px sans-serif';
+    ctx.fillText(link.length > 110 ? `${link.slice(0, 107)}...` : link, pad, img.naturalHeight + 90);
+    return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  } finally {
+    node.style.maxHeight = saved.maxHeight;
+    node.style.height = saved.height;
+    node.style.width = saved.width;
+    node.style.margin = saved.margin;
+    node.style.flexShrink = saved.flexShrink;
+    node.style.alignSelf = saved.alignSelf;
+    if (node.parentElement) node.parentElement.style.alignItems = saved.parentAlign;
+    if (footer) footer.style.display = saved.footerDisplay;
+    if (closeBtn) closeBtn.style.display = saved.closeBtnDisplay;
+    if (scroller) {
+      scroller.style.maxHeight = saved.scrollerMaxHeight;
+      scroller.style.height = saved.scrollerHeight;
+      scroller.style.overflow = saved.scrollerOverflow;
+    }
+  }
+}
 
 interface Props {
   campaign: CampaignDetail | null;
@@ -45,7 +131,11 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
   const { showConfirm, showAlert } = useDialog();
   const [copiedQq, setCopiedQq] = useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteWithImage, setInviteWithImage] = useState(false);
   const [profileMember, setProfileMember] = useState<CampaignMember | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  // 防连点：不在按钮上显示「生成截图中」，否则截图里会带上这个临时文案。
+  const invitingRef = useRef(false);
   if (!campaign) return null;
   const isGm = currentUser?.id === campaign.gmId;
   // 玩家 QQ 只给该团主持人和站主/管理员看，普通访客与同团其他玩家看不到。
@@ -64,10 +154,25 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
     return url.toString();
   };
   const copyInvite = async () => {
+    if (invitingRef.current) return;
+    invitingRef.current = true;
     const link = inviteLink();
+    // 截图失败也不要挡住分享：退回纯链接复制。
+    let image: Blob | null = null;
+    try { if (modalRef.current) image = await captureInviteImage(modalRef.current, link); } catch { image = null; }
     let ok = false;
-    try { await navigator.clipboard.writeText(link); ok = true; }
-    catch {
+    try {
+      if (image && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        // 同一份内容里同时放图片和文本：聊天窗口贴图、浏览器地址栏粘链接都能用。
+        await navigator.clipboard.write([new ClipboardItem({
+          'image/png': image,
+          'text/plain': new Blob([link], { type: 'text/plain' }),
+        })]);
+      } else {
+        await navigator.clipboard.writeText(link);
+      }
+      ok = true;
+    } catch {
       try {
         const area = document.createElement('textarea');
         area.value = link;
@@ -79,9 +184,11 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
         area.remove();
       } catch { ok = false; }
     }
+    invitingRef.current = false;
     if (ok) {
+      setInviteWithImage(!!image);
       setInviteCopied(true);
-      window.setTimeout(() => setInviteCopied(false), 1800);
+      window.setTimeout(() => setInviteCopied(false), 2600);
     } else {
       await showAlert({ title: '复制失败', message: `浏览器不允许自动复制，请手动复制链接：${link}`, type: 'warning' });
     }
@@ -295,12 +402,12 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] my-8 flex flex-col max-h-[90vh]">
+      <div ref={modalRef} className="relative w-full max-w-3xl bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] my-8 flex flex-col max-h-[90vh]">
         <header className="bg-[#121212] text-white px-5 py-3 flex items-center justify-between">
           <span className="text-sm font-bold tracking-wider flex items-center gap-2"><span className="w-3 h-3 bg-[#D62828]" />{campaign.kind === 'promo' ? '宣群详情' : '模组档案'}</span>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#D62828] border border-[#444]" aria-label="关闭详情"><X className="w-5 h-5" /></button>
         </header>
-        <div className="overflow-y-auto p-5 sm:p-6">
+        <div data-invite-capture className="overflow-y-auto p-5 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-x-6 gap-y-4 items-start">
             <div className="md:col-span-5 overflow-hidden border-2 border-[#121212] bg-[#EAE8E0] shadow-[4px_4px_0px_#121212]">
               {campaign.imageUrl ? <ImageHoverPreview src={campaign.imageUrl} label="团封面原图" className="block w-full"><img src={campaign.imageUrl} alt={`${campaign.title}封面`} className="block aspect-video h-auto w-full object-contain" /></ImageHoverPreview> : <BauhausPlaceholder rule={campaign.rule} title={campaign.title} seedColor={campaign.bannerColor || '#D62828'} className="aspect-video h-auto w-full" />}
@@ -392,9 +499,9 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
             {campaign.kind !== 'promo' && currentUser && campaign.isSignedUp && !campaign.hasExpired && !campaign.hasEnded && !campaign.isClosed && <button type="button" onClick={handleCancelSignup} className="bauhaus-btn bg-white text-[#D62828] border-[#D62828] px-5 py-1.5 text-xs font-bold">取消报名</button>}
             {campaign.kind !== 'promo' && (campaign.hasEnded || campaign.isClosed || campaign.isFull || campaign.hasExpired) && <span className="text-xs font-bold text-[#666]">{campaign.hasEnded ? '本团已结团' : campaign.isClosed || campaign.hasExpired ? '本团已封车' : '报名人数已满'}</span>}
             {campaign.kind !== 'promo' && (
-              <button type="button" onClick={copyInvite} title="复制这条团的详情链接，发给同伴即可直接打开"
+              <button type="button" onClick={copyInvite} title="复制详情弹窗截图与分享链接，发给同伴即可直接打开"
                 className="bauhaus-btn bg-white px-4 py-1.5 text-xs font-bold inline-flex items-center gap-1.5">
-                <Share2 className="w-4 h-4" />{inviteCopied ? '链接已复制' : '邀请同伴'}
+                <Share2 className="w-4 h-4" />{inviteCopied ? (inviteWithImage ? '截图与链接已复制' : '链接已复制') : '邀请同伴'}
               </button>
             )}
             {campaign.kind === 'promo' && !currentUser && <button type="button" onClick={onLogin} className="bauhaus-btn bg-[#004E98] text-white px-5 py-1.5 text-xs font-bold">登录查看联系方式</button>}
