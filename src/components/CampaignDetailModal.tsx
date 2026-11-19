@@ -180,7 +180,20 @@ export const CampaignDetailModal: React.FC<Props> = ({ campaign, currentUser, on
           const uploaded = await api.uploadShareImage(imgSrc);
           if (uploaded?.url) htmlImgSrc = uploaded.url;
         } catch { /* 上传失败保留 data URL，其它客户端仍可用 */ }
-        const html = `<div>猪君快来和我一起跑团罢！</div><div><img src="${htmlImgSrc}" style="max-width:100%"></div><div><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></div>`;
+        // QQ 富文本粘贴对 <img> 挑剔：无明确宽高会当 0 尺寸丢弃，第三方小站域名会拦。
+        // 图片已存本站对象存储（同域稳定放行），这里再按真实比例写明像素尺寸确保渲染。
+        let dispW = modalRef.current?.offsetWidth || 768, dispH = 0;
+        try {
+          const probe = new Image();
+          probe.src = imgSrc;
+          await probe.decode();
+          if (probe.naturalWidth) {
+            dispW = Math.min(768, probe.naturalWidth);
+            dispH = Math.round(probe.naturalHeight * dispW / probe.naturalWidth);
+          }
+        } catch { /* 读不到尺寸就只用宽度 */ }
+        const sizeAttr = dispH ? `width="${dispW}" height="${dispH}"` : `width="${dispW}"`;
+        const html = `<div>猪君快来和我一起跑团罢！</div><div><img src="${htmlImgSrc}" ${sizeAttr} style="max-width:100%"></div><div><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></div>`;
         await navigator.clipboard.write([new ClipboardItem({
           'image/png': image,
           'text/html': new Blob([html], { type: 'text/html' }),

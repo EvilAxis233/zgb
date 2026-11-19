@@ -606,33 +606,23 @@ export async function onRequest(context) {
       const object = await env.COVERS?.get(path.slice(1).join('/'));
       return object ? new Response(object.body, { headers: { 'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } }) : fail('图片不存在', 404);
     }
-    // 邀请同伴：把弹窗截图转发到图床换公网直链，供剪贴板 text/html 里的 <img src> 使用。
-    // 必须登录 + 限大小，避免被当作匿名公共图床滥用；图床未开 CORS，只能服务端转发。
+    // 邀请同伴：把弹窗截图存到本站对象存储换公网直链，供剪贴板 text/html 里的 <img src> 使用。
+    // 必须登录 + 限大小 + 7 天自动过期，避免被当作匿名公共图床滥用 / 堆积垃圾。
+    // 用本站域名而非第三方图床：QQ 内嵌浏览器对陌生小站图片会拦截，本站域名才稳定放行。
     if (path[0] === 'share-image' && method === 'POST') {
       const user = await auth(request, db);
       if (!user) return fail('请先登录后再使用邀请功能', 401);
+      if (!env.COVERS) return fail('图片存储未配置', 503);
       const b = await body(request);
       const dataUrl = String(b?.dataUrl || '');
       const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
       if (!match) return fail('图片格式无效');
       const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
       if (bytes.byteLength > 4 * 1024 * 1024) return fail('图片过大');
-      const mime = `image/${match[1]}`;
-      const form = new FormData();
-      form.append('file', new Blob([bytes], { type: mime }), `invite.${match[1] === 'jpeg' ? 'jpg' : match[1]}`);
-      form.append('sign', String(Math.floor(Date.now() / 1000)));
-      try {
-        const res = await fetch('https://pic.evilboard.top/app/upload.php', { method: 'POST', body: form });
-        const out = await res.json();
-        if (out?.result !== 'success' || !out?.url) return fail(out?.message || '图片上传失败', 502);
-        // 图床返回的 url 可能是内网地址（如 http://127.0.0.1:PORT/i/...），用其路径拼公网域名。
-        let pathPart = '';
-        try { pathPart = new URL(out.url).pathname; } catch { pathPart = String(out.url).replace(/^https?:\/\/[^/]+/, ''); }
-        if (!pathPart.startsWith('/i/')) return fail('图床返回地址异常', 502);
-        return json({ url: `https://pic.evilboard.top${pathPart}` });
-      } catch (e) {
-        return fail('图片上传失败：' + (e?.message || '网络错误'), 502);
-      }
+      const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+      const key = `shares/${id()}.${ext}`;
+      await env.COVERS.put(key, bytes, { httpMetadata: { contentType: `image/${match[1]}` }, expirationTtl: 7 * 24 * 60 * 60 });
+      return json({ url: `${url.origin}/api/images/${key}` });
     }
     // 浏览统计：前端在整页加载与切换主板块时各上报一次，按登录态区分注册用户 / 游客。
     // 只记正式域名，预览站、Pages 默认域与本地开发一律跳过，避免测试流量污染看板。
