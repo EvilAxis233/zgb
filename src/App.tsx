@@ -65,6 +65,15 @@ const hkDayKey = () => new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date());
 
+// 面团地区标签：兼容旧数据（省、市分开存）与新数据（整段写在 city）。
+// 省是市的前缀时只取市，避免「广州 广州市」这类重复。与封存团务/结团履历口径一致。
+const campaignRegion = (c: Pick<Campaign, 'province' | 'city'>) => {
+  const province = (c.province || '').trim();
+  const city = (c.city || '').trim();
+  if (province && city && (city.startsWith(province) || province.startsWith(city))) return city;
+  return [province, city].filter(Boolean).join(' ');
+};
+
 export function App() {
   // Application Data States
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -189,11 +198,14 @@ export function App() {
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [ruleFilter, setRuleFilter] = useState<string>('all');
+  // 面团右侧筛选用「已有地区」下拉替代规则下拉；网团/宣群仍按规则筛选。
+  const [regionFilter, setRegionFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<'all' | TimePeriod>('all');
   const [dateFilter, setDateFilter] = useState<string | null>(null);
   useEffect(() => {
     setSearchQuery('');
     setRuleFilter('all');
+    setRegionFilter('all');
     setPeriodFilter('all');
     setDateFilter(null);
   }, [boardView]);
@@ -587,6 +599,25 @@ export function App() {
       .map(([rule, count]) => ({ rule, count }));
   }, [campaigns, boardView]);
 
+  // 面团专属：从当前招募中的面团里提取已有地区，去重后按团数排序，作为右侧地区下拉的选项。
+  const recruitingRegions = useMemo(() => {
+    const countMap = new Map<string, number>();
+    const seen = new Set<string>();
+    campaigns.forEach((c) => {
+      if (c.kind === 'offline' && !c.hasEnded && !c.isClosed && !c.isFull) {
+        const region = campaignRegion(c);
+        if (!region) return;
+        const key = `${c.batchId || c.id}:${region}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        countMap.set(region, (countMap.get(region) || 0) + 1);
+      }
+    });
+    return Array.from(countMap.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([region, count]) => ({ region, count }));
+  }, [campaigns]);
+
   const enrichedCampaigns = useMemo(() => {
     return campaigns.map((c) => ({
       ...c,
@@ -630,7 +661,10 @@ export function App() {
         (c.sessionType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.platforms || []).some((platform) => platform.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchRule = ruleFilter === 'all' || c.rule === ruleFilter;
+      // 面团按「已有地区」筛选，其它板块仍按规则筛选。
+      const matchRule = boardView === 'offline'
+        ? regionFilter === 'all' || campaignRegion(c) === regionFilter
+        : ruleFilter === 'all' || c.rule === ruleFilter;
       const matchPeriod = periodFilter === 'all' || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isClosed && !slot.isFull && parseTimeSchedule(slot.timeSchedule).period === periodFilter) : parseTimeSchedule(c.timeSchedule).period === periodFilter);
       const matchDate = !dateFilter || (c.slots?.length ? c.slots.some((slot) => !slot.hasEnded && !slot.isClosed && !slot.isFull && parseTimeSchedule(slot.timeSchedule).dateStr === dateFilter) : parseTimeSchedule(c.timeSchedule).dateStr === dateFilter);
 
@@ -643,7 +677,7 @@ export function App() {
       seen.add(key);
       return true;
     });
-  }, [enrichedCampaigns, boardView, searchQuery, ruleFilter, periodFilter, dateFilter]);
+  }, [enrichedCampaigns, boardView, searchQuery, ruleFilter, regionFilter, periodFilter, dateFilter]);
 
   // 首页三栏独立轮播：网团/面团/宣群各 5 个团、各自翻页。
   // 网团/面团：前 2 个按最新发布(createdAt)，后 3 个按截止时间最近(timeSchedule/finishedAt)。
@@ -826,11 +860,12 @@ export function App() {
                 ) : filteredCampaigns.length === 0 ? (
                   <div className="bauhaus-card p-12 text-center bg-white border-2 border-[#121212] shadow-[4px_4px_0px_#121212]">
                     <p className="text-base font-bold text-[#222222]">暂无符合条件的{boardView === 'online' ? '网团' : boardView === 'offline' ? '面团' : '宣群'}</p>
-                    {(searchQuery || ruleFilter !== 'all' || periodFilter !== 'all' || dateFilter) && (
+                    {(searchQuery || ruleFilter !== 'all' || regionFilter !== 'all' || periodFilter !== 'all' || dateFilter) && (
                       <button
                         onClick={() => {
                           setSearchQuery('');
                           setRuleFilter('all');
+                          setRegionFilter('all');
                           setPeriodFilter('all');
                           setDateFilter(null);
                         }}
@@ -881,20 +916,33 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Rule Filter */}
+                  {/* 面团：按已有地区筛选；网团/宣群：按规则筛选 */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-[#121212]">按规则筛选</label>
+                    <label className="block text-xs font-bold text-[#121212]">{boardView === 'offline' ? '按地区筛选' : '按规则筛选'}</label>
                     <select
-                      value={ruleFilter}
-                      onChange={(e) => setRuleFilter(e.target.value)}
+                      value={boardView === 'offline' ? regionFilter : ruleFilter}
+                      onChange={(e) => boardView === 'offline' ? setRegionFilter(e.target.value) : setRuleFilter(e.target.value)}
                       className="bauhaus-input w-full px-3 py-1.5 text-xs font-bold cursor-pointer"
                     >
-                      <option value="all">全部规则</option>
-                      {recruitingRules.map(({ rule, count }) => (
-                        <option key={rule} value={rule}>
-                          {rule} ({count})
-                        </option>
-                      ))}
+                      {boardView === 'offline' ? (
+                        <>
+                          <option value="all">全部地区</option>
+                          {recruitingRegions.map(({ region, count }) => (
+                            <option key={region} value={region}>
+                              {region} ({count})
+                            </option>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          <option value="all">全部规则</option>
+                          {recruitingRules.map(({ rule, count }) => (
+                            <option key={rule} value={rule}>
+                              {rule} ({count})
+                            </option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -944,12 +992,14 @@ export function App() {
                   {/* Reset button */}
                   {(searchQuery ||
                     ruleFilter !== 'all' ||
+                    regionFilter !== 'all' ||
                     periodFilter !== 'all' ||
                     dateFilter) && (
                     <button
                       onClick={() => {
                         setSearchQuery('');
                         setRuleFilter('all');
+                        setRegionFilter('all');
                         setPeriodFilter('all');
                         setDateFilter(null);
                       }}

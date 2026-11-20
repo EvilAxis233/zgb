@@ -565,6 +565,53 @@ const campaignSelect = `SELECT c.*,u.name gm_name,u.avatar_key gm_avatar_key,u.r
 // 每个 Worker 实例内记录上次自动关团时间，实现 60 秒节流。
 let lastSweepAt = 0;
 
+// 孤儿图片清理：Pages Functions 无原生 cron，用「请求触发 + 内存节流 + D1 时间戳」实现每周一次。
+// D1 存真实上次执行时间（跨实例可靠），内存变量只减少每请求的 D1 读；清理本身放 waitUntil 异步执行。
+const CLEANUP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 每周清理一次
+const CLEANUP_CHECK_MS = 10 * 60 * 1000; // 内存节流：10 分钟最多检查一次 D1 时间戳
+const CLEANUP_GRACE_MS = 24 * 60 * 60 * 1000; // 只清理上传超过 1 天的对象，避开「已写 R2、未写库」的竞态
+let lastCleanupCheckAt = 0;
+
+// 收集数据库里所有仍被引用的图片 key（覆盖封面/头像/贴纸/举报图/圆桌图/贴纸收藏与屏蔽）。
+// 保守口径：只要在任何表里出现过就算「有引用」，只有数据库完全没记录的文件才可能被清理。
+async function cleanupOrphanAssets(db, env) {
+  if (!env.COVERS) return;
+  const refSets = [
+    'SELECT image_key k FROM campaigns WHERE image_key IS NOT NULL',
+    'SELECT image_key k FROM campaign_batches WHERE image_key IS NOT NULL',
+    'SELECT avatar_key k FROM users WHERE avatar_key IS NOT NULL',
+    'SELECT value k FROM users, json_each(users.stickers)',
+    'SELECT value k FROM users, json_each(users.sticker_library)',
+    'SELECT image_key k FROM submission_images WHERE image_key IS NOT NULL',
+    'SELECT image_key k FROM sticker_copies',
+    'SELECT image_key k FROM sticker_blocks',
+    'SELECT avatar_key k FROM roundtable_replies WHERE avatar_key IS NOT NULL',
+    'SELECT value k FROM roundtable_replies, json_each(roundtable_replies.images)',
+  ];
+  const referenced = new Set();
+  for (const sql of refSets) {
+    try {
+      const rs = await db.prepare(sql).all();
+      for (const row of rs.results || []) if (row.k) referenced.add(String(row.k));
+    } catch { /* 单表读取失败不中断清理，宁可多保留也不误删 */ }
+  }
+  const graceBefore = Date.now() - CLEANUP_GRACE_MS;
+  let cursor, removed = 0;
+  do {
+    const page = await env.COVERS.list(cursor ? { cursor, limit: 1000 } : { limit: 1000 });
+    for (const obj of page.objects || []) {
+      const key = obj.key;
+      if (key.startsWith('shares/')) continue; // 邀请图带 7 天 TTL，交给 R2 自动过期
+      if (referenced.has(key)) continue;
+      if (obj.uploaded && obj.uploaded.getTime() > graceBefore) continue; // 宽限期内不删
+      await env.COVERS.delete(key);
+      removed += 1;
+    }
+    cursor = page.isTruncated ? page.cursor : undefined;
+  } while (cursor);
+  return removed;
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -589,6 +636,18 @@ export async function onRequest(context) {
       // 弃团记录默认保留 30 天：超过且未被「保留记录」的自动软删除（仅后台封存不可见，数据仍可恢复）。
       const purgeBefore = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       await db.prepare(`UPDATE campaigns SET deleted_at=? WHERE deleted_at IS NULL AND is_abandoned=1 AND is_kept=0 AND closed_at IS NOT NULL AND closed_at < ?`).bind(new Date().toISOString(), purgeBefore).run();
+    }
+    // 孤儿图片每周自动清理（表不存在/任何异常都静默跳过，绝不影响正常请求）。
+    if (Date.now() - lastCleanupCheckAt > CLEANUP_CHECK_MS) {
+      lastCleanupCheckAt = Date.now();
+      try {
+        const last = await db.prepare("SELECT value FROM maintenance_state WHERE key='last_asset_cleanup'").first();
+        if (Date.now() - Number(last?.value || 0) > CLEANUP_INTERVAL_MS) {
+          await db.prepare("INSERT INTO maintenance_state(key,value) VALUES('last_asset_cleanup',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(Date.now())).run();
+          const task = cleanupOrphanAssets(db, env).catch(() => {});
+          if (typeof context.waitUntil === 'function') context.waitUntil(task);
+        }
+      } catch { /* maintenance_state 尚未迁移时忽略 */ }
     }
     if (path[0] === 'health' && method === 'GET') { await db.prepare('SELECT 1').first(); return json({ ok: true }); }
     if (path[0] === 'internal' && path[1] === 'bot') {
