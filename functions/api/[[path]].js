@@ -104,6 +104,15 @@ const campDto = (c, signedUp = false, canSeeContact = false) => {
   const currentPlayers = Number(c.member_count || 0);
   return { id: c.id, kind: c.kind || 'online', province: c.province || '', city: c.city || '', address: c.address || '', batchId: c.batch_id || null, title: c.title, rule: c.rule, sessionType: c.kind === 'offline' ? '' : c.session_type === '留言板' ? '其他游戏形式' : c.session_type || '语音', platforms: parseTags(c.platforms), presetTags: [], customTags: campaignTags(c), summary: c.summary || '', description: c.description, resourceRefs: (parseJsonSafe(c.resource_refs) || []).filter((r) => r && r.id && r.name && r.url).slice(0, 8), timeSchedule: c.time_schedule, imageUrl: assetUrl(c.image_key), imageKey: c.image_key, bannerColor: c.banner_color, maxPlayers: c.max_players, currentPlayers, isClosed: !!c.closed_at, isFull: c.kind !== 'promo' && currentPlayers >= c.max_players, hasEnded: !!c.finished_at, isAbandoned: !!c.is_abandoned, hasExpired: campaignExpired(c), isSignedUp: signedUp, gmId: c.gm_qq, gmName: c.gm_name, gmAvatar: assetUrl(c.gm_avatar_key), gmQq: c.gm_qq, gmPraises: Number(c.gm_received_praises ?? c.received_gm ?? 0), gmNameplate: parseJsonSafe(c.gm_nameplate), gmStickers: parseTags(c.sticker_override || c.gm_stickers).map((key) => assetUrl(key)).filter(Boolean), stickerKeys: parseTags(c.sticker_override || c.gm_stickers), gmIsMember: c.gm_role === 'owner' || Number(c.gm_membership_expires_at ?? 0) > now(), contact: canSeeContact ? (c.contact || c.gm_qq) : undefined, createdAt: c.created_at.slice(0, 10), finishedAt: c.finished_at ? c.finished_at.slice(0, 10) : null };
 };
+// 引用站内爱心资源：发布与编辑共用同一口径——最多 8 条，只保留 id / 名称 / http(s) 链接。
+// 未传（undefined）返回 null，供编辑接口区分「不动这个字段」与「清空引用」。
+const sanitizeResourceRefs = (value) => {
+  if (value === undefined || value === null) return null;
+  const refs = Array.isArray(value) ? value.slice(0, 8).map((item) => ({
+    id: clean(item?.id, 80), name: clean(item?.name, 160), url: clean(item?.url, 500)
+  })).filter((item) => item.id && item.name && /^https?:\/\//i.test(item.url)) : [];
+  return JSON.stringify(refs);
+};
 // 编辑团时补充贴纸：可来自个人贴纸库，也可以是发车/编辑时现场上传裁剪的图。
 // 与封面图同口径：key 格式合法且文件真实存在于 R2 即可；null 表示恢复默认佩戴。
 async function resolveStickerOverride(db, env, editor, gmQq, input) {
@@ -2025,10 +2034,7 @@ export async function onRequest(context) {
       }
       const stickerOverride = pickedStickers.length ? JSON.stringify(pickedStickers) : null;
       // 引用站内爱心资源：与 GM 圆桌主题同一口径，最多 8 条，只留 id / 名称 / 链接。
-      const resourceRefs = Array.isArray(b.resourceRefs) ? b.resourceRefs.slice(0, 8).map((item) => ({
-        id: clean(item?.id, 80), name: clean(item?.name, 160), url: clean(item?.url, 500)
-      })).filter((item) => item.id && item.name && /^https?:\/\//i.test(item.url)) : [];
-      const resourceRefsJson = JSON.stringify(resourceRefs);
+      const resourceRefsJson = sanitizeResourceRefs(b.resourceRefs) ?? '[]';
       const cid = id();
       const createdAt = new Date().toISOString();
       const contact = c.contact || user.qq;
@@ -2157,9 +2163,9 @@ export async function onRequest(context) {
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(request);
         const siteAdmin = isSiteAdmin(user);
-        // 普通主持人改批量团仍只同步简介/标签/封面/贴纸；站主/管理员走下方的全量编辑。
+        // 普通主持人改批量团仍只同步简介/标签/封面/贴纸/爱心资源引用；站主/管理员走下方的全量编辑。
         if (c.batch_id && !siteAdmin) {
-          if (!b || typeof b.description !== 'string' || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags','imageKey','stickerKeys'].includes(key))) return fail('批量团只允许修改简介、标签、封面和贴纸');
+          if (!b || typeof b.description !== 'string' || !Array.isArray(b.customTags) || Object.keys(b).some((key) => !['description','presetTags','customTags','imageKey','stickerKeys','resourceRefs'].includes(key))) return fail('批量团只允许修改简介、标签、封面、贴纸和爱心资源引用');
           const tags = validateCampaign({ ...campDto(c), ...b }, c.kind, false);
           const presetTags = JSON.stringify(tags.presetTags), customTags = JSON.stringify(tags.customTags);
           // 批量团共用一张封面：主团与新时段都跟着替换。
@@ -2175,6 +2181,9 @@ export async function onRequest(context) {
           const sets = ['description=?', 'preset_tags=?', 'custom_tags=?', 'image_key=?'];
           const binds = [tags.description, presetTags, customTags, imageKey];
           if ('stickerKeys' in b) { sets.push('sticker_override=?'); binds.push(sticker.value); }
+          // 资源引用同步到该批次全部时段；未传则保持原样（前端总传数组，空数组即清空）。
+          const refsJson = sanitizeResourceRefs(b.resourceRefs);
+          if (refsJson !== null) { sets.push('resource_refs=?'); binds.push(refsJson); }
           await db.batch([
             db.prepare(`UPDATE campaign_batches SET description=?,preset_tags=?,custom_tags=?,image_key=? WHERE id=?${ownerFilter}`).bind(tags.description, presetTags, customTags, imageKey, c.batch_id, ...ownerBinds),
             db.prepare(`UPDATE campaigns SET ${sets.join(',')} WHERE batch_id=? AND deleted_at IS NULL${ownerFilter}`).bind(...binds, c.batch_id, ...ownerBinds)
@@ -2208,6 +2217,7 @@ export async function onRequest(context) {
         if (sticker.error) return fail(sticker.error);
         const contact = data.contact || c.contact || user.qq;
         const nowIso = new Date().toISOString();
+        const refsJson = sanitizeResourceRefs(b.resourceRefs);
         const common = [data.title, data.rule, data.summary || '', data.description, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address];
         const statements = [];
         if (c.batch_id) {
@@ -2216,6 +2226,8 @@ export async function onRequest(context) {
             db.prepare('UPDATE campaign_batches SET title=?,rule=?,summary=?,description=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,kind=? WHERE id=?').bind(...common, nextKind, c.batch_id),
             db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,sticker_override=?,kind=? WHERE batch_id=? AND deleted_at IS NULL').bind(...common, sticker.value, nextKind, c.batch_id)
           );
+          // 爱心资源引用同步到全部时段（新时段也会复制主时段的引用）。
+          if (refsJson !== null) statements.push(db.prepare('UPDATE campaigns SET resource_refs=? WHERE batch_id=? AND deleted_at IS NULL').bind(refsJson, c.batch_id));
           // 各时段可单独改期，格式与发布时一致：2026-11-20（星期五）晚
           if (siteAdmin && Array.isArray(b.slotTimes)) {
             for (const raw of b.slotTimes) {
@@ -2228,8 +2240,13 @@ export async function onRequest(context) {
             }
           }
         } else {
-          statements.push(db.prepare('UPDATE campaigns SET title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,sticker_override=?,kind=? WHERE id=?')
-            .bind(data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, sticker.value, nextKind, cid));
+          const singleSets = 'title=?,rule=?,summary=?,description=?,time_schedule=?,scheduled_date=?,time_period=?,image_key=?,banner_color=?,max_players=?,contact=?,session_type=?,platforms=?,preset_tags=?,custom_tags=?,province=?,city=?,address=?,sticker_override=?,kind=?';
+          const singleBinds = [data.title, data.rule, data.summary || '', data.description, data.time, data.scheduledDate, data.period, imageKey, data.color, data.players, contact, data.sessionType, JSON.stringify(data.platforms), JSON.stringify(data.presetTags), JSON.stringify(data.customTags), data.province, data.city, data.address, sticker.value, nextKind];
+          if (refsJson !== null) {
+            statements.push(db.prepare(`UPDATE campaigns SET ${singleSets},resource_refs=? WHERE id=?`).bind(...singleBinds, refsJson, cid));
+          } else {
+            statements.push(db.prepare(`UPDATE campaigns SET ${singleSets} WHERE id=?`).bind(...singleBinds, cid));
+          }
         }
         await db.batch(statements);
         await touchRule(db, data.rule, nowIso);

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Edit2, X, BookOpen, Sparkles, Upload, ImagePlus } from 'lucide-react';
+import { Edit2, X, BookOpen, Sparkles, Upload, ImagePlus, ChevronDown } from 'lucide-react';
 import { GAME_PLATFORMS, type Campaign, type UserProfile } from '../types';
 import { CalendarPicker } from './CalendarPicker';
 import { MARKDOWN_SUPPORT_HINT, BAUHAUS_COLORS } from './PublishModal';
@@ -7,6 +7,8 @@ import { buildTimeSchedule, parseTimeSchedule, formatDisplayTime, TIME_PERIODS, 
 import { locationLabel } from '../utils/location';
 import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
+import { ResourceReferencePicker } from './ResourceReferencePicker';
+import { useDialog } from './BauhausDialog';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
 import { tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
@@ -42,6 +44,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
   const [coverToCrop, setCoverToCrop] = useState<File | null>(null);
   const [stickerTouched, setStickerTouched] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const { showAlert } = useDialog();
 
   const pickCover = async (selected: File | undefined) => {
     const file = normalizeImageFile(selected);
@@ -103,20 +106,22 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
   // 已挂在团上、但不在当前编辑者库里的贴纸也要显示出来，避免误以为被清空。
   const pickerLibrary = [...new Set([...stickerLibrary, ...(draft.stickerKeys || [])])];
   const stickerBlock = (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-bold">本团贴纸</span>
-        <span className="text-[11px] font-bold text-[#666]">{(draft.stickerKeys?.length || 0)}/2</span>
+    <details className="group border-2 border-[#121212] p-3 bg-[#FAF9F5]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+        <span className="text-xs font-bold">本团贴纸 <span className="ml-1 text-[10px] font-normal text-[#666]">点此展开选择</span></span>
+        <span className="flex items-center gap-1 text-[11px] font-bold text-[#666]">{(draft.stickerKeys?.length || 0)}/2<ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /></span>
+      </summary>
+      <div className="mt-2">
+        <StickerPicker
+          library={pickerLibrary}
+          value={draft.stickerKeys || []}
+          onChange={(keys) => { setStickerTouched(true); setDraft({ ...draft, stickerKeys: keys }); }}
+          onUserUpdate={onUserUpdate}
+          isMember={isMember}
+        />
+        <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
       </div>
-      <StickerPicker
-        library={pickerLibrary}
-        value={draft.stickerKeys || []}
-        onChange={(keys) => { setStickerTouched(true); setDraft({ ...draft, stickerKeys: keys }); }}
-        onUserUpdate={onUserUpdate}
-        isMember={isMember}
-      />
-      <p className="mt-1 text-[10px] font-bold text-[#666]">现场上传裁剪会存入贴纸库，或从库里补选，最多 2 张；全部取消则沿用 GM 默认佩戴。</p>
-    </div>
+    </details>
   );
 
   // 批量团：站主可逐个时段改期，新增 / 删除时段仍走团务管理的既有入口。
@@ -155,7 +160,7 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
     <div className="fixed inset-0 z-[60] bg-black/60 p-4 flex items-center justify-center overflow-y-auto">
       <form onSubmit={save} className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white border-4 border-[#121212] shadow-[8px_8px_0px_#121212] p-6 space-y-4">
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black flex items-center gap-2"><Edit2 className="w-4 h-4 text-[#004E98]" />站主全量编辑</h2><button type="button" onClick={onClose} aria-label="关闭"><X className="w-5 h-5" /></button></div>
-        {draft.batchId && <p className="border-l-4 border-[#004E98] pl-2 text-[11px] font-bold text-[#004E98]">这是批量团：标题、规则、人数、平台、封面、贴纸、联系方式等会同步到全部时段（含之后新增的时段）；各时段可单独改期。</p>}
+        {draft.batchId && <p className="border-l-4 border-[#004E98] pl-2 text-[11px] font-bold text-[#004E98]">这是批量团：标题、规则、人数、平台、封面、贴纸、爱心资源引用、联系方式等会同步到全部时段（含之后新增的时段）；各时段可单独改期。</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block text-xs font-bold">团类型
             <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as Campaign['kind'] })} className="bauhaus-input mt-1 w-full p-2">
@@ -252,6 +257,12 @@ export const CampaignEditModal: React.FC<Props> = ({ campaign, rules, popularCus
 
         {stickerBlock}
         {draft.batchId ? slotTimesBlock : <CalendarPicker value={draft.timeSchedule} onChange={(value) => setDraft({ ...draft, timeSchedule: value })} maxDaysAhead={draft.kind === 'online' ? 31 : null} deadline={draft.kind === 'promo'} />}
+        {/* 引用站内爱心资源：与发布弹窗同一套检索交互，位置在联系方式上方 */}
+        <ResourceReferencePicker
+          value={draft.resourceRefs || []}
+          onChange={(refs) => setDraft({ ...draft, resourceRefs: refs })}
+          flash={(message) => void showAlert({ title: '提示', message, type: 'warning' })}
+        />
         <label className="block text-xs font-bold">联系方式<input className="bauhaus-input mt-1 w-full p-2" value={draft.contact || ''} onChange={(e) => setDraft({ ...draft, contact: e.target.value })} placeholder="留空则保持原联系方式" /></label>
         <p className="-mt-2 text-[10px] font-bold text-[#666]">代编辑他人团时若看不到原联系方式，留空即可保留，不会被覆盖。</p>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>

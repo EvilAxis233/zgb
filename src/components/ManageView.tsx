@@ -10,6 +10,7 @@ import { locationLabel } from '../utils/location';
 import { AccountSideActions } from './AccountSideActions';
 import { ImageCropper } from './ImageCropper';
 import { StickerPicker } from './StickerLibrary';
+import { ResourceReferencePicker } from './ResourceReferencePicker';
 import { acceptedImage, isAnimatedImage, normalizeImageFile, MAX_ANIMATED_BYTES, MAX_STATIC_BYTES } from '../utils/animatedImage';
 import { textWidth, clampByWidth, PROMO_PLATFORM_MAX_WIDTH } from '../utils/textLength';
 import { tagTooLong, TAG_LIMIT_HINT } from '../utils/tagLength';
@@ -61,7 +62,7 @@ export const ManageView: React.FC<Props> = ({
   onFeedback,
   onReport,
 }) => {
-  const { showConfirm } = useDialog();
+  const { showConfirm, showAlert } = useDialog();
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [showRuleDropdown, setShowRuleDropdown] = useState(false);
   const [showCustomTagDropdown, setShowCustomTagDropdown] = useState(false);
@@ -398,9 +399,14 @@ export const ManageView: React.FC<Props> = ({
         <div className="flex items-center justify-between border-b-2 border-[#121212] pb-3"><h2 className="text-lg font-black">修改战役</h2><button type="button" onClick={() => setEditingCampaign(null)} aria-label="关闭"><X className="w-5 h-5" /></button></div>
         {editingCampaign.batchId ? <>
           <p className="text-xs font-bold">{editingCampaign.title}</p>
-          <p className="text-xs text-[#666]">保存后，简介、标签、封面和贴纸会同步到所有时段，也会用于之后新增的时段。</p>
+          <p className="text-xs text-[#666]">保存后，简介、标签、封面、贴纸和爱心资源引用会同步到所有时段，也会用于之后新增的时段。</p>
           {coverBlock}
           {stickerBlock}
+          <ResourceReferencePicker
+            value={editingCampaign.resourceRefs || []}
+            onChange={(refs) => setEditingCampaign({ ...editingCampaign, resourceRefs: refs })}
+            flash={(message) => void showAlert({ title: '提示', message, type: 'warning' })}
+          />
           <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-40" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
           <label className="block text-xs font-bold">自定义标签（{TAG_LIMIT_HINT}）<input {...customTagProps} onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} className="bauhaus-input mt-1 w-full p-2" placeholder="6 中文 / 12 英文，输入后点击添加" /></label>
           <button type="button" onClick={addTag} className="bauhaus-btn bg-white px-3 py-1 text-xs">添加标签</button>
@@ -491,6 +497,12 @@ export const ManageView: React.FC<Props> = ({
 
         {stickerBlock}
         <CalendarPicker value={editingCampaign.timeSchedule} onChange={(value) => setEditingCampaign({ ...editingCampaign, timeSchedule: value })} maxDaysAhead={editingCampaign.kind === 'online' ? 31 : null} deadline={editingCampaign.kind === 'promo'} />
+        {/* 引用站内爱心资源：与发布弹窗同一套检索交互，位置在联系方式上方 */}
+        <ResourceReferencePicker
+          value={editingCampaign.resourceRefs || []}
+          onChange={(refs) => setEditingCampaign({ ...editingCampaign, resourceRefs: refs })}
+          flash={(message) => void showAlert({ title: '提示', message, type: 'warning' })}
+        />
         <label className="block text-xs font-bold">联系方式<input required className="bauhaus-input mt-1 w-full p-2" value={editingCampaign.contact || ''} onChange={(e) => setEditingCampaign({ ...editingCampaign, contact: e.target.value })} placeholder="默认填入你的 QQ 号" /></label>
         <label className="block text-xs font-bold">详细介绍<textarea className="bauhaus-input mt-1 w-full p-2 min-h-32" value={editingCampaign.description} onChange={(e) => setEditingCampaign({ ...editingCampaign, description: e.target.value })} placeholder={MARKDOWN_SUPPORT_HINT} /></label>
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCampaign(null)} className="bauhaus-btn bg-white px-4 py-2 text-xs">取消</button><button className="bauhaus-btn bg-[#004E98] text-white px-4 py-2 text-xs">保存修改</button></div>

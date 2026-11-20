@@ -374,7 +374,7 @@ export function App() {
   // Update existing campaign
   const handleUpdateCampaign = (updated: Campaign, fullEdit = false) => run(async () => {
     if (updated.batchId && !fullEdit) {
-      // 团务管理里普通 GM 改批量团：只同步简介、标签、封面和贴纸。
+      // 团务管理里普通 GM 改批量团：同步简介、标签、封面、贴纸和爱心资源引用。
       const prepared = await prepareCampaign(updated);
       await api.updateCampaign(updated.id, {
         description: prepared.description,
@@ -382,6 +382,7 @@ export function App() {
         customTags: prepared.customTags,
         imageKey: prepared.imageKey ?? null,
         ...(prepared.stickerKeys ? { stickerKeys: prepared.stickerKeys } : {}),
+        resourceRefs: prepared.resourceRefs || [],
       });
       return;
     }
