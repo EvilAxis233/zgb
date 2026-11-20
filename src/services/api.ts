@@ -59,6 +59,8 @@ export const api = {
   deleteResource: (id: string) => request<{ ok: boolean }>(`resources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   // 点赞 / 取消点赞：同一接口按当前状态切换，返回切换后的最新点赞数。
   toggleResourceLike: (id: string) => post<{ ok: boolean; liked: boolean; likesCount: number }>(`resources/${encodeURIComponent(id)}/like`),
+  /** 爱心资源点击计数：点标题打开外链时打点，游客也可统计。 */
+  clickResource: (id: string) => post<{ ok: boolean; clicksCount: number }>(`resources/${encodeURIComponent(id)}/click`),
   /** GM圆桌：公开读取规则页、主题、回复（回复为嵌套树）。 */
   roundtable: () => request<RoundtableSnapshot>('roundtable'),
   roundtableApply: (value: RoundtableApplyInput) => post<{ ok: boolean }>('roundtable/apply', value),

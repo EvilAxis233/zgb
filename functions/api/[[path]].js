@@ -261,6 +261,8 @@ const resourceDto = (r, viewerQq, admin, likedIds = null) => ({
   canManage: (!!viewerQq && viewerQq === r.uploader_qq) || !!admin,
   likesCount: Number(r.likes_count || 0),
   likedByMe: !!likedIds && likedIds.has(r.id),
+  // 累计点击（打开链接）次数，与点赞数并列展示。
+  clicksCount: Number(r.clicks || 0),
 });
 // 后台审核列表专用：管理员可以看到上传者 QQ、审核人与完整时间，不下发给普通访客。
 const adminResourceDto = (r) => ({
@@ -1600,6 +1602,16 @@ export async function onRequest(context) {
       const rows = binds.length ? await stmt.bind(...binds).all() : await stmt.all();
       const liked = await likedResourceIds(db, user?.qq);
       return json({ items: rows.results.map((r) => resourceDto(r, user?.qq, isSiteAdmin(user), liked)) });
+    }
+    // 爱心资源点击计数：公开接口（游客点击也算），仅累加次数，不记录是谁点的。
+    // 放在登录校验之前，否则未登录用户点标题外链会打点失败。
+    if (path[0] === 'resources' && path[1] && path[2] === 'click' && path.length === 3 && method === 'POST') {
+      const target = await db.prepare('SELECT id FROM rule_resources WHERE id=?').bind(path[1]).first();
+      if (!target) return fail('这条资源不存在或已被删除', 404);
+      const result = await db.prepare('UPDATE rule_resources SET clicks=clicks+1 WHERE id=?').bind(target.id).run();
+      if (!result.success) return fail('点击统计失败', 500);
+      const updated = await db.prepare('SELECT clicks FROM rule_resources WHERE id=?').bind(target.id).first();
+      return json({ ok: true, clicksCount: Number(updated?.clicks || 0) });
     }
     if (!user) return fail('请先登录', 401);
     if (path[0] === 'membership' && path.length === 2 && method === 'GET') {

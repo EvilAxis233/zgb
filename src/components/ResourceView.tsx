@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Loader2, Eye } from 'lucide-react';
 import type { RuleResource, RuleResourceInput, ResourceCategory, UserProfile } from '../types';
 import { api } from '../services/api';
 import { useDialog } from './BauhausDialog';
@@ -74,7 +74,7 @@ function HeartIcon({ size = 16, color = '#D62828' }: { size?: number; color?: st
 }
 
 /** 一条资源卡片。左上角可点赞并显示点赞数；上传者本人（或管理员）会看到「编辑」「删除」。 */
-export function ResourceCard({ item, onEdit, onDelete, showCategory = false, showUploader = true, onToggleLike, likeBusy = false }: {
+export function ResourceCard({ item, onEdit, onDelete, showCategory = false, showUploader = true, onToggleLike, likeBusy = false, onTrackClick }: {
   item: RuleResource;
   onEdit?: (item: RuleResource) => void;
   onDelete?: (item: RuleResource) => void;
@@ -83,27 +83,23 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false, sho
   showUploader?: boolean;
   onToggleLike?: (item: RuleResource) => void;
   likeBusy?: boolean;
+  // 打点成功后回传最新点击数，由父列表即时更新徽标。
+  onTrackClick?: (item: RuleResource) => void;
 }) {
   const href = safeHref(item.url);
   const likes = item.likesCount ?? 0;
+  const clicks = item.clicksCount ?? 0;
+  // 点标题打开外链时顺手打点；统计失败绝不挡住用户打开链接。
+  const trackClick = () => {
+    void api.clickResource(item.id)
+      .then((r) => onTrackClick?.({ ...item, clicksCount: r.clicksCount }))
+      .catch(() => {});
+  };
   return (
     <article className="bauhaus-card flex flex-col p-4">
-      {/* 左上角点赞按钮：心形 + 当前点赞数；已点赞时整块变红。 */}
+      {/* 左上角标签；右上角统计（眼睛=点击次数，心形=点赞）沿用 GM 圆桌同款的轻量 inline 样式。 */}
       <div className="mb-2 flex items-start justify-between gap-2">
-        {onToggleLike ? (
-          <button
-            type="button"
-            onClick={() => onToggleLike(item)}
-            disabled={likeBusy}
-            title={item.likedByMe ? '取消点赞' : '给这条分享点赞'}
-            aria-label={`${item.likedByMe ? '取消点赞' : '点赞'}，当前 ${likes} 个赞`}
-            className={`bauhaus-btn inline-flex shrink-0 cursor-pointer items-center gap-1 px-2 py-1 text-[11px] font-black shadow-[2px_2px_0px_#121212] disabled:opacity-60 ${item.likedByMe ? 'bg-[#D62828] text-white' : 'bg-white text-[#D62828] hover:bg-[#FAF0F0]'}`}
-          >
-            <HeartIcon size={13} color={item.likedByMe ? '#FFFFFF' : '#D62828'} />
-            <span>{likes}</span>
-          </button>
-        ) : <span />}
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+        <div className="flex min-w-0 flex-wrap items-start justify-start gap-1">
           {item.reviewStatus && item.reviewStatus !== 'approved' && (
             <span className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${REVIEW_STYLE[item.reviewStatus] || REVIEW_STYLE.pending}`}>{REVIEW_LABEL[item.reviewStatus] || '待审核'}</span>
           )}
@@ -113,10 +109,27 @@ export function ResourceCard({ item, onEdit, onDelete, showCategory = false, sho
           ))}
           <span className={`border-2 border-[#121212] px-1.5 py-0.5 text-[10px] font-black ${TYPE_STYLE[item.type]}`}>{TYPE_LABEL[item.type]}</span>
         </div>
+        <div className="flex shrink-0 items-center gap-2.5 text-[11px] text-[#666]">
+          <span className="flex items-center gap-1" title="标题链接被点击的次数" aria-label={`已被点击 ${clicks} 次`}>
+            <Eye className="h-3 w-3" />{clicks}
+          </span>
+          {onToggleLike && (
+            <button
+              type="button"
+              onClick={() => onToggleLike(item)}
+              disabled={likeBusy}
+              title={item.likedByMe ? '取消点赞' : '给这条分享点赞'}
+              aria-label={`${item.likedByMe ? '取消点赞' : '点赞'}，当前 ${likes} 个赞`}
+              className={`flex items-center gap-1 font-black transition-colors disabled:opacity-60 ${item.likedByMe ? 'text-[#D62828]' : 'text-[#666] hover:text-[#D62828]'}`}
+            >
+              <HeartIcon size={13} color="currentColor" />{likes}
+            </button>
+          )}
+        </div>
       </div>
       <h3 className="min-w-0 break-words text-base font-black leading-snug text-[#121212]">
         {href
-          ? <a href={href} target="_blank" rel="noopener noreferrer" title="打开链接" className="underline decoration-2 underline-offset-4 hover:text-[#004E98] hover:decoration-[#004E98]">
+          ? <a href={href} target="_blank" rel="noopener noreferrer" title="打开链接" onClick={trackClick} className="underline decoration-2 underline-offset-4 hover:text-[#004E98] hover:decoration-[#004E98]">
               {item.name}
             </a>
           : <span>{item.name}</span>}
@@ -377,7 +390,7 @@ export function ResourceView({ currentUser, onOpenLogin }: { currentUser: UserPr
       )}
       {!loading && !error && items.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} onToggleLike={toggleLike} likeBusy={likeBusy === item.id} />)}
+          {items.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} onToggleLike={toggleLike} likeBusy={likeBusy === item.id} onTrackClick={(updated) => setItems((prev) => prev.map((x) => x.id === updated.id ? updated : x))} />)}
         </div>
       )}
 
@@ -478,7 +491,7 @@ export function MyResourcesModal({ onClose, onGoResources }: { onClose: () => vo
               {filtered.length === 0
                 ? <p className="bauhaus-card border-dashed p-10 text-center text-sm font-bold text-[#666]">没有匹配「{query.trim()}」的分享，换个关键词试试。</p>
                 : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {filtered.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory showUploader={false} onToggleLike={toggleLike} likeBusy={likeBusy === item.id} />)}
+                    {filtered.map((item) => <ResourceCard key={item.id} item={item} onEdit={setEditor} onDelete={remove} showCategory showUploader={false} onToggleLike={toggleLike} likeBusy={likeBusy === item.id} onTrackClick={(updated) => setItems((prev) => prev.map((x) => x.id === updated.id ? updated : x))} />)}
                   </div>}
             </>
           )}

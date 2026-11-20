@@ -170,6 +170,8 @@ export interface RuleResource {
   // 爱心资源点赞：卡片左上角显示数量，当前登录用户是否已点过。
   likesCount: number;
   likedByMe: boolean;
+  // 爱心资源点击：累计打开链接次数，与点赞数并列展示。
+  clicksCount: number;
 }
 
 export interface RuleResourceInput {

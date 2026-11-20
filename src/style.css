@@ -294,6 +294,10 @@ html[data-theme="dark"] [class~="bg-[#EAF3FB]"],
 html[data-theme="dark"] [class~="bg-[#D9EAF8]"] {
   background-color: #202F42 !important;
 }
+/* 爱心资源 tag 浅底：在线查询/转载浅蓝、自译浅绿、机翻浅紫 */
+html[data-theme="dark"] [class~="bg-[#E6F0FA]"] { background-color: #202F42 !important; }
+html[data-theme="dark"] [class~="bg-[#E7F4E9]"] { background-color: #1E3A31 !important; }
+html[data-theme="dark"] [class~="bg-[#F3E9FA]"] { background-color: #342A42 !important; }
 html[data-theme="dark"] [class~="bg-[#FAF0F0]"],
 html[data-theme="dark"] [class~="bg-[#FFF9F9]"],
 html[data-theme="dark"] [class~="bg-[#FFF0F0]"],
@@ -358,7 +362,12 @@ html[data-theme="dark"] [class~="text-[#D62828]"] { color: var(--zgb-red) !impor
 html[data-theme="dark"] [class~="text-[#B51F1F]"] { color: #FFAAAA !important; }
 html[data-theme="dark"] [class~="text-[#004E98]"] { color: var(--zgb-blue) !important; }
 html[data-theme="dark"] [class~="text-[#5C4300]"],
-html[data-theme="dark"] [class~="text-[#7A4B00]"] { color: var(--zgb-gold) !important; }
+html[data-theme="dark"] [class~="text-[#7A4B00]"],
+html[data-theme="dark"] [class~="text-[#8A5A00]"] { color: var(--zgb-gold) !important; }
+/* 爱心资源 tag 文字：原创/自译深绿 → 亮绿，机翻深紫 → 亮紫，网络搜集棕灰 → 暖灰 */
+html[data-theme="dark"] [class~="text-[#1B7A3D]"] { color: #7FD1AB !important; }
+html[data-theme="dark"] [class~="text-[#7A2E9E]"] { color: #C9A6F0 !important; }
+html[data-theme="dark"] [class~="text-[#5B5646]"] { color: #CFC6B4 !important; }
 /* 绿色成功色在深底上要提亮，否则「已解决 / 已复制」这类字看不清 */
 html[data-theme="dark"] [class~="text-[#176B57]"] { color: #7FD1AB !important; }
 
