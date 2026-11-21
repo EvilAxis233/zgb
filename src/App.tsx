@@ -24,6 +24,7 @@ import { useChatInbox, CustomerServiceEntry, CustomerServiceDialog } from './com
 import { InstructionsModal } from './components/InstructionsModal';
 import { TicketsModal } from './components/TicketsModal';
 import { SubmissionModal } from './components/SubmissionModal';
+import { TableWhiteboardView } from './components/TableWhiteboardView';
 import { parseTimeSchedule, formatPeriod, TimePeriod } from './utils/date';
 
 import { Search, AlertCircle, CheckCircle2, Sparkles, Clock, LoaderCircle, Plus, Briefcase, UserRound, MessageSquareText, Flag } from 'lucide-react';
@@ -37,7 +38,7 @@ interface ToastState {
 // 首页形态③轮播预览开关：true=横向卡片轮播，false=旧版通栏按钮。
 const PORTAL_CAROUSEL = true;
 
-type AppTab = 'board' | 'profile' | 'manage' | 'resources' | 'roundtable';
+type AppTab = 'board' | 'profile' | 'manage' | 'resources' | 'roundtable' | 'table';
 type BoardView = 'portal' | 'online' | 'offline' | 'promo';
 
 // 地址栏 ?view= 与页面状态一一对应：刷新、复制链接、报名通知邮件里的按钮都落在同一页。
@@ -51,6 +52,7 @@ const VIEW_STATE: Record<string, { tab: AppTab; board: BoardView }> = {
   manage: { tab: 'manage', board: 'portal' },
   resources: { tab: 'resources', board: 'portal' },
   roundtable: { tab: 'roundtable', board: 'portal' },
+  table: { tab: 'table', board: 'portal' },
 };
 
 const readUrlView = () => VIEW_STATE[new URLSearchParams(window.location.search).get('view') || 'board'] || VIEW_STATE.board;
@@ -750,7 +752,7 @@ export function App() {
     return enrichedCampaigns.filter((campaign) => campaign.isSignedUp);
   }, [enrichedCampaigns, currentUser]);
 
-  const isSectionView = (activeTab === 'board' && boardView !== 'portal') || activeTab === 'resources' || activeTab === 'roundtable';
+  const isSectionView = (activeTab === 'board' && boardView !== 'portal') || activeTab === 'resources' || activeTab === 'roundtable' || activeTab === 'table';
   const isCarouselPortal = PORTAL_CAROUSEL && activeTab === 'board' && boardView === 'portal';
   const mainContainerMaxWidth = isSectionView
     ? 'max-w-[1760px]'
@@ -1076,6 +1078,7 @@ export function App() {
 
         {/* VIEW 5: GM圆桌（主题讨论频道，可引用爱心资源，支持讨论回复与举报） */}
         {activeTab === 'roundtable' && <GmRoundTableView currentUserQq={currentUserQq} isAdmin={!!currentUser?.role} onReport={(author) => openSubmission('report', author)} />}
+        {activeTab === 'table' && <TableWhiteboardView currentUser={currentUser} onNeedLogin={() => setIsLoginOpen(true)} />}
       </main>
 
       {/* 猪猪客服对话窗：全局常驻，顶栏铃铛 / 首页提示条 / 首页客服块都能唤起 */}

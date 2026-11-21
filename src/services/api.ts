@@ -109,7 +109,18 @@ export const api = {
   chatThread: () => request<{ messages: ChatMessage[] }>('chat/thread'),
   sendChat: (content: string) => post<{ ok: boolean; message: ChatMessage }>('chat/send', { content }),
   clearChat: () => request('chat/thread', { method: 'DELETE' }),
+  // 联机白板
+  tableRooms: () => request<{ rooms: TableRoom[] }>('table'),
+  createTableRoom: (name: string) => post<{ room: TableRoom }>('table', { name }),
+  tableRoom: (id: string, since?: string) => request<TableSnapshot>(`table/${encodeURIComponent(id)}${since ? `?since=${encodeURIComponent(since)}` : ''}`),
+  deleteTableRoom: (id: string) => request(`table/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  saveTableScene: (id: string, elements: unknown[], version: number) => post<{ ok: boolean; conflict?: boolean; version: number }>(`table/${encodeURIComponent(id)}/scene`, { elements, version }),
+  sendTableMessage: (id: string, kind: 'chat' | 'dice', payload: unknown) => post<{ ok: boolean; message: TableMessage }>(`table/${encodeURIComponent(id)}/message`, { kind, payload }),
 };
+
+export interface TableRoom { id: string; name: string; ownerQq: string; createdAt: string; updatedAt: string; lastActiveAt: string }
+export interface TableMessage { id: string; kind: 'chat' | 'dice'; author: string; avatar: string; userQq: string; payload: { text?: string; dice?: Array<{ sides: number; value: number }>; note?: string }; createdAt: string }
+export interface TableSnapshot { room: TableRoom; scene: { elements: unknown[]; version: number }; messages: TableMessage[]; serverTime: string }
 
 export interface RoundtableResourceRef { id: string; name: string; url: string }
 export interface RoundtableReply {

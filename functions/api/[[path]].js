@@ -1452,6 +1452,110 @@ export async function onRequest(context) {
       }
       return fail('接口不存在', 404);
     }
+    // === 联机白板：房间 / 画布 / 聊天 / 骰子（需登录）===
+    // 轮询版协作：场景用 version 乐观锁，消息按 id 游标增量拉取，无需 WebSocket。
+    if (path[0] === 'table') {
+      const user = await auth(request, db);
+      if (!user) return fail('请先登录后再使用联机白板', 401);
+      const iso = () => new Date().toISOString();
+      const roomDto = (r) => ({ id: r.id, name: r.name, ownerQq: r.owner_qq, createdAt: r.created_at, updatedAt: r.updated_at, lastActiveAt: r.last_active_at });
+      const messageDto = (m) => ({ id: m.id, kind: m.kind, author: m.author, avatar: assetUrl(m.author_avatar), userQq: m.user_qq, payload: parseJsonSafe(m.payload) || {}, createdAt: m.created_at });
+      // 房间列表：只列自己创建或最近参与过的房间，按最后活跃时间倒序。
+      if (path.length === 1 && method === 'GET') {
+        const owned = await db.prepare('SELECT * FROM table_rooms WHERE owner_qq=? ORDER BY last_active_at DESC LIMIT 50').bind(user.qq).all();
+        const joined = await db.prepare(`SELECT r.* FROM table_rooms r
+          WHERE r.id IN (SELECT DISTINCT room_id FROM table_messages WHERE user_qq=?)
+          ORDER BY r.last_active_at DESC LIMIT 50`).bind(user.qq).all();
+        const seen = new Set(), rooms = [];
+        for (const r of [...owned.results, ...joined.results]) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          rooms.push(roomDto(r));
+        }
+        rooms.sort((a, b) => String(b.last_active_at).localeCompare(String(a.last_active_at)));
+        return json({ rooms: rooms.slice(0, 60) });
+      }
+      // 创建房间：同时初始化一条空场景。
+      if (path.length === 1 && method === 'POST') {
+        const b = await body(request);
+        const name = clean(String(b?.name || ''), 40) || `${user.name}的房间`;
+        const rid = id(), ts = iso();
+        await db.batch([
+          db.prepare('INSERT INTO table_rooms(id,name,owner_qq,created_at,updated_at,last_active_at) VALUES(?,?,?,?,?,?)').bind(rid, name, user.qq, ts, ts, ts),
+          db.prepare('INSERT INTO table_scenes(room_id,elements,version,updated_at) VALUES(?,?,0,?)').bind(rid, '[]', ts)
+        ]);
+        return json({ room: roomDto({ id: rid, name, owner_qq: user.qq, created_at: ts, updated_at: ts, last_active_at: ts }) });
+      }
+      if (path[1] && path.length >= 2) {
+        const room = await db.prepare('SELECT * FROM table_rooms WHERE id=?').bind(path[1]).first();
+        if (!room) return fail('房间不存在或已解散', 404);
+        // 读房间：场景 + 最近消息。带 since 游标时只返回新消息，减少轮询流量。
+        if (path.length === 2 && method === 'GET') {
+          const scene = await db.prepare('SELECT * FROM table_scenes WHERE room_id=?').bind(room.id).first();
+          const url0 = new URL(request.url);
+          const since = clean(url0.searchParams.get('since') || '', 40);
+          const msgs = since
+            ? await db.prepare('SELECT * FROM table_messages WHERE room_id=? AND created_at>? ORDER BY created_at,id LIMIT 200').bind(room.id, since).all()
+            : await db.prepare('SELECT * FROM table_messages WHERE room_id=? ORDER BY created_at DESC,id DESC LIMIT 80').bind(room.id).all();
+          const list = msgs.results.reverse().map(messageDto);
+          return json({
+            room: roomDto(room),
+            scene: { elements: parseJsonSafe(scene?.elements) || [], version: Number(scene?.version || 0) },
+            messages: list,
+            serverTime: iso()
+          });
+        }
+        // 解散房间：仅房主。连带删场景与消息。
+        if (path.length === 2 && method === 'DELETE') {
+          if (room.owner_qq !== user.qq && !isSiteAdmin(user)) return fail('只有房主可以解散房间', 403);
+          await db.batch([
+            db.prepare('DELETE FROM table_rooms WHERE id=?').bind(room.id),
+            db.prepare('DELETE FROM table_scenes WHERE room_id=?').bind(room.id),
+            db.prepare('DELETE FROM table_messages WHERE room_id=?').bind(room.id)
+          ]);
+          return json({ ok: true });
+        }
+        // 保存画布：version 必须 >= 服务端当前版本，避免旧客户端覆盖新内容。
+        if (path[2] === 'scene' && path.length === 3 && method === 'POST') {
+          const b = await body(request);
+          const raw = JSON.stringify(b?.elements ?? []);
+          if (raw.length > 2_000_000) return fail('画布内容过大，请减少元素', 413);
+          const elements = parseJsonSafe(raw) || [];
+          if (!Array.isArray(elements) || elements.length > 3000) return fail('画布元素过多', 413);
+          const clientVersion = Math.max(0, Math.floor(Number(b?.version) || 0));
+          const cur = await db.prepare('SELECT version FROM table_scenes WHERE room_id=?').bind(room.id).first();
+          if (!cur) await db.prepare('INSERT INTO table_scenes(room_id,elements,version,updated_at) VALUES(?,?,?,?)').bind(room.id, raw, clientVersion + 1, iso()).run();
+          else {
+            if (clientVersion < Number(cur.version || 0)) return json({ ok: false, conflict: true, version: Number(cur.version || 0) });
+            await db.prepare('UPDATE table_scenes SET elements=?,version=?,updated_at=? WHERE room_id=?').bind(raw, Number(cur.version || 0) + 1, iso(), room.id).run();
+          }
+          await db.prepare('UPDATE table_rooms SET updated_at=?,last_active_at=? WHERE id=?').bind(iso(), iso(), room.id).run();
+          const fresh = await db.prepare('SELECT version FROM table_scenes WHERE room_id=?').bind(room.id).first();
+          return json({ ok: true, version: Number(fresh?.version || 0) });
+        }
+        // 发消息：kind=chat（文本）/ dice（骰子结果），payload 为 JSON 对象。
+        if (path[2] === 'message' && path.length === 3 && method === 'POST') {
+          const b = await body(request);
+          const kind = b?.kind === 'dice' ? 'dice' : 'chat';
+          const payload = b?.payload && typeof b.payload === 'object' ? b.payload : {};
+          if (kind === 'chat' && !clean(String(payload.text || ''), 1000)) return fail('消息不能为空');
+          if (kind === 'dice') {
+            const dice = Array.isArray(payload.dice) ? payload.dice.slice(0, 20) : [];
+            if (!dice.length) return fail('骰子数据无效');
+          }
+          const mid = id(), ts = iso();
+          const safePayload = JSON.stringify(kind === 'chat' ? { text: clean(String(payload.text || ''), 1000) } : { dice: (payload.dice || []).slice(0, 20).map((d) => ({ sides: Math.min(1000, Math.max(2, Math.floor(Number(d?.sides) || 6))), value: Math.min(1000, Math.max(1, Math.floor(Number(d?.value) || 1))) })), note: clean(String(payload.note || ''), 60) });
+          await db.batch([
+            db.prepare('INSERT INTO table_messages(id,room_id,user_qq,author,author_avatar,kind,payload,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(mid, room.id, user.qq, clean(user.name || user.qq, 40), user.avatar_key || '', kind, safePayload, ts),
+            db.prepare('UPDATE table_rooms SET last_active_at=? WHERE id=?').bind(ts, room.id)
+          ]);
+          // 每个房间最多留 500 条消息，防止无限增长。
+          await db.prepare('DELETE FROM table_messages WHERE room_id=? AND id NOT IN (SELECT id FROM table_messages WHERE room_id=? ORDER BY created_at DESC,id DESC LIMIT 500)').bind(room.id, room.id).run();
+          return json({ ok: true, message: messageDto({ id: mid, kind, author: clean(user.name || user.qq, 40), author_avatar: user.avatar_key || '', user_qq: user.qq, payload: safePayload, created_at: ts }) });
+        }
+      }
+      return fail('接口不存在', 404);
+    }
     // === 猪猪客服：玩家侧对话（需登录）===
     if (path[0] === 'chat') {
       const user = await auth(request, db);

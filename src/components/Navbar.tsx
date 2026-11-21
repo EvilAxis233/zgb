@@ -17,9 +17,9 @@ import {
 
 interface NavbarProps {
   currentUser: UserProfile | null;
-  activeTab: 'board' | 'profile' | 'manage' | 'resources' | 'roundtable';
+  activeTab: 'board' | 'profile' | 'manage' | 'resources' | 'roundtable' | 'table';
   boardView: 'portal' | 'online' | 'offline' | 'promo';
-  setActiveTab: (tab: 'board' | 'profile' | 'manage' | 'resources' | 'roundtable') => void;
+  setActiveTab: (tab: 'board' | 'profile' | 'manage' | 'resources' | 'roundtable' | 'table') => void;
   setBoardView: (view: 'portal' | 'online' | 'offline' | 'promo') => void;
   onDailyCheckIn: () => void;
   onOpenLogin: () => void;
@@ -316,6 +316,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'roundtable' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
           >
             GM圆桌
+          </button>
+          {/* 联机白板：GM圆桌之后 */}
+          <button
+            type="button"
+            onClick={() => { setIsDropdownOpen(false); setActiveTab('table'); }}
+            aria-current={activeTab === 'table' ? 'page' : undefined}
+            className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'table' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
+          >
+            联机白板
           </button>
         </nav>
         <div className="self-center lg:justify-self-center">{logoContent}</div>
