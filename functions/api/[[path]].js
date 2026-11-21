@@ -146,6 +146,33 @@ async function syncResourceRefSnapshots(db, resourceId, name, url) {
   for (let i = 0; i < statements.length; i += 200) await db.batch(statements.slice(i, i + 200));
   return statements.length;
 }
+// 爱心资源被删除时，把团详情 / 圆桌主题 / 圆桌申请里对它的引用一并移除，避免留下点开 404 的 chip。
+async function removeResourceRefSnapshots(db, resourceId) {
+  const targets = [
+    ['campaigns', 'resource_refs'],
+    ['roundtable_topics', 'resources'],
+    ['roundtable_applies', 'resources']
+  ];
+  const needle = `%"id":"${resourceId}"%`;
+  const statements = [];
+  for (const [table, column] of targets) {
+    let rows;
+    try {
+      rows = await db.prepare(`SELECT id, ${column} AS refs FROM ${table} WHERE ${column} LIKE ?`).bind(needle).all();
+    } catch { continue; }
+    for (const row of rows.results || []) {
+      let refs;
+      try { refs = JSON.parse(row.refs || '[]'); } catch { continue; }
+      if (!Array.isArray(refs)) continue;
+      const next = refs.filter((r) => r && r.id !== resourceId);
+      if (next.length !== refs.length) {
+        statements.push(db.prepare(`UPDATE ${table} SET ${column}=? WHERE id=?`).bind(JSON.stringify(next), row.id));
+      }
+    }
+  }
+  for (let i = 0; i < statements.length; i += 200) await db.batch(statements.slice(i, i + 200));
+  return statements.length;
+}
 // 编辑团时补充贴纸：可来自个人贴纸库，也可以是发车/编辑时现场上传裁剪的图。
 // 与封面图同口径：key 格式合法且文件真实存在于 R2 即可；null 表示恢复默认佩戴。
 async function resolveStickerOverride(db, env, editor, gmQq, input) {
@@ -1293,6 +1320,9 @@ export async function onRequest(context) {
         const result = await db.prepare('DELETE FROM rule_resources WHERE id=?').bind(path[2]).run();
         if (!result.meta.changes) return fail('资源不存在', 404);
         await db.prepare('DELETE FROM resource_likes WHERE resource_id=?').bind(path[2]).run();
+        // 资源删了，团详情 / 圆桌里对它的引用也要一起撤掉。
+        try { await removeResourceRefSnapshots(db, path[2]); }
+        catch (e) { console.error('removeResourceRefSnapshots failed:', e); }
         return json({ ok: true });
       }
       // 后台「客服系统」→ 猪猪客服对话
@@ -1902,6 +1932,9 @@ export async function onRequest(context) {
           db.prepare('DELETE FROM rule_resources WHERE id=?').bind(row.id),
           db.prepare('DELETE FROM resource_likes WHERE resource_id=?').bind(row.id)
         ]);
+        // 资源删了，团详情 / 圆桌里对它的引用也要一起撤掉。
+        try { await removeResourceRefSnapshots(db, row.id); }
+        catch (e) { console.error('removeResourceRefSnapshots failed:', e); }
         return json({ ok: true });
       }
       const input = resourceInput(await body(request), row);
