@@ -38,6 +38,10 @@ interface ToastState {
 // 首页形态③轮播预览开关：true=横向卡片轮播，false=旧版通栏按钮。
 const PORTAL_CAROUSEL = true;
 
+// 联机白板总开关：false=暂不开放（导航入口隐藏、?view=table 直达失效），代码与数据完整保留。
+// 想重新开放时把它改成 true 即可，无需重做。
+const TABLE_ENABLED = false;
+
 type AppTab = 'board' | 'profile' | 'manage' | 'resources' | 'roundtable' | 'table';
 type BoardView = 'portal' | 'online' | 'offline' | 'promo';
 
@@ -55,7 +59,12 @@ const VIEW_STATE: Record<string, { tab: AppTab; board: BoardView }> = {
   table: { tab: 'table', board: 'portal' },
 };
 
-const readUrlView = () => VIEW_STATE[new URLSearchParams(window.location.search).get('view') || 'board'] || VIEW_STATE.board;
+const readUrlView = () => {
+  const key = new URLSearchParams(window.location.search).get('view') || 'board';
+  // 白板未开放时，?view=table 直接回落到首页，避免旧邀请链接把人带进隐藏页。
+  if (!TABLE_ENABLED && key === 'table') return VIEW_STATE.board;
+  return VIEW_STATE[key] || VIEW_STATE.board;
+};
 
 const viewKeyOf = (tab: AppTab, board: BoardView) => (tab === 'board' ? (board === 'portal' ? 'board' : board) : tab);
 
@@ -1078,7 +1087,7 @@ export function App() {
 
         {/* VIEW 5: GM圆桌（主题讨论频道，可引用爱心资源，支持讨论回复与举报） */}
         {activeTab === 'roundtable' && <GmRoundTableView currentUserQq={currentUserQq} isAdmin={!!currentUser?.role} onReport={(author) => openSubmission('report', author)} />}
-        {activeTab === 'table' && <TableWhiteboardView currentUser={currentUser} onNeedLogin={() => setIsLoginOpen(true)} />}
+        {TABLE_ENABLED && activeTab === 'table' && <TableWhiteboardView currentUser={currentUser} onNeedLogin={() => setIsLoginOpen(true)} />}
       </main>
 
       {/* 猪猪客服对话窗：全局常驻，顶栏铃铛 / 首页提示条 / 首页客服块都能唤起 */}

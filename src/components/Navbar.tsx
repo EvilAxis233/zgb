@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   UserRound,
+  ClipboardList,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -185,6 +186,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>个人档案</span>
             </button>
 
+            {/* 团务管理：紧跟「个人档案」 */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsDropdownOpen(false);
+                if (currentUser) setActiveTab('manage');
+                else onOpenLogin();
+              }}
+              className="w-full px-4 py-2 text-left text-xs font-bold text-[#121212] hover:bg-[#121212] hover:text-white flex items-center gap-2.5 cursor-pointer transition-colors"
+            >
+              <ClipboardList className="w-4 h-4 text-current" />
+              <span>团务管理</span>
+            </button>
+
             {/* 使用说明 */}
             <button
               type="button"
@@ -286,20 +301,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {label}
             </button>
           ))}
-          {/* 团务管理：常驻入口，紧跟在「宣群」右侧 */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsDropdownOpen(false);
-              if (currentUser) setActiveTab('manage');
-              else onOpenLogin();
-            }}
-            aria-current={activeTab === 'manage' ? 'page' : undefined}
-            className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'manage' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
-          >
-            团务管理
-          </button>
-          {/* 爱心资源：紧跟团务管理 */}
+          {/* 爱心资源：紧跟「宣群」 */}
           <button
             type="button"
             onClick={() => { setIsDropdownOpen(false); setActiveTab('resources'); }}
@@ -316,15 +318,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'roundtable' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
           >
             GM圆桌
-          </button>
-          {/* 联机白板：GM圆桌之后 */}
-          <button
-            type="button"
-            onClick={() => { setIsDropdownOpen(false); setActiveTab('table'); }}
-            aria-current={activeTab === 'table' ? 'page' : undefined}
-            className={`bauhaus-btn h-8 sm:h-9 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-black cursor-pointer ${activeTab === 'table' ? 'bg-[#121212] text-white' : 'bg-white text-[#121212] hover:bg-[#FAF9F5]'}`}
-          >
-            联机白板
           </button>
         </nav>
         <div className="self-center lg:justify-self-center">{logoContent}</div>
