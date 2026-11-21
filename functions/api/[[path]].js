@@ -113,6 +113,39 @@ const sanitizeResourceRefs = (value) => {
   })).filter((item) => item.id && item.name && /^https?:\/\//i.test(item.url)) : [];
   return JSON.stringify(refs);
 };
+// 爱心资源引用是 id/name/url 快照；资源改名/改链接后必须回写引用处，
+// 否则团详情弹窗、GM 圆桌主题会一直显示旧链接。编辑资源是低频操作，逐表精筛即可。
+async function syncResourceRefSnapshots(db, resourceId, name, url) {
+  const targets = [
+    ['campaigns', 'resource_refs'],
+    ['roundtable_topics', 'resources'],
+    ['roundtable_applies', 'resources']
+  ];
+  const needle = `%"id":"${resourceId}"%`;
+  const statements = [];
+  for (const [table, column] of targets) {
+    let rows;
+    try {
+      rows = await db.prepare(`SELECT id, ${column} AS refs FROM ${table} WHERE ${column} LIKE ?`).bind(needle).all();
+    } catch { continue; }
+    for (const row of rows.results || []) {
+      let refs;
+      try { refs = JSON.parse(row.refs || '[]'); } catch { continue; }
+      if (!Array.isArray(refs)) continue;
+      let changed = false;
+      const next = refs.map((r) => {
+        if (!r || r.id !== resourceId) return r;
+        const item = { ...r };
+        if (item.name !== name) { item.name = name; changed = true; }
+        if (item.url !== url) { item.url = url; changed = true; }
+        return item;
+      });
+      if (changed) statements.push(db.prepare(`UPDATE ${table} SET ${column}=? WHERE id=?`).bind(JSON.stringify(next), row.id));
+    }
+  }
+  for (let i = 0; i < statements.length; i += 200) await db.batch(statements.slice(i, i + 200));
+  return statements.length;
+}
 // 编辑团时补充贴纸：可来自个人贴纸库，也可以是发车/编辑时现场上传裁剪的图。
 // 与封面图同口径：key 格式合法且文件真实存在于 R2 即可；null 表示恢复默认佩戴。
 async function resolveStickerOverride(db, env, editor, gmQq, input) {
@@ -1885,6 +1918,12 @@ export async function onRequest(context) {
       await db.prepare('UPDATE rule_resources SET name=?,url=?,type=?,note=?,flags=?,category=?,review_status=?,review_note=?,reviewed_at=?,reviewed_by=?,updated_at=? WHERE id=?')
         .bind(input.name, input.url, input.type, input.note, input.flags, input.category,
           nextStatus, nextNote, nextReviewedAt, nextReviewedBy, iso, row.id).run();
+      // 改了名称或链接就同步所有引用处，避免团详情 / 圆桌主题显示旧快照。
+      // 同步失败不能反过来影响资源本身的保存。
+      if (urlChanged || input.name !== (row.name || '')) {
+        try { await syncResourceRefSnapshots(db, row.id, input.name, input.url); }
+        catch (e) { console.error('syncResourceRefSnapshots failed:', e); }
+      }
       const updated = await db.prepare(`${resourceSelect} WHERE r.id=?`).bind(row.id).first();
       const liked = await likedResourceIds(db, user.qq);
       return json({ item: resourceDto(updated, user.qq, adminEdit, liked) });
